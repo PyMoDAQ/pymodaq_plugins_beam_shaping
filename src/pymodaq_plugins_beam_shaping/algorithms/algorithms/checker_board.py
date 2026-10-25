@@ -5,7 +5,7 @@ Created the 20/07/2023
 @author: Sebastien Weber
 """
 from pathlib import Path
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, TYPE_CHECKING
 
 import numpy as np
 from copy import deepcopy
@@ -20,6 +20,10 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
+
+if TYPE_CHECKING:
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+
 
 logger = set_logger(get_module_name(__file__))
 plugin_config = PluginConfig()
