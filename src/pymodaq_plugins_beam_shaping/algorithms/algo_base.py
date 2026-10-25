@@ -113,7 +113,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             slices = self.get_mask_slices(apply_to)
 
             if self.get_mask_type(apply_to) == MaskType.SQUARE:
-                mask[*slices] = inner_value
+                mask[tuple(slices)] = inner_value
             else:
                 x = np.arange(0, self._target_field.shape[1], 1)
                 y = np.arange(0, self._target_field.shape[0], 1)
@@ -250,8 +250,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             slices = self.get_mask_slices(ApplyMaskTo.TARGET)
         else:
             slices = (...,)
-        return 1- np.sqrt(np.abs(np.sum(np.conj(self._target_field.field[*slices]) * self._output_field.field[*slices])) ** 2 /
-                          (np.sum(self._target_field.intensity[*slices] ** 2)))
+        return 1- np.sqrt(np.abs(np.sum(np.conj(self._target_field.field[tuple(slices)]) * self._output_field.field[tuple(slices)])) ** 2 /
+                          (np.sum(self._target_field.intensity[tuple(slices)] ** 2)))
 
     @property
     def nrmse(self) -> float:
@@ -263,8 +263,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
 
         return np.sqrt(1 / norm * (
                 np.sum(
-                    (self._target_field.intensity[*slices] - self._output_field.intensity[*slices]) ** 2) /
-                np.sum(self._target_field.intensity[*slices] ** 2)))
+                    (self._target_field.intensity[tuple(slices)] - self._output_field.intensity[tuple(slices)]) ** 2) /
+                np.sum(self._target_field.intensity[tuple(slices)] ** 2)))
 
     @property
     def efficiency(self) -> float:
@@ -279,7 +279,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         else:
             slices = (...,)
 
-        return (np.sum(self._output_field.intensity[*slices]) /
+        return (np.sum(self._output_field.intensity[tuple(slices)]) /
                 np.sum(self._output_field.intensity))
 
     def fitness_as_dwa(self):

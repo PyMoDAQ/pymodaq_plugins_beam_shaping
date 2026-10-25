@@ -187,10 +187,10 @@ class BeamShaping(CustomExt):
             phase_to_send = 0.
             if send_to_shaper or with_corrections:
                 if send_to_shaper:
-                    phase_to_send = phase_to_send + field.phase_as_dwa()[0][*self.get_slm_slices()]
+                    phase_to_send = phase_to_send + field.phase_as_dwa()[0][tuple(self.get_slm_slices())]
                 if with_corrections:
                     if self._correction_phase is not None:
-                        phase_to_send = phase_to_send + self._correction_phase[0][*self.get_slm_slices()]
+                        phase_to_send = phase_to_send + self._correction_phase[0][tuple(self.get_slm_slices())]
                 phase_to_send = sizing.unbin_to_real_slm(phase_to_send)
                 if self.shaper.has_internal_calibration and self.shaper.use_internal_calibration:
                     phase_dwa = DataShaper('phase', data=[phase_to_send], as_grey_levels=False)
@@ -225,11 +225,11 @@ class BeamShaping(CustomExt):
             zernike_phase = self._corrections.compute_zernike_phase(correction_values.zernike)
             dte = DataToExport('SLM Phases')
             if self._modulator_field is not None:
-                dte.append(self._modulator_field.phase_as_dwa(name='Algo Phase').isig[*self.get_slm_slices()])
+                dte.append(self._modulator_field.phase_as_dwa(name='Algo Phase').isig[tuple(self.get_slm_slices())])
 
-            dte.append(DataCalculated('Quadratic Phase', data=[quad_phase_array[*self.get_slm_slices()]]),)
-            dte.append(DataCalculated('Linear Phase', data=[linear_phase_array[*self.get_slm_slices()]]),)
-            dte.append(DataCalculated('Zernike Phase', data=[zernike_phase[*self.get_slm_slices()]]))
+            dte.append(DataCalculated('Quadratic Phase', data=[quad_phase_array[tuple(self.get_slm_slices())]]),)
+            dte.append(DataCalculated('Linear Phase', data=[linear_phase_array[tuple(self.get_slm_slices())]]),)
+            dte.append(DataCalculated('Zernike Phase', data=[zernike_phase[tuple(self.get_slm_slices())]]))
 
             with DataToExportSaver(fname, metadata={'settings': plugin_config.to_xml_string()}) as h5saver:
                 group = h5saver.add_data_group('/RawData', DataDim.Data2D, title='SLM Phases', group_name='SLM')
@@ -651,7 +651,7 @@ class BeamShaping(CustomExt):
             self.intermediate_widget.showMaximized()
         self.intermediate_widget.closeEvent = lambda event: self.get_action('show_intermediate').trigger()
 
-    def quit_fun(self):
+    def _quit_fun(self) -> bool:
 
         save_layout_state(self.dockarea, file=layout_path.joinpath('shaping.dock'))
 
@@ -660,8 +660,7 @@ class BeamShaping(CustomExt):
         self.intermediate_widget.close()
         self.other_plots_widget.close()
         QtWidgets.QApplication.processEvents()  # allows the dashboard modules to close properly
-
-        super().quit_fun()
+        return True
 
 
 def main():

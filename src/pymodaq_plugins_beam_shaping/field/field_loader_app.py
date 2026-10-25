@@ -415,7 +415,7 @@ class FieldLoaderApp(CustomApp):
 
         else:
             if self.get_mask_type() == MaskType.SQUARE:
-                mask[*slices] = inner_value
+                mask[tuple(slices)] = inner_value
             else:
                 xx, yy = np.meshgrid(x, y)
                 mask[
@@ -440,7 +440,7 @@ class FieldLoaderApp(CustomApp):
 
         slices = (slice(max(0, center[0] - size[0] // 2), min(shape[0], center[0] + size[0] // 2)),
                   slice(max(0, center[1] - size[1] // 2), min(shape[1], center[1] + size[1] // 2)))
-        return field.isig[*slices]
+        return field.isig[tuple(slices)]
 
     @staticmethod
     def get_npad_between(first_shape, second_shape):
