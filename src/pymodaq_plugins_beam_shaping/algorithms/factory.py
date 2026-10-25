@@ -1,4 +1,5 @@
 from importlib import import_module
+from importlib.metadata import entry_points
 from pathlib import Path
 
 from typing import Callable
@@ -10,8 +11,30 @@ from pymodaq_plugins_beam_shaping.algorithms.algo_base import AlgoBase
 logger = set_logger(get_module_name(__file__))
 
 
+ENTRY_POINT_GROUP = 'pymodaq_plugins_beam_shaping.algorithms'
+
+
+def register_external_algorithms(group: str = ENTRY_POINT_GROUP):
+    """ Load the modules declared by other packages in the entry point group of the algorithms
+
+    A package providing algorithms declares, in the entry point group *pymodaq_plugins_beam_shaping.algorithms*, a
+    module whose import registers its algorithms with the decorator *AlgorithmFactory.register_algorithm*. A package
+    failing to load is reported in the log and ignored.
+    """
+    modules = []
+    for entry_point in entry_points(group=group):
+        try:
+            modules.append(entry_point.load())
+        except Exception as e:  # a broken third party package should not prevent BeamShaping to start
+            logger.warning(f'Could not load the algorithms of {entry_point.value} ({entry_point.name}): {e!r}')
+    return modules
+
+
 def register_algorithms(parent_module_name: str = 'pymodaq_plugins_beam_shaping'):
-    """ Browse modules containing algorithms for optical shaping and register them in the factory"""
+    """ Browse modules containing algorithms for optical shaping and register them in the factory
+
+    The algorithms provided by other packages through the entry point group *ENTRY_POINT_GROUP* are registered last.
+    """
     algorithms = []
     try:
         algorithm_module = import_module(f'{parent_module_name}.algorithms.algorithms')
@@ -27,6 +50,7 @@ def register_algorithms(parent_module_name: str = 'pymodaq_plugins_beam_shaping'
     except ModuleNotFoundError as e:
         logger.warning(str(e))
     finally:
+        algorithms.extend(register_external_algorithms())
         return algorithms
 
 

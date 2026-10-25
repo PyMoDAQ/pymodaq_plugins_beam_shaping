@@ -206,3 +206,18 @@ shaping for the MRAF algorithm using different initial phase type and mixing par
 .. note::
    The metrics (NRMSE, Fidelity, Efficiency) are **automatically saved** in the ``.h5beam`` file under
    ``/RawData/Algorithm/``. See :numref:`sec-h5beam-structure` for details.
+
+Algorithms provided by other packages
+-------------------------------------
+
+Another Python package can add algorithms to the list of BeamShaping. It writes an algorithm class derived from
+``AlgoBase``, registers it with the decorator ``AlgorithmFactory.register_algorithm()`` and declares the module
+containing it in the entry point group ``pymodaq_plugins_beam_shaping.algorithms`` of its ``pyproject.toml``:
+
+.. code-block:: toml
+
+   [project.entry-points."pymodaq_plugins_beam_shaping.algorithms"]
+   my_algorithms = "my_package.algorithms"
+
+BeamShaping imports these modules when it starts, after its own algorithms. A package that cannot be imported is
+reported in the log and ignored.
