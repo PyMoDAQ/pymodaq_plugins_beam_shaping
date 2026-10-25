@@ -27,7 +27,7 @@ class DAQ_Move_Zernike(DAQ_Move_base):
          hardware library.
 
     """
-    is_multiaxes = False
+    is_multiaxes = True
     _axis_names: Union[List[str], Dict[str, int]] = []
     for n in range(ORDER_MAX):
         for m in range(-n, n+2, 2):

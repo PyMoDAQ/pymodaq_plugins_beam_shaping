@@ -3,7 +3,10 @@ import re
 
 from dataclasses import dataclass, fields, asdict
 from pymodaq_data import Q_
-from pymodaq_gui.managers.roi_manager import ROI2D_TYPES
+try:
+    from pymodaq_gui.managers.roi_viewer_manager import ROI2D_TYPES
+except ImportError:  # pymodaq_gui < 5.3.x
+    from pymodaq_gui.managers.roi_manager import ROI2D_TYPES
 from pymodaq_gui.parameter import Parameter
 
 

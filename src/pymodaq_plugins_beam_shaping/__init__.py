@@ -1,6 +1,9 @@
 from pathlib import Path
 from pymodaq_utils.logger import set_logger, get_module_name  # to be imported by other modules.
+from pymodaq_utils.utils import get_version
 from .utils import Config
+
+__version__ = get_version(__package__)
 
 
 config = Config()  # before field loader factory otherwise it will generate an error
