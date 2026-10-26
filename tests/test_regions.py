@@ -18,14 +18,14 @@ def test_slices_to_indexes_matches_vsig():
     axes = [Axis('y', units='m', scaling=8e-6, offset=0, index=0, size=shape[0]),
             Axis('x', units='m', scaling=8e-6, offset=0, index=1, size=shape[1])]
     dwa = DataRaw('d', data=[np.zeros(shape)], axes=axes, nav_indexes=())
-    slices = (slice(80e-6, 160e-6), slice(16e-6, 96e-6))
+    slices = (slice(80., 160.), slice(16., 96.))
     idx = regions.slices_to_indexes(slices, PIXELS, shape)
     assert idx == (slice(10, 20), slice(2, 12))
-    assert dwa.isig[idx].shape == dwa.vsig[slices].shape
+    assert dwa.isig[idx].shape == dwa.vsig[regions.to_axis_units(slices)].shape
 
 
 def test_slices_to_indexes_clipped():
-    idx = regions.slices_to_indexes((slice(-1e-3, 1.), slice(0, 1.)), PIXELS, (100, 200))
+    idx = regions.slices_to_indexes((slice(-1e3, 1e9), slice(0, 1e9)), PIXELS, (100, 200))
     assert idx == (slice(0, 100), slice(0, 200))
 
 
@@ -45,8 +45,8 @@ def test_legacy_pixel_slices_are_not_valid():
 
 
 def test_slices_str_roundtrip():
-    slices = (slice(1e-5, 2e-5), slice(np.float64(3e-5), 4e-5))
-    assert regions.parse_slices(regions.slices_to_str(slices)) == (slice(1e-5, 2e-5), slice(3e-5, 4e-5))
+    slices = (slice(10., 20.), slice(np.float64(30.), 40.))
+    assert regions.parse_slices(regions.slices_to_str(slices)) == (slice(10., 20.), slice(30., 40.))
 
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def test_loader_mask_in_real_units(qtbot, dockarea):
         assert (_slice.start + _slice.stop) / 2 == pytest.approx(p + s / 2, abs=2)
 
     # moving the ROI updates the setting in meters and the indexes follow
-    pxl = app.get_pixel_sizes()[0].m_as('m')
+    pxl = app.get_pixel_sizes()[0].m_as('m')  # the ROI is in the units of the axes
     app.mask.setPos((int(pos[1]) * pxl, int(pos[0]) * pxl))
     app.mask.setSize((100 * pxl, 50 * pxl))
     app.update_mask_slices()
@@ -97,7 +97,7 @@ def test_algo_app_slices(qtbot, dockarea):
     assert region is not None and regions.are_slices_in_area(region, PIXELS)
 
     app.settings.child(str(ApplyMaskTo.TARGET), 'apply_mask').setValue(True)
-    app.update_target_slices((slice(0., 1.), slice(0., 1.)))  # constrained to the effective area
+    app.update_target_slices((slice(0., 1e9), slice(0., 1e9)))  # constrained to the effective area
     idx = app.get_mask_as_slices(ApplyMaskTo.TARGET)
     pos, size = sizing.get_effective_area_pos_size_in_pxls()
     for _slice, p, s in zip(idx, pos, size):

@@ -30,6 +30,7 @@ from pymodaq_plugins_beam_shaping.utilities.corrections import Correction
 from pymodaq_plugins_beam_shaping.algorithms import AlgorithmFactory, AlgoBase
 from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
+from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_shaper
@@ -510,15 +511,16 @@ class BeamShaping(CustomExt):
         self._algorithm.modulator_field_signal.connect(self.update_modulator_field)
         self._input_field_loader.field_signal.connect(self._algorithm.set_input_field)
         self._target_field_loader.field_signal.connect(self._algorithm.set_target_field)
+        self._target_field_loader.field_signal.connect(lambda field: self.show_set_target_roi_select())
 
         self.set_menu(self._algorithm.menu)  #adds this to the menu dict (automatically added in the sharedUI)
 
         self.intermediate_viewer.roi_select_signal.connect(
-            lambda roi: self._algorithm.update_intermediate_slices(roi.to_slices(as_integer=False)))
+            lambda roi: self._algorithm.update_intermediate_slices(regions.from_axis_units(roi.to_slices(as_integer=False))))
         self.show_set_target_roi_select()
 
         for viewer in (self._target_field_loader.amp_viewer, self._target_field_loader.phase_viewer):
-            viewer.roi_select_signal.connect(lambda roi: self._algorithm.update_target_slices(roi.to_slices(as_integer=False)))
+            viewer.roi_select_signal.connect(lambda roi: self._algorithm.update_target_slices(regions.from_axis_units(roi.to_slices(as_integer=False))))
 
         if layout_path.joinpath('shaping.dock').is_file():
             try:
@@ -533,12 +535,12 @@ class BeamShaping(CustomExt):
         slices = self._algorithm.get_mask_region(ApplyMaskTo.TARGET)
         if slices is None:
             return
-        self._target_field_loader.amp_viewer.view.set_action_checked('ROIselect', True)
-        pos = [slices[0].start, slices[1].start]
-        size = [slices[0].stop - slices[0].start, slices[1].stop - slices[1].start]
-        self._target_field_loader.amp_viewer.view.show_ROI_select(
-            size=size[::-1],
-            pos=pos[::-1])
+        slices = regions.to_axis_units(slices)  # the ROI is in the units of the axes
+        view = self._target_field_loader.amp_viewer.view
+        view.set_action_checked('ROIselect', True)
+        view.show_ROI_select()  # position and size are not taken into account by the viewer, set below
+        view.ROIselect.setPos((slices[1].start, slices[0].start))
+        view.ROIselect.setSize((slices[1].stop - slices[1].start, slices[0].stop - slices[0].start))
 
     def connect_things(self):
         logger.debug('connecting things')

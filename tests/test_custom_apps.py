@@ -66,4 +66,15 @@ def test_extension_on_empty_dashboard(qtbot):
 
     _, dashboard = create_load_dashboard()
     win_ext, extension = create_extension(dashboard, BeamShaping)
+
+    extension._target_field_loader.load_field()
+    # the target ROI starts on the default region: 2/3 of the effective area, in the units of the axes (m)
+    from pymodaq_plugins_beam_shaping.utilities import regions, sizing
+    roi = extension._target_field_loader.amp_viewer.view.ROIselect
+    pixel_sizes = extension._algorithm.get_plane_pixel_sizes('target_mask')
+    pos, size = regions.get_effective_area(pixel_sizes)  # um, (y, x)
+    assert roi.size()[0] * 1e6 == pytest.approx(2 / 3 * size[1], rel=1e-3)
+    assert roi.size()[1] * 1e6 == pytest.approx(2 / 3 * size[0], rel=1e-3)
+    assert roi.pos()[0] * 1e6 == pytest.approx(pos[1] + size[1] / 6, rel=1e-3)
+
     assert extension.quit_fun()

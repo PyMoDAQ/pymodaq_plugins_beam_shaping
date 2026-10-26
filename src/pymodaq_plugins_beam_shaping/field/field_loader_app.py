@@ -97,7 +97,7 @@ class FieldLoaderApp(CustomApp):
             {'title': 'Masking', 'name': 'masking', 'type': 'group', 'children': [
                 {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.SQUARE),
                  'limits': MaskType.names()},
-                {'title': 'Slices (m):', 'name': 'slices', 'type': 'str', 'value': ''},
+                {'title': 'Slices (um):', 'name': 'slices', 'type': 'str', 'value': ''},
                 {'title': 'Boundary', 'name': 'boundary', 'type': 'group', 'children': [
                     {'title': 'Apply', 'name': 'apply_boundary', 'type': 'bool', 'value': False},
                     {'title': 'Sharpness', 'name': 'sharpness', 'type': 'int', 'value': 3, }
@@ -155,7 +155,7 @@ class FieldLoaderApp(CustomApp):
                 Q_(self.settings['needed_size', 'pixel_width'], 'um'))
 
     def get_mask_region(self) -> Union[None, tuple[slice, slice]]:
-        """ Get the mask region as slices in real units (m), None if not defined"""
+        """ Get the mask region as slices in real units (um), None if not defined"""
         return regions.parse_slices(self.settings['utils', 'masking', 'slices'])
 
     def get_mask_as_slices(self) -> Union[None, tuple[slice, slice]]:
@@ -179,7 +179,7 @@ class FieldLoaderApp(CustomApp):
     def update_mask_slices(self):
         if self.mask is not None:
             self.settings.child('utils', 'masking', 'slices').setValue(
-                regions.slices_to_str(self.mask.to_info().to_slices(as_integer=False)))
+                regions.slices_to_str(regions.from_axis_units(self.mask.to_info().to_slices(as_integer=False))))
 
     def value_changed(self, param: Parameter):
         if param.name() == 'loader':
@@ -213,7 +213,7 @@ class FieldLoaderApp(CustomApp):
                 roi_meta = viewer.roi_manager.get_roi_from_index(0)  # ROIMeta, the ROI itself is in its roi attribute
                 self.mask = roi_meta.roi
                 self.check_mask_region()
-                region = self.get_mask_region()
+                region = regions.to_axis_units(self.get_mask_region())  # the ROI is in the units of the axes
                 self.mask.setPos((region[1].start, region[0].start))
                 self.mask.setSize((region[1].stop - region[1].start, region[0].stop - region[0].start))
                 self.mask.sigRegionChangeFinished.connect(self.update_mask_slices)
@@ -281,7 +281,7 @@ class FieldLoaderApp(CustomApp):
 
         slices = (slice(max(0, center[0] - size[0] // 2), min(shape[0], center[0] + size[0] // 2)),
                   slice(max(0, center[1] - size[1] // 2), min(shape[1], center[1] + size[1] // 2)))
-        pixel_sizes = regions.pixel_sizes_in_meters(self.get_pixel_sizes())
+        pixel_sizes = regions.pixel_sizes_in_um(self.get_pixel_sizes())
         self.settings.child('utils', 'masking', 'slices').setValue(regions.slices_to_str(
             tuple(slice(_slice.start * pxl, _slice.stop * pxl) for _slice, pxl in zip(slices, pixel_sizes))))
         self.settings.child('utils', 'masking', 'apply_mask').setValue(apply)

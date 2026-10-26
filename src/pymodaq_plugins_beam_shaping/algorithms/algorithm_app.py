@@ -96,14 +96,14 @@ class AlgoApp(CustomApp):
             {'title': 'Apply Mask', 'name': 'apply_mask', 'type': 'bool', 'value': False},
             {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.SQUARE),
              'limits': MaskType.names()},
-            {'title': 'Slices (m):', 'name': 'slices', 'type': 'str', 'value': ''},
+            {'title': 'Slices (um):', 'name': 'slices', 'type': 'str', 'value': ''},
         ]},
         {'title': 'Intermediate Masking', 'name': str(ApplyMaskTo.INTERMEDIATE), 'type': 'group',
          'visible': False, 'children': [
             {'title': 'Apply Mask', 'name': 'apply_mask', 'type': 'bool', 'value': False},
             {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.ELLIPTICAL),
              'limits': MaskType.names()},
-            {'title': 'Slices (m):', 'name': 'slices', 'type': 'str', 'value': ''},
+            {'title': 'Slices (um):', 'name': 'slices', 'type': 'str', 'value': ''},
         ]}
     ]
 
@@ -538,7 +538,7 @@ class AlgoApp(CustomApp):
             return None
 
     def get_mask_region(self, apply_to: ApplyMaskTo) -> Union[None, tuple[slice, slice]]:
-        """ Get the mask region as slices in real units (m), None if not defined"""
+        """ Get the mask region as slices in real units (um), None if not defined"""
         return regions.parse_slices(self.settings[str(apply_to), 'slices'])
 
     def get_mask_as_slices(self, apply_to: ApplyMaskTo) -> Union[None, tuple[slice, slice]]:
