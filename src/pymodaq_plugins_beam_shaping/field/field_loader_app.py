@@ -26,6 +26,7 @@ from pymodaq_gui.utils.file_io import select_file
 from pymodaq_gui.parameter.ioxml import parameter_to_xml_string
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.field import Field, Q_, LoaderFactory, FieldLoader
+from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 
 from pymodaq_plugins_beam_shaping.utilities.sizing import (get_effective_needed_field_size,
@@ -96,8 +97,7 @@ class FieldLoaderApp(CustomApp):
             {'title': 'Masking', 'name': 'masking', 'type': 'group', 'children': [
                 {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.SQUARE),
                  'limits': MaskType.names()},
-                {'title': 'Slices', 'name': 'slices', 'type': 'str',
-                 'value': '(slice(338, 757, None), slice(665, 1770, None))'},
+                {'title': 'Slices (m):', 'name': 'slices', 'type': 'str', 'value': ''},
                 {'title': 'Boundary', 'name': 'boundary', 'type': 'group', 'children': [
                     {'title': 'Apply', 'name': 'apply_boundary', 'type': 'bool', 'value': False},
                     {'title': 'Sharpness', 'name': 'sharpness', 'type': 'int', 'value': 3, }
@@ -150,21 +150,36 @@ class FieldLoaderApp(CustomApp):
         self.settings.child('needed_size', 'pixel_width').setValue(pixel_sizes[1].m_as('um'))
         self.load_field()
 
-    def get_mask_as_slices(self) -> Union[None, tuple[slice, slice]]:
+    def get_pixel_sizes(self) -> tuple[Q_, Q_]:
+        return (Q_(self.settings['needed_size', 'pixel_height'], 'um'),
+                Q_(self.settings['needed_size', 'pixel_width'], 'um'))
 
-        slices = eval(self.settings['utils', 'masking', 'slices'])
-        if hasattr(slices, '__iter__'):
-            for _slice in slices:
-                if not isinstance(_slice, slice):
-                    return None
-        return slices
+    def get_mask_region(self) -> Union[None, tuple[slice, slice]]:
+        """ Get the mask region as slices in real units (m), None if not defined"""
+        return regions.parse_slices(self.settings['utils', 'masking', 'slices'])
+
+    def get_mask_as_slices(self) -> Union[None, tuple[slice, slice]]:
+        """ Get the mask region as slices of indexes to be used on the array of the field"""
+        region = self.get_mask_region()
+        if region is None:
+            return None
+        shape = (self.settings['needed_size', 'height'], self.settings['needed_size', 'width'])
+        return regions.slices_to_indexes(region, self.get_pixel_sizes(), shape)
+
+    def check_mask_region(self):
+        """ Set the default region (2/3 of the effective area, centered) if the current one is not valid"""
+        region = self.get_mask_region()
+        if region is None or not regions.are_slices_in_area(region, self.get_pixel_sizes()):
+            self.settings.child('utils', 'masking', 'slices').setValue(
+                regions.slices_to_str(regions.default_slices(self.get_pixel_sizes())))
 
     def get_mask_type(self) -> MaskType:
         return MaskType[self.settings['utils', 'masking', 'mask_type']]
 
     def update_mask_slices(self):
         if self.mask is not None:
-            self.settings.child('utils', 'masking', 'slices').setValue(str(self.mask.to_info().to_slices()))
+            self.settings.child('utils', 'masking', 'slices').setValue(
+                regions.slices_to_str(self.mask.to_info().to_slices(as_integer=False)))
 
     def value_changed(self, param: Parameter):
         if param.name() == 'loader':
@@ -197,6 +212,10 @@ class FieldLoaderApp(CustomApp):
                 viewer.roi_manager.add_roi_programmatically('RectROI')
                 roi_meta = viewer.roi_manager.get_roi_from_index(0)  # ROIMeta, the ROI itself is in its roi attribute
                 self.mask = roi_meta.roi
+                self.check_mask_region()
+                region = self.get_mask_region()
+                self.mask.setPos((region[1].start, region[0].start))
+                self.mask.setSize((region[1].stop - region[1].start, region[0].stop - region[0].start))
                 self.mask.sigRegionChangeFinished.connect(self.update_mask_slices)
                 self.update_mask_slices()
             elif self.mask is not None:
@@ -262,7 +281,9 @@ class FieldLoaderApp(CustomApp):
 
         slices = (slice(max(0, center[0] - size[0] // 2), min(shape[0], center[0] + size[0] // 2)),
                   slice(max(0, center[1] - size[1] // 2), min(shape[1], center[1] + size[1] // 2)))
-        self.settings.child('utils', 'masking', 'slices').setValue(str(slices))
+        pixel_sizes = regions.pixel_sizes_in_meters(self.get_pixel_sizes())
+        self.settings.child('utils', 'masking', 'slices').setValue(regions.slices_to_str(
+            tuple(slice(_slice.start * pxl, _slice.stop * pxl) for _slice, pxl in zip(slices, pixel_sizes))))
         self.settings.child('utils', 'masking', 'apply_mask').setValue(apply)
 
     def updated_slm(self, slm_default_name: str):
@@ -383,7 +404,7 @@ class FieldLoaderApp(CustomApp):
         self.normalise(self.field, NormaliseTo[self.settings['utils', 'normalisation']])
 
         if self.settings['utils', 'masking', 'apply_mask']:
-
+            self.check_mask_region()
             mask = self.get_mask_array()
             self.field.amplitude = self.field.amplitude * mask
             self.field.phase = self.field.phase * mask

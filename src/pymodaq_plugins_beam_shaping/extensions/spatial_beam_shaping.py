@@ -474,6 +474,7 @@ class BeamShaping(CustomExt):
 
     def update_ui_from_algo(self, algo: AlgoBase):
         self.set_action_visible('show_intermediate', algo.SETUP_TYPE == LensSetup.FourF)
+        self.show_set_target_roi_select()
 
     def plot_target(self, field: Field):
         self.target_viewers.show_data(DataToExport('Target', data=[
@@ -513,11 +514,11 @@ class BeamShaping(CustomExt):
         self.set_menu(self._algorithm.menu)  #adds this to the menu dict (automatically added in the sharedUI)
 
         self.intermediate_viewer.roi_select_signal.connect(
-            lambda roi: self._algorithm.update_intermediate_slices(roi.to_slices()))
+            lambda roi: self._algorithm.update_intermediate_slices(roi.to_slices(as_integer=False)))
         self.show_set_target_roi_select()
 
         for viewer in (self._target_field_loader.amp_viewer, self._target_field_loader.phase_viewer):
-            viewer.roi_select_signal.connect(lambda roi: self._algorithm.update_target_slices(roi.to_slices()))
+            viewer.roi_select_signal.connect(lambda roi: self._algorithm.update_target_slices(roi.to_slices(as_integer=False)))
 
         if layout_path.joinpath('shaping.dock').is_file():
             try:
@@ -529,10 +530,12 @@ class BeamShaping(CustomExt):
 
 
     def show_set_target_roi_select(self):
-        slices = self._algorithm.constrains_slices(eval(self._algorithm.settings[ApplyMaskTo.TARGET, 'slices']))
+        slices = self._algorithm.get_mask_region(ApplyMaskTo.TARGET)
+        if slices is None:
+            return
         self._target_field_loader.amp_viewer.view.set_action_checked('ROIselect', True)
         pos = [slices[0].start, slices[1].start]
-        size = [slices[0].stop - slices[0].start, slices[1].stop - slices[0].start]
+        size = [slices[0].stop - slices[0].start, slices[1].stop - slices[1].start]
         self._target_field_loader.amp_viewer.view.show_ROI_select(
             size=size[::-1],
             pos=pos[::-1])
