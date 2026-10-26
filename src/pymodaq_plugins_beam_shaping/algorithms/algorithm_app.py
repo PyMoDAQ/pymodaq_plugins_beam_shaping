@@ -365,7 +365,7 @@ class AlgoApp(CustomApp):
         if self.is_action_checked('ini_algo'):
             self.get_action('algorithms').widget.setEnabled(False)
             #self.set_action_enabled('ini_algo', False)
-            #self.set_algorithm()
+            self.set_algorithm()
 
             self.runner_thread = QtCore.QThread()
             runner = AlgoRunner(self._algorithm)
@@ -410,7 +410,7 @@ class AlgoApp(CustomApp):
         self.settings_widget = QtWidgets.QWidget()
         self.settings_widget.setLayout(QtWidgets.QVBoxLayout())
         self.settings_widget.layout().setContentsMargins(0, 0, 0, 0)
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
         self.settings_widget.layout().addWidget(splitter)
         splitter.addWidget(self.settings_tree)
 
