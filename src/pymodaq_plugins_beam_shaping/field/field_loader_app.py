@@ -4,6 +4,9 @@ import numpy as np
 from qtpy import QtWidgets, QtCore
 from skimage.transform import rescale, resize
 from scipy.ndimage import gaussian_filter
+
+from pymodaq_gui.utils.shared_ui import SharedUI
+from pymodaq_gui.utils.widgets.window import make_window
 from pyqtgraph import ROI as pgROI
 
 from pymodaq_utils.config import GlobalConfig
@@ -543,15 +546,11 @@ def main():
     from pymodaq_gui.qt_utils import mkQApp
 
     app = mkQApp('Optical Shaping')
-
-    win = QtWidgets.QMainWindow()
-    area = DockArea()
-    win.setCentralWidget(area)
-    win.resize(1000, 500)
-    win.setWindowTitle('PyMoDAQ Dashboard')
-    win.show()
-
+    win, area = make_window(title='FieldLoaderApp')
+    shared_ui = SharedUI(win)
     optical_app = FieldLoaderApp(area)
+
+    shared_ui.affect_application(optical_app)
 
     app.exec()
 
