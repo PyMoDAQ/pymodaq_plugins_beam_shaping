@@ -662,6 +662,11 @@ class BeamShaping(CustomExt):
         QtWidgets.QApplication.processEvents()  # allows the dashboard modules to close properly
         return True
 
+    if not hasattr(CustomExt, '_quit_fun'):  # pymodaq < 5.3 only calls quit_fun, pymodaq >= 5.3 calls _quit_fun
+        def quit_fun(self):
+            self._quit_fun()
+            super().quit_fun()
+
 
 def main():
     import sys
