@@ -85,7 +85,7 @@ class Correction(CustomApp):
         self._zernike_coeffs.set(n, m, value)
         self.emit_corrections()
 
-    def setup_docks(self):
+    def setup_docks_and_widgets(self):
 
         self.docks['corrections'] = Dock('Corrections')
         self.dockarea.addDock(self.docks['corrections'])

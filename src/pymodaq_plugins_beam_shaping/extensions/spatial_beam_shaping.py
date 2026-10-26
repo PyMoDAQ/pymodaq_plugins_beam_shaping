@@ -19,7 +19,7 @@ from pymodaq_gui import utils as gutils
 from pymodaq_gui.utils.layout import save_layout_state, load_layout_state
 from pymodaq_gui.parameter.ioxml import  xml_string_to_parameter
 
-from pymodaq.extensions.custom_ext import CustomExt
+from pymodaq.utils.custom_ext import CustomExt
 from pymodaq.utils.gui_utils.loader_utils import create_extension
 from pymodaq.utils.data import DataToExport, DataCalculated, DataDim
 
@@ -666,15 +666,15 @@ class BeamShaping(CustomExt):
 def main():
     import sys
     from pymodaq_gui.qt_utils import mkQApp
-    from pymodaq.dashboard import create_load_dashboard
+    from pymodaq.dashboard import load_dashboard_with_arguments
     from pymodaq.utils.gui_utils.loader_utils import create_extension
+
     app = mkQApp('BeamShaping')
 
-    win, dashboard = create_load_dashboard()
+    win, dashboard, _ = load_dashboard_with_arguments(show_dashboard=False, load_extension=False)
     win.mainwindow.setVisible(False)
 
-    win_ext, scan = create_extension(dashboard, BeamShaping)
-    win_ext.show()
+    win_ext, ext = create_extension(dashboard, BeamShaping, show_extension=True)
 
     sys.exit(app.exec())
 

@@ -32,15 +32,9 @@ if TYPE_CHECKING:
 logger = set_logger(get_module_name(__file__))
 
 
-def copy_scanner_settings():
-    import shutil
-    from pymodaq.extensions.scan.scan_manager import ScanManager
-    scanner_settings = Path(__file__).parent.parent.joinpath('resources/holography_calibration.xml')
-    shutil.copyfile(str(scanner_settings),
-                    str(ScanManager.get_scanner_folder().joinpath('holography_calibration.xml')))
-
-
-copy_scanner_settings()
+# TODO: the xml file resources/holography_calibration.xml was a scan configuration of the pymodaq < 5.3 scanner manager
+# (ScanManager.get_scanner_folder no longer exists). It has to be rewritten as an entry of the scan manager of 5.3
+# (folder given by ScanManager.get_entry_folder) before BeamShapingCalibration can be used again.
 
 
 def check_monotonic(phases: np.ndarray) -> bool:
@@ -285,16 +279,15 @@ class BeamShapingCalibration(DAQScan):
 
 def main():
     from pymodaq_gui.qt_utils import mkQApp
-    from pymodaq.dashboard import create_load_dashboard
+    from pymodaq.dashboard import load_dashboard_with_arguments
     from pymodaq.utils.gui_utils.loader_utils import create_extension
 
     qapp = mkQApp('SLMCalibration')
 
-    win, dashboard = create_load_dashboard()
+    win, dashboard, _ = load_dashboard_with_arguments(show_dashboard=False, load_extension=False)
     win.mainwindow.setVisible(False)
 
-    win_ext, scan = create_extension(dashboard, BeamShapingCalibration)
-    win_ext.show()
+    win_ext, scan = create_extension(dashboard, BeamShapingCalibration, show_extension=True)
 
     sys.exit(qapp.exec())
 

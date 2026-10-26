@@ -192,13 +192,14 @@ class FieldLoaderApp(CustomApp):
                 viewer = self.phase_viewer
             if param.value():
                 viewer.roi_manager.add_roi_programmatically('RectROI')
-                self.mask = viewer.roi_manager.get_roi_from_index(0)
+                roi_meta = viewer.roi_manager.get_roi_from_index(0)  # ROIMeta, the ROI itself is in its roi attribute
+                self.mask = roi_meta.roi
                 self.mask.sigRegionChangeFinished.connect(self.update_mask_slices)
                 self.update_mask_slices()
-            else:
-                viewer.roi_manager.remove_roi_programmatically(0)
-                self.mask.sigRegionChangeFinished.disconnect()
+            elif self.mask is not None:
+                self.mask.sigRegionChangeFinished.disconnect(self.update_mask_slices)
                 self.mask = None
+                viewer.roi_manager.remove_roi_programmatically(0)
 
         elif param.name() == 'save':
             if param.value():
@@ -468,12 +469,12 @@ class FieldLoaderApp(CustomApp):
                     **self.loader_kwargs
                 )
 
-            while True:
-                child = self._loader_settings_widget.layout().takeAt(0)
-                if not child:
-                    break
-                child.widget().deleteLater()
-                QtWidgets.QApplication.processEvents()
+            layout = self._loader_settings_widget.layout()
+            while layout.count():
+                widget = layout.takeAt(0).widget()
+                if widget is not None:
+                    widget.setParent(None)
+                    widget.deleteLater()
 
             self._loader_settings_widget.layout().addWidget(self._field_loader.settings_tree)
             self._field_loader.register_listener(self)
@@ -481,7 +482,7 @@ class FieldLoaderApp(CustomApp):
         except ValueError as e:
             pass
 
-    def setup_docks(self):
+    def setup_docks_and_widgets(self):
         self.docks['target'] = Dock('Target')
         self._main_widget = QtWidgets.QWidget()
         self._main_widget.setLayout(QtWidgets.QHBoxLayout())
@@ -493,7 +494,6 @@ class FieldLoaderApp(CustomApp):
 
         amp_widget = QtWidgets.QWidget()
         self.amp_viewer = Viewer2D(amp_widget)
-        self.amp_viewer.view.get_action('legend').trigger()
         self.slm_size_roi_amp = pgROI(pos=(0, 0), size=(20, 20), movable=False, rotatable=False, resizable=False,
                                       pen=(0, 255, 0))
         self.amp_viewer.view.plotitem.addItem(self.slm_size_roi_amp)
@@ -501,7 +501,6 @@ class FieldLoaderApp(CustomApp):
 
         phase_widget = QtWidgets.QWidget()
         self.phase_viewer = Viewer2D(phase_widget)
-        self.phase_viewer.view.get_action('legend').trigger()
         self.slm_size_roi_phase = pgROI(pos=(0, 0), size=(20, 20), movable=False, rotatable=False, resizable=False,
                                         pen=(0, 255, 0))
         self.phase_viewer.view.plotitem.addItem(self.slm_size_roi_phase)

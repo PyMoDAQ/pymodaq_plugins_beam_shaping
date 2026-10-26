@@ -145,9 +145,17 @@ class AlgoApp(CustomApp):
                  'visible': self.settings['stopping', 'stopping_type'] == stop,
                  'children': stopping_factory.get_stop_class(stop).params})
 
-        self.module_and_data_saver: ShapingSaver = None
+        self._module_and_data_saver: ShapingSaver = None
         self._h5saver: H5Saver = None
 
+
+    @property
+    def module_and_data_saver(self) -> ShapingSaver:
+        return self._module_and_data_saver
+
+    @module_and_data_saver.setter
+    def module_and_data_saver(self, saver: ShapingSaver):
+        self._module_and_data_saver = saver
 
     @property
     def h5saver(self) -> H5Saver:

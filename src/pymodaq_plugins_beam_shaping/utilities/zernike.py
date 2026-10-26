@@ -41,7 +41,7 @@ class ZernikeUI(CustomApp):
 
         self.setup_ui()
 
-    def setup_docks(self):
+    def setup_docks_and_widgets(self):
         self.grid_layout = QtWidgets.QGridLayout()
         self.parent.setLayout(self.grid_layout)
 
