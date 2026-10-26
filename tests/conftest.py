@@ -12,8 +12,11 @@ except ImportError:
 for variable in ('QT_QPA_PLATFORM_PLUGIN_PATH', 'QT_QPA_FONTDIR'):
     os.environ.pop(variable, None)
 
-try:  # the apps read the theme set on the QApplication by mkQApp, pytest-qt reuses this instance
+import pytest
+
+
+@pytest.fixture(scope='session')
+def qapp():
+    """The apps read the theme set on the QApplication by mkQApp"""
     from pymodaq_gui.qt_utils import mkQApp
-    mkQApp('tests')
-except ImportError:
-    pass
+    return mkQApp('tests')
