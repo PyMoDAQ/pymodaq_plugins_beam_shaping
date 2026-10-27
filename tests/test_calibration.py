@@ -31,7 +31,8 @@ def test_calibration_scanner_phase_from_fringes(qtbot):
     assert np.unwrap(np.array(phases) - phases[0])[-1] == pytest.approx(224 / 255 * 3 * np.pi, rel=1e-2)
 
 
-def test_calibration_extension_uses_scan_manager_entry(qtbot):
+def test_calibration_extension_uses_scan_manager_entry(qtbot, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # the DAQScan creates its h5 file with a relative path on Linux
     from pymodaq_gui.qt_utils import mkQApp
     from pymodaq.utils.gui_utils.loader_utils import create_extension
     from pymodaq_plugins_beam_shaping.scripts.make_calibration_entry import create_dashboard_with_camera_and_shaper
