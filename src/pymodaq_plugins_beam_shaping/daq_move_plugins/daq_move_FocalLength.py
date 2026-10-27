@@ -26,10 +26,10 @@ class DAQ_Move_FocalLength(DAQ_Move_base):
     is_multiaxes = False
     _axis_names: Union[List[str], Dict[str, int]] = ['Focal']
     _controller_units: Union[str, List[str]] = 'cm'
-    _epsilon: Union[float, List[float]] = 0.1
+    _epsilons: Union[float, List[float]] = 0.1
     data_actuator_type = DataActuatorType.DataActuator
 
-    params = [] + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilon)
+    params = [] + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilons)
 
     def ini_attributes(self):
         self.controller: 'Correction' = None
@@ -84,8 +84,8 @@ class DAQ_Move_FocalLength(DAQ_Move_base):
         ----------
         value: (float) value of the relative target positioning
         """
-        value = self.check_bound(self.current_position + value) - self.current_position
-        self.target_value = value + self.current_position
+        value = self.check_bound(self.current_value + value) - self.current_value
+        self.target_value = value + self.current_value
         value = self.set_position_relative_with_scaling(value)
 
         self.move_abs(self.target_value)

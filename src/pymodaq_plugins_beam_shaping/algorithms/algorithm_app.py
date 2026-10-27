@@ -39,7 +39,7 @@ from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
 from pymodaq_plugins_beam_shaping.utilities.h5saving import ShapingSaver
 
-from pymodaq_plugins_beam_shaping.utilities import sizing
+from pymodaq_plugins_beam_shaping.utilities import sizing, regions
 
 algo_factory = AlgorithmFactory()
 phase_factory = PhaseFactory()
@@ -96,16 +96,14 @@ class AlgoApp(CustomApp):
             {'title': 'Apply Mask', 'name': 'apply_mask', 'type': 'bool', 'value': False},
             {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.SQUARE),
              'limits': MaskType.names()},
-            {'title': 'Slices', 'name': 'slices', 'type': 'str',
-             'value': '(slice(277, 1770, None), slice(252, 1795, None))'},
+            {'title': 'Slices (um):', 'name': 'slices', 'type': 'str', 'value': ''},
         ]},
         {'title': 'Intermediate Masking', 'name': str(ApplyMaskTo.INTERMEDIATE), 'type': 'group',
          'visible': False, 'children': [
             {'title': 'Apply Mask', 'name': 'apply_mask', 'type': 'bool', 'value': False},
             {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.ELLIPTICAL),
              'limits': MaskType.names()},
-            {'title': 'Slices', 'name': 'slices', 'type': 'str',
-             'value': '(slice(162, 882, None), slice(545, 1825, None))'},
+            {'title': 'Slices (um):', 'name': 'slices', 'type': 'str', 'value': ''},
         ]}
     ]
 
@@ -145,9 +143,17 @@ class AlgoApp(CustomApp):
                  'visible': self.settings['stopping', 'stopping_type'] == stop,
                  'children': stopping_factory.get_stop_class(stop).params})
 
-        self.module_and_data_saver: ShapingSaver = None
+        self._module_and_data_saver: ShapingSaver = None
         self._h5saver: H5Saver = None
 
+
+    @property
+    def module_and_data_saver(self) -> ShapingSaver:
+        return self._module_and_data_saver
+
+    @module_and_data_saver.setter
+    def module_and_data_saver(self, saver: ShapingSaver):
+        self._module_and_data_saver = saver
 
     @property
     def h5saver(self) -> H5Saver:
@@ -268,6 +274,7 @@ class AlgoApp(CustomApp):
             self._algorithm.set_target_field(field)
 
         self._target_field = field
+        self.check_slices()
 
     def set_input_field(self, field: Field):
 
@@ -328,7 +335,7 @@ class AlgoApp(CustomApp):
 
             self.config_saver_loader.base_path = [self._algorithm.ALGO_NAME]
             self.set_settings_values()
-            self.update_target_slices(eval(self.settings[str(ApplyMaskTo.TARGET), 'slices']))
+            self.check_slices()
 
             self.algo_changed.emit(self._algorithm)
 
@@ -357,7 +364,7 @@ class AlgoApp(CustomApp):
         if self.is_action_checked('ini_algo'):
             self.get_action('algorithms').widget.setEnabled(False)
             #self.set_action_enabled('ini_algo', False)
-            #self.set_algorithm()
+            self.set_algorithm()
 
             self.runner_thread = QtCore.QThread()
             runner = AlgoRunner(self._algorithm)
@@ -402,7 +409,7 @@ class AlgoApp(CustomApp):
         self.settings_widget = QtWidgets.QWidget()
         self.settings_widget.setLayout(QtWidgets.QVBoxLayout())
         self.settings_widget.layout().setContentsMargins(0, 0, 0, 0)
-        splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Vertical)
         self.settings_widget.layout().addWidget(splitter)
         splitter.addWidget(self.settings_tree)
 
@@ -521,14 +528,27 @@ class AlgoApp(CustomApp):
     def apply_mask(self, apply_to: ApplyMaskTo) -> bool:
         return self.settings[str(apply_to), 'apply_mask']
 
+    def get_plane_pixel_sizes(self, apply_to: ApplyMaskTo) -> Union[None, tuple]:
+        """ Pixel sizes of the plane the mask applies to, None if not (yet) defined"""
+        try:
+            if str(apply_to) == str(ApplyMaskTo.INTERMEDIATE):
+                return self._algorithm.intermediate_pixel_sizes
+            return self._target_field.pixels_sizes
+        except (AttributeError, ValueError, TypeError):
+            return None
+
+    def get_mask_region(self, apply_to: ApplyMaskTo) -> Union[None, tuple[slice, slice]]:
+        """ Get the mask region as slices in real units (um), None if not defined"""
+        return regions.parse_slices(self.settings[str(apply_to), 'slices'])
+
     def get_mask_as_slices(self, apply_to: ApplyMaskTo) -> Union[None, tuple[slice, slice]]:
+        """ Get the mask region as slices of indexes to be used on the arrays of the corresponding plane"""
         if self.apply_mask(apply_to):
-            slices = eval(self.settings[str(apply_to), 'slices'])
-            if hasattr(slices, '__iter__'):
-                for _slice in slices:
-                    if not isinstance(_slice, slice):
-                        return None
-            return slices
+            region = self.get_mask_region(apply_to)
+            pixel_sizes = self.get_plane_pixel_sizes(apply_to)
+            if region is None or pixel_sizes is None:
+                return None
+            return regions.slices_to_indexes(region, pixel_sizes, sizing.get_effective_needed_field_size())
         else:
             return None
 
@@ -536,23 +556,31 @@ class AlgoApp(CustomApp):
         return MaskType[self.settings[str(apply_to), 'mask_type']]
 
     def update_intermediate_slices(self, slices: tuple[slice, slice]):
-        self.settings.child(str(ApplyMaskTo.INTERMEDIATE), 'slices').setValue(str(slices))
+        self.update_slices(ApplyMaskTo.INTERMEDIATE, slices)
 
     def update_target_slices(self, slices: tuple[slice, slice]):
-        slices = self.constrains_slices(slices)
-        self.settings.child(str(ApplyMaskTo.TARGET), 'slices').setValue(str(slices))
+        self.update_slices(ApplyMaskTo.TARGET, slices)
 
-    @staticmethod
-    def constrains_slices(slices: tuple[slice, slice]) -> tuple[slice, slice]:
-        position, size = sizing.get_effective_area_pos_size_in_pxls()
-        slices = (slice(int(max(slices[0].start, position[0])), int(min(slices[0].stop, position[0] + size[0]))),
-                  slice(int(max(slices[1].start, position[1])), int(min(slices[1].stop, position[1] + size[1])))
-                  )
-        return slices
+    def update_slices(self, apply_to: ApplyMaskTo, slices: tuple[slice, slice]):
+        """ Set the mask region (slices in m) constrained to the effective area of the plane"""
+        pixel_sizes = self.get_plane_pixel_sizes(apply_to)
+        if pixel_sizes is not None:
+            slices = regions.constrain_slices(slices, pixel_sizes)
+        self.settings.child(str(apply_to), 'slices').setValue(regions.slices_to_str(slices))
+
+    def check_slices(self):
+        """ Set the default region (2/3 of the effective area, centered) if the current one is not valid"""
+        for apply_to in (ApplyMaskTo.TARGET, ApplyMaskTo.INTERMEDIATE):
+            pixel_sizes = self.get_plane_pixel_sizes(apply_to)
+            if pixel_sizes is None:
+                continue
+            region = self.get_mask_region(apply_to)
+            if region is None or not regions.are_slices_in_area(region, pixel_sizes):
+                self.update_slices(apply_to, regions.default_slices(pixel_sizes))
 
     def value_changed(self, param: Parameter):
         for applied in ApplyMaskTo.values():
-            if applied in putils.get_param_path(param):
+            if applied in putils.get_param_path(param) and self._algorithm is not None:
                self._algorithm.update_mask = True
         if param.name() == 'ini_phase_factory':
             for param_child in self.settings.child('ini_phase_group', 'phase_params').children():
