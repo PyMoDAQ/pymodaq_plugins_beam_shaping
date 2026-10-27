@@ -45,8 +45,10 @@ def test_legacy_pixel_slices_are_not_valid():
 
 
 def test_slices_str_roundtrip():
-    slices = (slice(10., 20.), slice(np.float64(30.), 40.))
-    assert regions.parse_slices(regions.slices_to_str(slices)) == (slice(10., 20.), slice(30., 40.))
+    slices = (slice(10.2, 19.7), slice(np.float64(30.), 40.))
+    text = regions.slices_to_str(slices)
+    assert text == '(slice(10, 20, None), slice(30, 40, None))'  # 1 um resolution
+    assert regions.parse_slices(text) == (slice(10, 20), slice(30, 40))
 
 
 @pytest.fixture

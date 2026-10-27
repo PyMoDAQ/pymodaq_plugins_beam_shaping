@@ -54,9 +54,9 @@ def constrain_slices(slices: Sequence[slice], pixel_sizes: Sequence) -> tuple[sl
 def are_slices_in_area(slices: Sequence[slice], pixel_sizes: Sequence) -> bool:
     """ True if the slices (in um) are not empty and lie in the effective area"""
     pos, size = get_effective_area(pixel_sizes)
-    tol = 1e-6 * size
-    return all(_slice.start < _slice.stop and _slice.start >= p - t and _slice.stop <= p + s + t
-               for _slice, p, s, t in zip(slices, pos, size, tol))
+    tol = 1.  # um, the slices are stored with a 1 um resolution
+    return all(_slice.start < _slice.stop and _slice.start >= p - tol and _slice.stop <= p + s + tol
+               for _slice, p, s in zip(slices, pos, size))
 
 
 def parse_slices(text: str) -> Optional[tuple[slice, slice]]:
@@ -73,7 +73,8 @@ def parse_slices(text: str) -> Optional[tuple[slice, slice]]:
 
 
 def slices_to_str(slices: Sequence[slice]) -> str:
-    return str(tuple(slice(float(_slice.start), float(_slice.stop)) for _slice in slices))
+    """ String representation (to be stored in the settings) with a resolution of 1 um, below the pixel size"""
+    return str(tuple(slice(int(round(_slice.start)), int(round(_slice.stop))) for _slice in slices))
 
 
 def slices_to_indexes(slices: Sequence[slice], pixel_sizes: Sequence, shape: Sequence[int]) -> tuple[slice, slice]:
