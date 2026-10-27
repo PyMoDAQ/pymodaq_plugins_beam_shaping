@@ -100,10 +100,10 @@ class QuadraticPhase(PhaseBase):
         wavelength = Q_(plugin_config('setup', 'wavelength_nm'), 'nm')
 
         fft_limited_size = Q_.from_list([focal_postSLM * np.tan(
-            np.asin(wavelength / (2 * slm_size[ind]))) for ind in range(2)])
+            np.arcsin(wavelength / (2 * slm_size[ind]))) for ind in range(2)])
 
-        dk0 = 2* np.pi / wavelength * np.sin(np.atan2(fft_limited_size, focal_postSLM))
-        dkc =  2* np.pi / wavelength * np.sin(np.atan2(mask_size_um, focal_postSLM))
+        dk0 = 2* np.pi / wavelength * np.sin(np.arctan2(fft_limited_size, focal_postSLM))
+        dkc =  2* np.pi / wavelength * np.sin(np.arctan2(mask_size_um, focal_postSLM))
 
         add_hoc_coeff = 0.175 * sizing.get_binning()
 
@@ -126,7 +126,7 @@ class QuadraticPhase(PhaseBase):
         wavelength = Q_(plugin_config('setup', 'wavelength_nm'), 'nm')
 
         coeffs_um_inv = [(2 * np.pi / wavelength *
-                          np.sin(np.atan2(shifts[ind] * self.algo.target_field_pixels_sizes[ind], focal_postSLM)))
+                          np.sin(np.arctan2(shifts[ind] * self.algo.target_field_pixels_sizes[ind], focal_postSLM)))
                          .to('1/um').magnitude for ind in range(2)]
 
         self.settings.child('shift', 'x_shift').setValue(coeffs_um_inv[1])

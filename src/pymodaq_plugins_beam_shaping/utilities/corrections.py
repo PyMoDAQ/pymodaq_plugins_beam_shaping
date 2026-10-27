@@ -106,9 +106,9 @@ class Correction(CustomApp):
         widget_main_correction = QtWidgets.QWidget()
         widget_main_correction.setLayout(QtWidgets.QGridLayout())
 
-        self.tilt_x = SliderSpinBox(value=0., bounds=(-10, 10))
-        self.tilt_y = SliderSpinBox(value=0., bounds=(-10, 10))
-        self.focal_length = SliderSpinBox(value=0., bounds=(-200, 200))
+        self.tilt_x = SliderSpinBox(value=0., bounds=(-20, 20))
+        self.tilt_y = SliderSpinBox(value=0., bounds=(-20, 20))
+        self.focal_length = SliderSpinBox(value=0., bounds=(-1000, 1000))
 
         widget_main_correction.layout().addWidget(QtWidgets.QLabel('Shift X (mm)'), 0, 0)
         widget_main_correction.layout().addWidget(self.tilt_x, 1, 0)
