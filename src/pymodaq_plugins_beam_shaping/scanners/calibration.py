@@ -4,7 +4,6 @@ Created the 05/12/2022
 
 @author: Sebastien Weber
 """
-from cProfile import label
 from typing import List, Tuple, Any, TYPE_CHECKING
 import re
 import numpy as np

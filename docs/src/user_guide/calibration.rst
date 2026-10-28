@@ -29,7 +29,9 @@ Calibration Procedure
 ---------------------
 1. **Open the Calibration Tool**: Click **Calibration** |equalizer| in the toolbar or navigate to **Shaping > Calibration > Calibration**.
 
-2. **Select the SLM**: Ensure the **Shaper** module is loaded in PyMoDAQ’s Dashboard.
+2. **Select the SLM and the camera**: Ensure an actuator named **Shaper** (the SLM) and a detector named **Camera**
+   (seeing the fringes) are loaded in PyMoDAQ’s Dashboard. The scan configuration (``BeamShapingCalibration``
+   scanner, ``Shaper`` and ``Camera`` selected) is a Scan Manager entry shipped with the package.
 
 3. **Run Calibration**: The tool performs a **double-slit experiment**:
 
