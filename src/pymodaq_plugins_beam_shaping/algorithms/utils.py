@@ -27,6 +27,9 @@ class AlgoType(StrEnum):
     AMPLITUDE = 'Amplitude'
     AMPLITUDE_PHASE = 'AmplitudePhase'
 
+class SLMType(StrEnum):
+    LCOS = 'lcos'
+    DMD = 'dmd'
 
 class ApplyMaskTo(StrEnum):
     TARGET = 'target_mask'

@@ -12,7 +12,7 @@ from pymodaq_data import Q_, DataRaw, DataToExport
 from pymodaq_gui.managers.parameter_manager import ParameterManager
 
 from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, ApplyMaskTo,
-                                                           LensSetup, CrossTalk, PhaseManipulation)
+                                                           LensSetup, CrossTalk, PhaseManipulation, SLMType)
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
@@ -47,6 +47,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     ALGO_NAME: str = None  # to be reimplemented
     SETUP_TYPE: LensSetup = None # to be reimplemented
     ALGOTYPE = AlgoType.AMPLITUDE
+    slm_type = SLMType.LCOS
     INI_PHASE = True  # if True, the algorithm will init an initial phase
     ITERATIVE = False
     MANUAL_LOOP = True
