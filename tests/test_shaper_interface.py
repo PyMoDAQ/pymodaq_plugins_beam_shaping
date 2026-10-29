@@ -1,6 +1,8 @@
 import pytest
+from pymodaq_gui.parameter import Parameter
 
-from pymodaq_plugins_beam_shaping.utilities.shaper import ShaperGeometry, ShaperInterface, has_shaper_interface
+from pymodaq_plugins_beam_shaping.utilities.shaper import (ShaperGeometry, shaper_geometry_params,
+                                                           get_module_shaper_geometry)
 
 
 def test_geometry():
@@ -9,22 +11,27 @@ def test_geometry():
     assert geometry.pixel_size == (8., 9.)
 
 
-def test_interface_has_to_be_implemented():
-    class Plugin(ShaperInterface):
-        pass
+class FakeModule:
+    """What the extension has: the DAQ_Move control module, with the settings tree of its plugin"""
+    _hw_settings_name = 'actuator_settings'
 
-    with pytest.raises(NotImplementedError):
-        Plugin().get_shaper_geometry()
+    def __init__(self, children):
+        self.settings = Parameter.create(name='settings', type='group', children=[
+            {'name': self._hw_settings_name, 'type': 'group', 'children': children}])
 
 
-def test_duck_typing():
-    class Other:
-        def get_shaper_geometry(self):
-            return ShaperGeometry(2, 3, 4., 4.)
+def test_read_from_module():
+    module = FakeModule([shaper_geometry_params()])
+    assert get_module_shaper_geometry(module) is None  # not filled yet: plugin not initialized
+    group = module.settings.child('actuator_settings', 'shaper_geometry')
+    for name, value in (('width', 1920), ('height', 1080), ('pixel_size_x', 8.), ('pixel_size_y', 9.)):
+        group.child(name).setValue(value)
+    assert get_module_shaper_geometry(module) == ShaperGeometry(1920, 1080, 8., 9.)
 
-    assert has_shaper_interface(Other())
-    assert has_shaper_interface(ShaperInterface())
-    assert not has_shaper_interface(object())
+
+def test_plugin_without_the_group():
+    assert get_module_shaper_geometry(FakeModule([])) is None
+    assert get_module_shaper_geometry(object()) is None
 
 
 def test_mock_shaper_gives_the_configured_geometry(qapp):
@@ -33,8 +40,7 @@ def test_mock_shaper_gives_the_configured_geometry(qapp):
     from pymodaq_plugins_beam_shaping.utilities import sizing
 
     plugin = make_actuator(DAQ_Move_MockShaper)
-    geometry = plugin.get_shaper_geometry()
-    assert isinstance(plugin, ShaperInterface)
+    geometry = ShaperGeometry.from_parameter(plugin.settings.child('shaper_geometry'))
     assert geometry.shape == sizing.get_slm_size()
     assert geometry.pixel_size_x > 0
     plugin.close()

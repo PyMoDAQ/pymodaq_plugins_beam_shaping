@@ -10,11 +10,11 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
-from pymodaq_plugins_beam_shaping.utilities.shaper import ShaperInterface, ShaperGeometry
+from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_geometry_params
 from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
-class DAQ_Move_MockShaper(ShaperInterface, DAQ_Move_base):
+class DAQ_Move_MockShaper(DAQ_Move_base):
     """ Instrument plugin class for an actuator.
     
     This object inherits all functionalities to communicate with PyMoDAQ’s DAQ_Move module through inheritance via
@@ -34,16 +34,20 @@ class DAQ_Move_MockShaper(ShaperInterface, DAQ_Move_base):
     _epsilons: Union[float, List[float]] = 0.1
     data_actuator_type = DataActuatorType.DataActuator
 
-    params = [] + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilons)
+    params = [shaper_geometry_params()] + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilons)
 
 
     def ini_attributes(self):
         self.controller: ShaperCamera = None
 
-    def get_shaper_geometry(self) -> ShaperGeometry:
+    def set_shaper_geometry(self):
+        """Fill the shaper_geometry group read by the BeamShaping extension"""
         height, width = sizing.get_slm_size()
         pixel_size = float(sizing.plugin_config('SLM', sizing.plugin_config('SLM', 'default_slm')[0], 'pixel_size'))
-        return ShaperGeometry(width, height, pixel_size, pixel_size)
+        group = self.settings.child('shaper_geometry')
+        for name, value in (('width', width), ('height', height), ('pixel_size_x', pixel_size),
+                            ('pixel_size_y', pixel_size)):
+            group.child(name).setValue(value)
 
     def get_actuator_value(self):
         """Get the current value from the hardware with scaling conversion.
@@ -86,6 +90,7 @@ class DAQ_Move_MockShaper(ShaperInterface, DAQ_Move_base):
         """
         if self.is_master:  # is needed when controller is master
             self.controller = ShaperCamera() #  arguments for instantiation!)
+            self.set_shaper_geometry()
             initialized = True
         else:
             self.controller = controller
