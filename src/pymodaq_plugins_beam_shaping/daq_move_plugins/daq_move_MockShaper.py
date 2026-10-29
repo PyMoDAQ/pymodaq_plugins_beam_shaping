@@ -10,9 +10,11 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
+from pymodaq_plugins_beam_shaping.utilities.shaper import ShaperInterface, ShaperGeometry
+from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
-class DAQ_Move_MockShaper(DAQ_Move_base):
+class DAQ_Move_MockShaper(ShaperInterface, DAQ_Move_base):
     """ Instrument plugin class for an actuator.
     
     This object inherits all functionalities to communicate with PyMoDAQ’s DAQ_Move module through inheritance via
@@ -37,6 +39,11 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
 
     def ini_attributes(self):
         self.controller: ShaperCamera = None
+
+    def get_shaper_geometry(self) -> ShaperGeometry:
+        height, width = sizing.get_slm_size()
+        pixel_size = float(sizing.plugin_config('SLM', sizing.plugin_config('SLM', 'default_slm')[0], 'pixel_size'))
+        return ShaperGeometry(width, height, pixel_size, pixel_size)
 
     def get_actuator_value(self):
         """Get the current value from the hardware with scaling conversion.
