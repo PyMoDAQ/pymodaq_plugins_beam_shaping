@@ -140,11 +140,17 @@ class BeamShaping(CustomExt):
                                   )
     @property
     def shaper(self) -> Shaper:
-        if self._shaper is None:
-            self._shaper = get_shaper()
-            if self.has_action('calibration'):
-                self.set_action_visible('calibration', self._shaper.modulator_type == ModulatorType.PHASE)
-        return self._shaper
+        """The shaper as told by the Shaper actuator (once initialized), else the one of the configuration"""
+        shaper = None
+        if self._shaper_actuator is not None:
+            shaper = Shaper.from_module(self._shaper_actuator)
+        if shaper is None:
+            shaper = get_shaper()
+        if (self._shaper is None or self._shaper.modulator_type != shaper.modulator_type) and \
+                self.has_action('calibration'):
+            self.set_action_visible('calibration', shaper.modulator_type == ModulatorType.PHASE)
+        self._shaper = shaper
+        return shaper
 
     def send_field_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
         """ Send the modulator field to the shaper depending on its modulation type

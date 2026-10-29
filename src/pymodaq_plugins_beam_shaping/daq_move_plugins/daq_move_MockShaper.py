@@ -10,7 +10,7 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
-from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_geometry_params
+from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, ModulatorType
 from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
@@ -34,20 +34,21 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
     _epsilons: Union[float, List[float]] = 0.1
     data_actuator_type = DataActuatorType.DataActuator
 
-    params = [shaper_geometry_params()] + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilons)
+    params = shaper_params() + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilons)
 
 
     def ini_attributes(self):
         self.controller: ShaperCamera = None
 
     def set_shaper_geometry(self):
-        """Fill the shaper_geometry group read by the BeamShaping extension"""
+        """Fill the shaper settings groups read by the BeamShaping extension"""
         height, width = sizing.get_slm_size()
-        pixel_size = float(sizing.plugin_config('SLM', sizing.plugin_config('SLM', 'default_slm')[0], 'pixel_size'))
-        group = self.settings.child('shaper_geometry')
-        for name, value in (('width', width), ('height', height), ('pixel_size_x', pixel_size),
-                            ('pixel_size_y', pixel_size)):
-            group.child(name).setValue(value)
+        slm = sizing.plugin_config('SLM', 'default_slm')[0]
+        fill_shaper_settings(self.settings, slm, width, height,
+                             float(sizing.plugin_config('SLM', slm, 'pixel_size')),
+                             modulator_type=ModulatorType(sizing.plugin_config('SLM', slm, 'modulator_type')[0]),
+                             has_internal_calibration=bool(sizing.plugin_config('SLM', slm,
+                                                                                'has_internal_calibration')))
 
     def get_actuator_value(self):
         """Get the current value from the hardware with scaling conversion.
