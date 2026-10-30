@@ -115,3 +115,43 @@ def test_extension_updates_the_fields_from_the_shaper(qtbot):
         assert extension.input_field.shape == sizing.get_effective_needed_field_size(extension.shaper)
     finally:
         extension.quit_fun()
+
+
+def test_roi_select_is_the_same_in_both_viewers(qtbot, dockarea):
+    from pymodaq_plugins_beam_shaping.field.field_loader_app import FieldLoaderApp
+
+    app = FieldLoaderApp(dockarea)
+    amp, phase = (viewer.view for viewer in (app.amp_viewer, app.phase_viewer))
+    group = app.settings.child('utils', 'roi_select')
+
+    amp.get_action('ROIselect').trigger()  # as the button does: shown, placed by the viewer the first time
+    assert phase.is_action_checked('ROIselect') and phase.ROIselect.isVisible()
+    assert group['show'] and group['width'] > 0
+
+    def geometry(view):
+        return [view.ROIselect.center()[0], view.ROIselect.center()[1], view.ROIselect.width(), view.ROIselect.height()]
+
+    assert geometry(amp) == pytest.approx(geometry(phase))
+
+    # moved in the phase viewer: follows in the amplitude viewer and in the settings
+    phase.ROIselect.setPos((phase.ROIselect.pos()[0] + 3., phase.ROIselect.pos()[1] + 2.))
+    assert geometry(amp) == pytest.approx(geometry(phase))
+    assert [group[name] for name in ('x', 'y', 'width', 'height')] == pytest.approx(geometry(phase))
+
+    # resized in the amplitude viewer
+    amp.ROIselect.set_width(4.)
+    assert phase.ROIselect.width() == pytest.approx(4.)
+
+    # the settings drive both, and who listens to the viewers (the extension) is told
+    infos = []
+    app.amp_viewer.roi_select_signal.connect(infos.append)
+    group.child('x').setValue(1.5)
+    assert infos
+    assert amp.ROIselect.center()[0] == pytest.approx(1.5) and phase.ROIselect.center()[0] == pytest.approx(1.5)
+
+    # hidden from the phase button: hidden in both, and placed again nowhere when shown again
+    before = geometry(amp)
+    phase.get_action('ROIselect').trigger()
+    assert not amp.is_action_checked('ROIselect') and not amp.ROIselect.isVisible()
+    phase.get_action('ROIselect').trigger()
+    assert amp.ROIselect.isVisible() and geometry(phase) == pytest.approx(before) == geometry(amp)

@@ -23,6 +23,7 @@ from pymodaq_gui.plotting.data_viewers.viewer2D import Viewer2D
 from pymodaq_gui.utils.custom_app import CustomApp
 from pymodaq_gui.utils.dock import DockArea, Dock
 from pymodaq_gui.utils.file_io import select_file
+from pymodaq_gui.utils.widget_sync import DictSync, SyncMode
 from pymodaq_gui.parameter.ioxml import parameter_to_xml_string
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.field import Field, Q_, LoaderFactory, FieldLoader
@@ -95,6 +96,15 @@ class FieldLoaderApp(CustomApp):
             ]},
             {'title': 'Normalisation', 'name': 'normalisation', 'type': 'list', 'value': NormaliseTo.MAX,
              'limits': NormaliseTo.names()},
+            {'title': 'ROI Select', 'name': 'roi_select', 'type': 'group', 'children': [
+                {'title': 'Show:', 'name': 'show', 'type': 'bool', 'value': False,
+                 'tip': 'Show the ROI Select in the Amplitude and Phase viewers (same as their ROI Select button)'},
+                {'title': 'Center X:', 'name': 'x', 'type': 'float', 'value': 0., 'decimals': 6},
+                {'title': 'Center Y:', 'name': 'y', 'type': 'float', 'value': 0., 'decimals': 6},
+                {'title': 'Width:', 'name': 'width', 'type': 'float', 'value': 0., 'decimals': 6,
+                 'tip': 'null until the ROI has been placed, see sync_roi_selects'},
+                {'title': 'Height:', 'name': 'height', 'type': 'float', 'value': 0., 'decimals': 6},
+            ]},
             {'title': 'Masking', 'name': 'masking', 'type': 'group', 'children': [
                 {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.SQUARE),
                  'limits': MaskType.names()},
@@ -302,6 +312,56 @@ class FieldLoaderApp(CustomApp):
         self.settings.child('needed_size', 'pixel_height').setValue(pixel_size)
         self.settings.child('needed_size', 'pixel_width').setValue(pixel_size)
 
+
+    def sync_roi_selects(self):
+        """ The ROI Select of the Amplitude and Phase viewers follow each other and the settings *utils > roi_select*
+
+        The ROI can be shown, moved or resized in either viewer. It is placed by the viewer (2/3 of the view, centered)
+        the first time it is shown, then it keeps its place, given by the settings.
+        """
+        group = self.settings.child('utils', 'roi_select')
+
+        def roi_to_values(values: dict) -> dict:
+            # the signal of a ROI gives the ROI itself instead of the value of the property it changed
+            for key, value in values.items():
+                if isinstance(value, pgROI):
+                    values[key] = value.center()[{'x': 0, 'y': 1}[key]] if key in 'xy' else getattr(value, key)()
+            return values
+
+        self._roi_select_sync = DictSync({name: group[name] for name in ('show', 'x', 'y', 'width', 'height')},
+                                         validator=roi_to_values)
+
+        for viewer in (self.amp_viewer, self.phase_viewer):
+            view, roi = viewer.view, viewer.view.ROIselect
+
+            def show_roi_select(view=view, show_and_place=view.show_ROI_select):
+                if self.settings['utils', 'roi_select', 'width'] == 0:
+                    show_and_place()  # first time: placed by the viewer, the settings follow
+                else:
+                    view.ROIselect.setVisible(view.is_action_checked('ROIselect'))
+            view.show_ROI_select = show_roi_select  # called by the button of the viewer
+
+            def set_shown(show, view=view):
+                view.set_action_checked('ROIselect', show)
+                view.ROIselect.setVisible(show)
+
+            geometry = dict(signal=roi.sigRegionChangeFinished, mode=SyncMode.BIDIRECTIONAL)
+            self._roi_select_sync.bind_properties(roi, property_map={
+                'show': dict(signal=view.get_action('ROIselect').toggled,
+                             getter=lambda view=view: view.is_action_checked('ROIselect'),
+                             setter=set_shown, mode=SyncMode.BIDIRECTIONAL),
+                'x': dict(getter=lambda roi=roi: roi.center()[0],
+                          setter=lambda x, roi=roi: roi.set_center((x, roi.center()[1])), **geometry),
+                'y': dict(getter=lambda roi=roi: roi.center()[1],
+                          setter=lambda y, roi=roi: roi.set_center((roi.center()[0], y)), **geometry),
+                'width': dict(getter=roi.width, setter=roi.set_width, **geometry),
+                'height': dict(getter=roi.height, setter=roi.set_height, **geometry),
+            }, init_from='sync')
+
+        # a ROI set from the settings (or the other viewer) does not tell the viewer: say it, for who uses roi_select_signal
+        self._roi_select_sync.value_changed.connect(lambda _: self.amp_viewer.selected_region_changed())
+        self._roi_select_sync.bind_parameter(group, property_map={
+            name: {'param': group.child(name)} for name in ('show', 'x', 'y', 'width', 'height')})
 
     def show_roi_target(self, show=True):
         self.amp_viewer.roi_target.setVisible(show)
@@ -538,6 +598,7 @@ class FieldLoaderApp(CustomApp):
         self.slm_size_roi_phase.setVisible(False)
 
         self.show_roi_target(self.settings['needed_size', 'show_needed_area'])
+        self.sync_roi_selects()
 
         field_widget_splitter.addWidget(amp_widget)
         field_widget_splitter.addWidget(phase_widget)

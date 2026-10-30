@@ -74,4 +74,7 @@ to apply th
 
 
 .. note::
-   You can use the **ROI selector** in the Field Loader Graphics to crop or mask regions of the field.
+   You can use the **ROI selector** in the Field Loader Graphics to crop or mask regions of the field. The ROI
+   Select of the amplitude and of the phase viewers is the same one: show, move or resize it in either viewer
+   (or from the settings, *utils > roi_select*) and the other follows. It is placed by the viewer (centered, 2/3 of
+   the view) the first time it is shown, then it keeps its place.
