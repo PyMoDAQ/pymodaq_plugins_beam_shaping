@@ -10,7 +10,8 @@ Troubleshooting
      - **Solution**
    * - SLM not responding
      - ``Shaper`` module not loaded in Dashboard.
-     - Load the ``Shaper`` module in PyMoDAQ’s Dashboard.
+     - Load the ``Shaper`` module in PyMoDAQ’s Dashboard and initialize it. Otherwise the default shaper of the
+       configuration file is used (see :doc:`user_guide/shapers`).
    * - Calibration error
      - Missing calibration file.
      - Run calibration via **Shaping > Calibration**.
@@ -22,7 +23,7 @@ Troubleshooting
      - Apply Zernike/focal corrections or recalibrate the SLM.
    * - ``.h5beam`` file not loading
      - SLM size mismatch.
-     - Check ``sizing.py`` or recalibrate the SLM.
+     - Check that the size and pixel size of the Shaper actuator (``shaper_geometry`` group) are those of the file.
    * - Slow performance
      - Large field size or complex algorithm.
      - Reduce field size or use a simpler algorithm (e.g., ``DirectPhase``).

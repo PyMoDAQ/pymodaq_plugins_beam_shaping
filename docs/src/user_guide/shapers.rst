@@ -51,7 +51,7 @@ Available shapers
      - **Remarks**
    * - MockShaper
      - pymodaq_plugins_beam_shaping
-     - Simulated shaper using the SLM of the configuration file. For tests without hardware.
+     - Simulated shaper using the default shaper of the configuration file. For tests without hardware.
    * - Holoeye, HoloeyeFile, HoloeyeSplitScreen, HoloeyeMock
      - `pymodaq_plugins_holoeye <https://github.com/PyMoDAQ/pymodaq_plugins_holoeye>`_
      - Holoeye SLMs, with the SLM Display SDK 3 or 4. The phase is converted to grey levels by the SDK (internal
