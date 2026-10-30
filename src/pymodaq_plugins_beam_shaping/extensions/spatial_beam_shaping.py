@@ -33,7 +33,7 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
-from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, DEFAULT_SHAPER, set_shaper
 
 logger = set_logger(get_module_name(__file__))
 layout_path = get_set_layout_path(user=True)
@@ -140,12 +140,13 @@ class BeamShaping(CustomExt):
                                   )
     @property
     def shaper(self) -> Shaper:
-        """The shaper as told by the Shaper actuator (once initialized), else the one of the configuration"""
+        """The shaper as told by the Shaper actuator (once initialized), else the default one"""
         shaper = None
         if self._shaper_actuator is not None:
             shaper = Shaper.from_module(self._shaper_actuator)
         if shaper is None:
-            shaper = get_shaper()
+            shaper = DEFAULT_SHAPER
+        set_shaper(None if shaper is DEFAULT_SHAPER else shaper)
         if (self._shaper is None or self._shaper.modulator_type != shaper.modulator_type) and \
                 self.has_action('calibration'):
             self.set_action_visible('calibration', shaper.modulator_type == ModulatorType.PHASE)

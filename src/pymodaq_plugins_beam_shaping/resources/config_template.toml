@@ -21,26 +21,6 @@ setup_type = ['2f', '4f', 'no_lens'] #readonly set from the chosen algorithm
     lengths = [100, 100, 150, 150]
     focals = [100, 150]
 
-[SLM]
-default_slm = ["PLUTO", "LC2012"] #first elet in the list used as default
-
-
-[SLM.PLUTO]
-width = 1920
-height = 1080
-pixel_size = 8  # in micrometer
-has_internal_calibration = true
-use_internal_calibration = false
-modulator_type = ['phase', 'amplitude', 'both']
-
-[SLM.LC2012]
-width = 1024
-height = 768
-pixel_size = 36   # in micrometer
-has_internal_calibration = true
-use_internal_calibration = false
-modulator_type = ['phase', 'amplitude', 'both']
-
 [target]
 default_loader = ["ImageFiles"] #will be populated at startup from the reading of the factory
  #first elet in the list used as default
