@@ -84,8 +84,10 @@ BeamShaping itself, then the ones provided by other installed packages (see :ref
 
 The settings of each algorithm are detailed in :doc:`algorithm_reference`.
 
-The phase and amplitude implementations of *Minimize* and *TorchOptim* (Bowman et al. 2017) give results that are not
-satisfactory yet and do not seem to reproduce the ones of the paper.
+With *Minimize* and *TorchOptim*, the losses that shape the amplitude only (*LeastSquares*, *MSELoss*, *SmoothL1Loss*,
+*LeastExponent*) work well. The three losses that try to shape the amplitude **and** the phase (*Chicken*,
+*ChickenArnaud*, *LSQAmplitudePhase*, after Bowman et al. 2017) give results that are not satisfactory yet and do not
+seem to reproduce the ones of the paper.
 
 *Minimize* and *TorchOptim* are only listed if ``pytorch`` is installed (``pip install
 pymodaq_plugins_beam_shaping[pytorch]``). **Setup** is the propagation model assumed between the modulator and the

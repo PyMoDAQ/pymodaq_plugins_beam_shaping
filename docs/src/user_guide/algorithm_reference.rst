@@ -89,16 +89,6 @@ defaults of slmsuite, see :doc:`slmsuite`.
 Minimize and TorchOptim
 -----------------------
 
-.. warning::
-   The implementation of this algorithm in BeamShaping is **not satisfactory yet**: its results are not good and do not
-   seem to reproduce the ones of the paper (Bowman et al. 2017). Do not rely on it for now.
-
-Both minimize a **loss function** between the output and the target fields with respect to the phase of the modulator
-(**2f** setup, iterative), based on `Bowman et al., Optics Express 25(10), 2017 <https://doi.org/10.1364/OE.25.011692>`_ (conjugate gradient
-minimisation) and implemented with ``pytorch``. They are only listed if ``pytorch`` is installed
-(``pip install pymodaq_plugins_beam_shaping[pytorch]``, which also installs ``pytorch-minimize`` used by *Minimize*).
-The calculation runs on the GPU if one is available.
-
 * **Minimize** uses the minimizers of ``pytorch-minimize``.
 * **TorchOptim** uses the L-BFGS optimizer of ``pytorch``.
 
@@ -110,24 +100,37 @@ The calculation runs on the GPU if one is available.
 
   .. list-table::
      :header-rows: 1
-     :widths: 30 70
+     :widths: 28 17 55
 
      * - **Loss**
+       - **Shapes**
        - **Settings (default)**
      * - LeastSquares
+       - amplitude
        - none
      * - MSELoss
+       - amplitude
        - none
      * - SmoothL1Loss
+       - amplitude
        - ``Beta`` (0.5)
      * - LeastExponent
+       - amplitude
        - ``Loss exponent`` (4)
      * - Chicken
+       - amplitude and phase
        - ``Power exponent`` (9), ``Sum exponent`` (2)
      * - ChickenArnaud
+       - amplitude and phase
        - ``Ratio`` (1)
      * - LSQAmplitudePhase
+       - amplitude and phase
        - ``Amplitude exponent`` (1), ``Phase exponent`` (1)
+
+  .. warning::
+     The amplitude-only losses work well. The three losses that shape both amplitude and phase (*Chicken*,
+     *ChickenArnaud*, *LSQAmplitudePhase*, after Bowman et al. 2017) give results that are **not satisfactory yet** and
+     do not seem to reproduce the ones of the paper.
 
 *Minimize* only: ``Method`` of the minimizer (default l-bfgs): bfgs, l-bfgs, cg, newton-cg, newton-exact, dogleg,
 trust-ncg, trust-exact or trust-krylov.
