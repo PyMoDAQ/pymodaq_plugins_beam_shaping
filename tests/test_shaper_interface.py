@@ -76,3 +76,31 @@ def test_sizes_follow_the_shaper():
     set_shaper(Shaper('Other', 640, 480, 12., False, False, ModulatorType.PHASE))
     assert sizing.get_slm_size() == (480, 640)
     assert sizing.get_effective_slm_pixel_size() == 12. * sizing.get_binning()
+
+
+def test_preference_overwrites_the_calibration_choice_of_the_actuator(monkeypatch, caplog):
+    from pymodaq_plugins_beam_shaping.extensions import spatial_beam_shaping as module_under_test
+    module = FakeModule(shaper_params())
+    fill_shaper_settings(module.settings.child('actuator_settings'), 'My SLM', 1920, 1080, 8.,
+                         has_internal_calibration=True)
+    extension = _extension(module)
+    use = module.settings.child('actuator_settings', PROPERTIES_NAME, 'use_internal_calibration')
+
+    monkeypatch.setattr(module_under_test, 'plugin_config', lambda *args: False)
+    BeamShaping.apply_calibration_preference(extension)
+    assert not use.value()
+    assert 'Use internal calibration' in caplog.text
+
+    monkeypatch.setattr(module_under_test, 'plugin_config', lambda *args: True)
+    BeamShaping.apply_calibration_preference(extension)
+    assert use.value()
+
+
+def test_preference_does_not_touch_a_shaper_without_internal_calibration():
+    from pymodaq_plugins_beam_shaping.extensions import spatial_beam_shaping as module_under_test
+    module = FakeModule(shaper_params())
+    fill_shaper_settings(module.settings.child('actuator_settings'), 'My SLM', 1920, 1080, 8.,
+                         has_internal_calibration=False)
+    BeamShaping.apply_calibration_preference(_extension(module))
+    assert not module.settings.child('actuator_settings', PROPERTIES_NAME, 'use_internal_calibration').value()
+    BeamShaping.apply_calibration_preference(_extension(None))  # no actuator: nothing to do

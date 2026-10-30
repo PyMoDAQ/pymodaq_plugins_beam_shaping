@@ -29,8 +29,12 @@ width = 1920
 height = 1080
 pixel_size = 8.0  # in micrometer
 has_internal_calibration = false
-use_internal_calibration = false
 modulator_type = ['phase', 'amplitude', 'both']  #first elet in the list used as default
+
+[calibration]
+# Imposed to the Shaper actuator (setting "Use internal calibration") when it has an internal calibration: the phase
+# is then sent in radians and converted by the shaper itself, instead of using the calibration of BeamShaping
+use_internal_calibration = true
 
 [target]
 default_loader = ["ImageFiles"] #will be populated at startup from the reading of the factory

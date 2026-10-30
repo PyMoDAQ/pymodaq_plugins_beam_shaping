@@ -14,12 +14,14 @@ def get_default_shaper() -> Shaper:
     It is used as long as no Shaper actuator tells what the shaper is (actuator absent or not initialized, or a plugin
     that does not provide the shaper settings groups): the same for all the shapers.
     """
+    has_internal_calibration = bool(config('default_shaper', 'has_internal_calibration'))
     return Shaper(name=config('default_shaper', 'name'),
                   width=config('default_shaper', 'width'),
                   height=config('default_shaper', 'height'),
                   pixel_size=config('default_shaper', 'pixel_size'),
-                  has_internal_calibration=config('default_shaper', 'has_internal_calibration'),
-                  use_internal_calibration=config('default_shaper', 'use_internal_calibration'),
+                  has_internal_calibration=has_internal_calibration,
+                  use_internal_calibration=has_internal_calibration and
+                  bool(config('calibration', 'use_internal_calibration')),
                   modulator_type=ModulatorType(config('default_shaper', 'modulator_type')[0]))
 
 
