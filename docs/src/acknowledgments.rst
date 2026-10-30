@@ -41,7 +41,7 @@ Main Sources
      - `GitHub: pymodaq_plugins_beam_shaping <https://github.com/PyMoDAQ/pymodaq_plugins_beam_shaping>`_
    * - **Scientific Article**
      - Full manuscript (PDF/LaTeX) provided by the authors (Rollo, Arbouet, Weber)
-     - `To be cited <>`_
+     - To be cited
    * - **PyMoDAQ Documentation**
      - Official guide for extensions and documentation style
      - `pymodaq.cnrs.fr <https://pymodaq.cnrs.fr/en/latest/>`_
@@ -54,7 +54,7 @@ Main Sources
 
 
 Tools Used
----------
+----------
 - **Sphinx** (with ``sphinx-rtd-theme``) for documentation generation.
 - **reStructuredText** (``.rst``) for writing.
 - **LaTeX** for mathematical equations (integrated via ``sphinx.ext.imgmath``).

@@ -215,6 +215,7 @@ shaping for the MRAF algorithm using different initial phase type and mixing par
    \eta = \frac{\sum_{\mathbf{r}_{out}\in S} I_{out}(\mathbf{r}_{out})}{\sum_{\mathbf{r}_{in}} I_{in}(\mathbf{r}_{in})}.
 
 .. _FIG-metrics:
+
 .. figure:: /_images/measurement_amplitude.png
    :alt: Intensity-Only Shaping Results
    :width: 100%
@@ -230,7 +231,7 @@ shaping for the MRAF algorithm using different initial phase type and mixing par
 
 .. note::
    The metrics (NRMSE, Fidelity, Efficiency) are **automatically saved** in the ``.h5beam`` file under
-   ``/RawData/Algorithm/``. See :numref:`sec-h5beam-structure` for details.
+   ``/RawData/Algorithm/``. See :ref:`h5beam-structure` for details.
 
 .. _sec-algorithms-external:
 

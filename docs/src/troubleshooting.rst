@@ -1,5 +1,5 @@
 Troubleshooting
-==============
+===============
 
 .. list-table:: **Common Issues and Solutions**
    :header-rows: 1

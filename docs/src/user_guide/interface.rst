@@ -61,11 +61,6 @@ The BeamShaping interface is organized into **dockable panels** for flexibility.
    :alt: Input
    :align: middle
 
-.. |deblur| image:: /_static/icons/tune.png
-   :height: 20pt
-   :alt: Corrections
-   :align: middle
-
 .. |equalizer| image:: /_static/icons/equalizer.png
    :height: 20pt
    :alt: Calibration
@@ -98,7 +93,7 @@ The BeamShaping interface is organized into **dockable panels** for flexibility.
 
 .. |deblur| image:: /_static/icons/deblur.png
    :height: 20pt
-   :alt: Add Corrections
+   :alt: Corrections
    :align: middle
 
 

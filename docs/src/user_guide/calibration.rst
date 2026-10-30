@@ -19,7 +19,7 @@ SLM Calibration
 .. _sec-calibration-why:
 
 Why Calibrate?
--------------
+--------------
 SLMs do **not** linearly convert **gray levels** (0–255) to **optical phase** (0–2π).
 Calibration establishes the **gray-level-to-phase mapping** for accurate beam shaping.
 
@@ -43,6 +43,7 @@ Calibration Procedure
         ~/.pymodaq/beam_shaping/calibration.h5
 
 .. _FIG-calibration:
+
 .. figure:: /_images/calibration.png
    :alt: SLM Calibration Module
    :width: 60%
@@ -59,7 +60,7 @@ For a result on the calibration process, see :numref:`FIG-calibration`.
 .. _sec-calibration-using:
 
 Using Calibration
-----------------
+-----------------
 
 
 If no calibration file is found, an error message will prompt you to calibrate first.

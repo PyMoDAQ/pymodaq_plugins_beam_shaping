@@ -4,7 +4,7 @@ Field Loaders
 .. _sec-fields-parameters:
 
 Field Representation
--------------------
+--------------------
 
 A **Field** is an advanced python object encapsulating the data values (numpy array) for both the amplitude and phase.
 it also features attributes to add physical insight into the object such as the shape and the pixel width in microns.
@@ -62,6 +62,7 @@ to apply th
 
 
 .. _FIG-field-loader:
+
 .. figure:: /_images/field_loader.png
    :alt: Field Loader Portfolio
    :width: 90%

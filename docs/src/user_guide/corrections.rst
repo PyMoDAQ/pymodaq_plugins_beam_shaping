@@ -69,6 +69,7 @@ To integrate corrections into PyMoDAQ’s **Dashboard** (e.g., for automation):
    - ``Zernike_1_1``, ``Zernike_2_0``, etc. (up to the configured order).
 
 .. _FIG-corrections:
+
 .. figure:: /_images/corrections.png
    :alt: Phase Corrections Panel
    :width: 70%

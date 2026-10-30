@@ -7,7 +7,7 @@ Quick Start
    :alt: Save
    :align: middle
 
-.. |file_open| image:: /_static/icons/folder_open.png
+.. |file_open| image:: /_static/icons/file_open.png
    :height: 20pt
    :alt: Load
    :align: middle
@@ -22,7 +22,7 @@ Quick Start
    :alt: Input
    :align: middle
 
-.. |deblur| image:: /_static/icons/tune.png
+.. |deblur| image:: /_static/icons/deblur.png
    :height: 20pt
    :alt: Corrections
    :align: middle
@@ -128,6 +128,7 @@ Follow these steps to perform your first beam shaping:
 For more details on the interface, see :numref:`FIG-quick-start`.
 
 .. _FIG-quick-start:
+
 .. figure:: /_images/main_app.png
    :alt: BeamShaping User Interface
    :width: 100%
