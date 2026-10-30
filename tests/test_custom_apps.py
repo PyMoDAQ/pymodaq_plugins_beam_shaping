@@ -74,7 +74,7 @@ def test_extension_on_empty_dashboard(qtbot):
     from pymodaq_plugins_beam_shaping.utilities import regions, sizing
     roi = extension._target_field_loader.amp_viewer.view.ROIselect
     pixel_sizes = extension._algorithm.get_plane_pixel_sizes('target_mask')
-    pos, size = regions.get_effective_area(pixel_sizes)  # um, (y, x)
+    pos, size = regions.get_effective_area(extension.shaper, pixel_sizes)  # um, (y, x)
     assert roi.size()[0] * 1e6 == pytest.approx(2 / 3 * size[1], rel=1e-3)
     assert roi.size()[1] * 1e6 == pytest.approx(2 / 3 * size[0], rel=1e-3)
     assert roi.pos()[0] * 1e6 == pytest.approx(pos[1] + size[1] / 6, rel=1e-3)
@@ -86,7 +86,7 @@ def test_extension_updates_the_fields_from_the_shaper(qtbot):
     from pymodaq.dashboard import create_load_dashboard
     from pymodaq.utils.gui_utils.loader_utils import create_extension
     from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
-    from pymodaq_plugins_beam_shaping.utilities.shaper import (ModulatorType, set_shaper, shaper_params,
+    from pymodaq_plugins_beam_shaping.utilities.shaper import (ModulatorType, shaper_params,
                                                                fill_shaper_settings)
     from pymodaq_gui.parameter import Parameter
     from pymodaq_plugins_beam_shaping.utilities import sizing
@@ -106,10 +106,12 @@ def test_extension_updates_the_fields_from_the_shaper(qtbot):
         extension.update_from_shaper()
 
         assert extension.shaper.name == 'Other'
-        assert sizing.get_slm_size() == (256, 512)
+        assert sizing.get_slm_size(extension.shaper) == (256, 512)
+        # every part of the extension follows the same shaper
+        assert extension._algorithm.shaper == extension.shaper == extension._corrections.shaper
+        assert extension._input_field_loader.shaper == extension._target_field_loader.shaper == extension.shaper
         assert extension.slm_shape == (256 // 2, 512 // 2)  # binned
         assert extension.input_field.shape != before
-        assert extension.input_field.shape == sizing.get_effective_needed_field_size()
+        assert extension.input_field.shape == sizing.get_effective_needed_field_size(extension.shaper)
     finally:
-        set_shaper(None)
         extension.quit_fun()

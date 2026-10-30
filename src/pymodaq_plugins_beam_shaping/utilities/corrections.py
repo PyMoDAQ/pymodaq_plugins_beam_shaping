@@ -21,6 +21,7 @@ from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.utilities.zernike import (ZernikeUI, SliderSpinBox,
                                                             ZernikeCoeffs)
 from pymodaq_plugins_beam_shaping.utilities import sizing
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 
 here = Path(__file__).parent
 
@@ -45,8 +46,9 @@ class Correction(CustomApp):
 
     _plugin_config = plugin_config
 
-    def __init__(self, parent: DockArea, beam_fwhm=beam_fwhm, **kwargs):
+    def __init__(self, parent: DockArea, beam_fwhm=beam_fwhm, shaper: Shaper = None, **kwargs):
         super().__init__(parent, **kwargs)
+        self.shaper: Shaper = shaper if shaper is not None else get_default_shaper()
 
         self._zernike_ui: ZernikeUI = None
         self._zernike_coeffs = ZernikeCoeffs()
@@ -56,6 +58,11 @@ class Correction(CustomApp):
         self.beam_fwhm_sb.setValue(beam_fwhm.m_as('mm'))
 
         self.timing = perf_counter()
+        self.compute_zernike_base()
+
+    def update_shaper(self, shaper: Shaper):
+        """The shaper changed: the Zernike polynomials depend on the size of its pixels and on its shape"""
+        self.shaper = shaper
         self.compute_zernike_base()
 
     @property
@@ -211,7 +218,7 @@ class Correction(CustomApp):
         return zernike_phase * 2 * np.pi
 
     def compute_zernike_base(self):
-        pixel_size = Q_(sizing.get_effective_slm_pixel_size(), 'um')
+        pixel_size = Q_(sizing.get_effective_slm_pixel_size(self.shaper), 'um')
         unity_radius = self.unit_radius_sb.value() * self.beam_fwhm
 
         xlin, ylin = self._get_xy()
@@ -253,7 +260,7 @@ class Correction(CustomApp):
             coeff = 0.
         else:
             focal_length = Q_(focal_value, 'cm')
-            pixel_size = Q_(sizing.get_effective_slm_pixel_size(), 'um')
+            pixel_size = Q_(sizing.get_effective_slm_pixel_size(self.shaper), 'um')
             wavelength = Q_(self._plugin_config('setup', 'wavelength_nm'), 'nm')
 
             coeff =  float((pixel_size ** 2 / (wavelength * focal_length) * np.pi).to_reduced_units().magnitude)
@@ -271,7 +278,7 @@ class Correction(CustomApp):
 
         shift_x = Q_(tiltx, 'mm')
         shift_y = Q_(tilty, 'mm')
-        pixel_SLM = Q_(sizing.get_effective_slm_pixel_size(), 'um')
+        pixel_SLM = Q_(sizing.get_effective_slm_pixel_size(self.shaper), 'um')
         setup_type = self._plugin_config('setup', 'setup_type')[0]
         focal_postSLM = Q_(self._plugin_config('setup', setup_type, 'focals')[0], 'mm')
         wavelength = Q_(self._plugin_config('setup', 'wavelength_nm'), 'nm')
@@ -286,7 +293,7 @@ class Correction(CustomApp):
     @property
     def shape(self) -> tuple[int, int]:
         """ Get the effective shape of the fields in the plane of the SLM"""
-        return sizing.get_effective_needed_field_size()[0], sizing.get_effective_needed_field_size()[1]
+        return sizing.get_effective_needed_field_size(self.shaper)
 
 
 def main():

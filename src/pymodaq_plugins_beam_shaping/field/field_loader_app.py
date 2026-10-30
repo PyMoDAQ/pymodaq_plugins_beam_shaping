@@ -28,6 +28,7 @@ from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.field import Field, Q_, LoaderFactory, FieldLoader
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 
 from pymodaq_plugins_beam_shaping.utilities.sizing import (get_effective_needed_field_size,
                                                            get_effective_slm_pixel_size,
@@ -60,16 +61,16 @@ class FieldLoaderApp(CustomApp):
         ]},
         {'title': 'Needed size', 'name': 'needed_size', 'type': 'group', 'children': [
             {'title': 'Pixel Height (µm)', 'name': 'pixel_height', 'type': 'float',
-             'value': get_effective_slm_pixel_size(),
+             'value': 1.,  # set from the shaper, see update_shaper
              'readonly': False},
             {'title': 'Pixel Width (µm)', 'name': 'pixel_width', 'type': 'float',
-             'value': get_effective_slm_pixel_size(),
+             'value': 1.,
              'readonly': False},
             {'title': 'Height', 'name': 'height', 'type': 'int',
-             'value': get_effective_needed_field_size()[0],
+             'value': 1,
              'readonly': True},
             {'title': 'Width', 'name': 'width', 'type': 'int',
-             'value': get_effective_needed_field_size()[1],
+             'value': 1,
              'readonly': True},
             {'title': 'Show on Viewer', 'name': 'show_needed_area', 'type': 'bool_push',
              'value': True,},
@@ -112,8 +113,10 @@ class FieldLoaderApp(CustomApp):
 
     field_signal = QtCore.Signal(Field)
 
-    def __init__(self, dockarea: DockArea, title: str = None, **kwargs):
+    def __init__(self, dockarea: DockArea, title: str = None, shaper: Shaper = None, **kwargs):
         super().__init__(parent=dockarea, title=title)
+        self.shaper: Shaper = shaper if shaper is not None else get_default_shaper()
+        self._set_needed_size()
         self._main_widget: QtWidgets.QWidget = None
         self.field_widget: QtWidgets.QWidget = None
         self.settings_widget: QtWidgets.QWidget = None
@@ -169,9 +172,9 @@ class FieldLoaderApp(CustomApp):
     def check_mask_region(self):
         """ Set the default region (2/3 of the effective area, centered) if the current one is not valid"""
         region = self.get_mask_region()
-        if region is None or not regions.are_slices_in_area(region, self.get_pixel_sizes()):
+        if region is None or not regions.are_slices_in_area(self.shaper, region, self.get_pixel_sizes()):
             self.settings.child('utils', 'masking', 'slices').setValue(
-                regions.slices_to_str(regions.default_slices(self.get_pixel_sizes())))
+                regions.slices_to_str(regions.default_slices(self.shaper, self.get_pixel_sizes())))
 
     def get_mask_type(self) -> MaskType:
         return MaskType[self.settings['utils', 'masking', 'mask_type']]
@@ -286,10 +289,14 @@ class FieldLoaderApp(CustomApp):
             tuple(slice(_slice.start * pxl, _slice.stop * pxl) for _slice, pxl in zip(slices, pixel_sizes))))
         self.settings.child('utils', 'masking', 'apply_mask').setValue(apply)
 
-    def updated_slm(self, slm_default_name: str):
-        """ When a SLM has been changed in the config, one should update the needed size of the field"""
-        needed_size = get_effective_needed_field_size()
-        pixel_size = get_effective_slm_pixel_size()
+    def update_shaper(self, shaper: Shaper):
+        """ When the shaper has changed, one should update the needed size of the field"""
+        self.shaper = shaper
+        self._set_needed_size()
+
+    def _set_needed_size(self):
+        needed_size = get_effective_needed_field_size(self.shaper)
+        pixel_size = get_effective_slm_pixel_size(self.shaper)
         self.settings.child('needed_size', 'height').setValue(needed_size[0])
         self.settings.child('needed_size', 'width').setValue(needed_size[1])
         self.settings.child('needed_size', 'pixel_height').setValue(pixel_size)
@@ -319,7 +326,7 @@ class FieldLoaderApp(CustomApp):
                 (0, 0),
                 (np.array(needed_shape) * pixels_magnitude)[::-1])
 
-            pos, size = get_effective_area_pos_size_in_pxls()
+            pos, size = get_effective_area_pos_size_in_pxls(self.shaper)
             self.amp_viewer.view.move_scale_roi(self.slm_size_roi_amp,
                                                 pos=(pos * pixels_magnitude)[::-1],
                                                 size=(size * pixels_magnitude)[::-1])

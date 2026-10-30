@@ -6,7 +6,7 @@ from scipy.ndimage.filters import gaussian_filter
 from pyqtgraph.parametertree import Parameter
 from qtpy import QtWidgets
 
-from pymodaq_plugins_beam_shaping.utilities.shaper import get_modulator_type, ModulatorType
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper
 from pymodaq_utils.math_utils import gauss2D
 from pymodaq_data import Q_, DataRaw, DataToExport
 from pymodaq_gui.managers.parameter_manager import ParameterManager
@@ -66,15 +66,27 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         self._phase_wrap: PhaseManipulation = phase_wrap
 
         self.parent_app = parent
-        self._target_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size()))
-        self._input_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size()))
+        self._shaper: Optional[Shaper] = None  # only used without parent app, see the shaper property
+        self._target_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
+        self._input_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self.intermediate_field: Optional[Field] = None
 
-        self._modulator_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size()))
+        self._modulator_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self._modulator_field.calibrate_axes(self._input_field.pixels_sizes)
-        self._output_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size()))
+        self._output_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
 
         self.update_mask = True
+
+    @property
+    def shaper(self) -> Shaper:
+        """The shaper the algorithm computes for: the one of the parent app, else the default shaper"""
+        if self.parent_app is not None and getattr(self.parent_app, 'shaper', None) is not None:
+            return self.parent_app.shaper
+        return self._shaper if self._shaper is not None else get_default_shaper()
+
+    @shaper.setter
+    def shaper(self, shaper: Shaper):
+        self._shaper = shaper
 
     @property
     def crosstalk(self) -> CrossTalk:
@@ -148,7 +160,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
 
     @property
     def shape(self):
-        return sizing.get_effective_needed_field_size()
+        return sizing.get_effective_needed_field_size(self.shaper)
 
     def set_input_field(self, field: Field):
         self._input_field = field
@@ -195,7 +207,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         self._target_field.amplitude = np.sqrt(intensity)
 
     def set_field_in_modulator_plane(self, field: Field):
-        modulator_type = get_modulator_type()
+        modulator_type = self.shaper.modulator_type
         if modulator_type == ModulatorType.PHASE:
             self.set_phase_in_modulator_plane(field.phase)
         elif modulator_type == ModulatorType.AMPLITUDE:

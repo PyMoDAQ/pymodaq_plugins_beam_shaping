@@ -10,6 +10,7 @@ from pymodaq_gui.plotting.data_viewers import ViewerDispatcher
 from pymodaq_gui.utils.utils import mkQApp
 from pymodaq_gui.utils.widgets.window import make_window
 
+from pymodaq_plugins_beam_shaping.utilities.shaper import get_default_shaper
 from pymodaq_plugins_beam_shaping.utilities.sizing import get_slm_size
 
 
@@ -30,7 +31,7 @@ if __name__ == "__main__":
     shaper = Actuator('Shaper')
     camera = Detector('Camera')
 
-    shaper_shape = get_slm_size()
+    shaper_shape = get_slm_size(get_default_shaper())  # the scripting Actuator does not give the settings of the plugin
 
     qapp.processEvents()
 
