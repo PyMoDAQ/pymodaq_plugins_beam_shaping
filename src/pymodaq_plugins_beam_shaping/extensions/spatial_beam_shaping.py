@@ -686,9 +686,9 @@ class BeamShaping(CustomExt):
 
         A Shaper plugin that needs the wavelength (to convert phases into grey levels for instance) declares a
         ``wavelength_nm`` setting (in nm): it is overwritten here, at the start of the extension, when the experiment
-        is loaded, when the actuator is initialized and when the preferences change. A plugin generally uses it only
-        when it opens its instrument, so one that cannot update it on the fly has to be initialized again: the user
-        is told by a popup whenever the value had to be changed.
+        is loaded, when the actuator is initialized and when the preferences change. The plugin applies a change of the
+        setting directly (no re-initialization needed). The user is told by a popup whenever the value had to be
+        changed.
         """
         if self._shaper_actuator is None:
             return
@@ -704,9 +704,6 @@ class BeamShaping(CustomExt):
         setting.setValue(wanted)
         message = (f'The wavelength of the Shaper actuator was {old} nm, it is set to {wanted} nm as in the setup '
                    f'of the preferences of BeamShaping.')
-        if getattr(self._shaper_actuator, 'initialized_state', False):
-            message += (' The slmsuite actuators apply it directly; for another plugin, initialize the actuator again '
-                        'if it does not.')
         logger.warning(message)
         messagebox(title='Wavelength', text=message)
 

@@ -159,7 +159,6 @@ def test_preference_does_not_touch_a_shaper_without_internal_calibration():
 def test_wavelength_of_the_setup_is_imposed_to_the_actuator(monkeypatch, caplog):
     from pymodaq_plugins_beam_shaping.extensions import spatial_beam_shaping as module_under_test
     module = FakeModule(shaper_params() + [{'name': 'wavelength_nm', 'type': 'float', 'value': 515.}])
-    module.initialized_state = True
     extension = _extension(module)
     monkeypatch.setattr(module_under_test, 'plugin_config', lambda *args: 800.)
     popups = []
@@ -167,7 +166,7 @@ def test_wavelength_of_the_setup_is_imposed_to_the_actuator(monkeypatch, caplog)
 
     BeamShaping.apply_wavelength(extension)
     assert module.settings['actuator_settings', 'wavelength_nm'] == 800.
-    assert 'initialize the actuator again' in caplog.text
+    assert 'initialize' not in caplog.text and 'initialize' not in popups[0]['text']
     assert len(popups) == 1 and '800' in popups[0]['text']
 
     caplog.clear()
