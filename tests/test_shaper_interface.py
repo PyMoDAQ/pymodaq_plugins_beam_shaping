@@ -7,7 +7,7 @@ from pymodaq_gui.parameter import Parameter
 from pymodaq_plugins_utils.hardware.shaper import (Shaper, ModulatorType, shaper_params, fill_shaper_settings,
                                                    GEOMETRY_NAME, PROPERTIES_NAME)
 from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
-from pymodaq_plugins_beam_shaping.utilities.shaper import get_default_shaper, get_shaper, set_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import get_default_shaper
 
 
 class FakeModule:
@@ -23,25 +23,16 @@ def _extension(actuator):
     return types.SimpleNamespace(_shaper_actuator=actuator, _shaper=None, has_action=lambda name: False)
 
 
-@pytest.fixture(autouse=True)
-def reset_shaper():
-    set_shaper(None)
-    yield
-    set_shaper(None)
-
-
 def test_extension_uses_the_actuator_once_initialized():
     module = FakeModule(shaper_params())
     extension = _extension(module)
     assert BeamShaping.shaper.fget(extension) == get_default_shaper()  # not initialized yet: default shaper
-    assert get_shaper() == get_default_shaper()
 
     fill_shaper_settings(module.settings.child('actuator_settings'), 'My SLM', 1920, 1080, 8., 9.,
                          modulator_type=ModulatorType.PHASE, has_internal_calibration=True)
     shaper = BeamShaping.shaper.fget(extension)
     assert (shaper.name, shaper.shape, shaper.pixel_size) == ('My SLM', (1080, 1920), 8.)
     assert shaper.has_internal_calibration and shaper.use_internal_calibration
-    assert get_shaper() is shaper  # what the sizing functions use
 
     module.settings.child('actuator_settings', PROPERTIES_NAME, 'use_internal_calibration').setValue(False)
     assert not BeamShaping.shaper.fget(extension).use_internal_calibration
@@ -72,12 +63,18 @@ def _choose_default_modulator(monkeypatch, chosen):
 
 
 @pytest.mark.parametrize('chosen', ['phase', 'amplitude', 'both'])
-def test_get_modulator_type_is_the_single_helper(monkeypatch, chosen):
-    from pymodaq_plugins_beam_shaping.utilities.shaper import get_modulator_type
+def test_extension_modulator_type(monkeypatch, chosen):
+    # the default shaper gives it, unless the Shaper actuator tells another one
     _choose_default_modulator(monkeypatch, chosen)
-    assert get_modulator_type() == ModulatorType(chosen)
-    set_shaper(Shaper('Actuator', 640, 480, 12., False, False, ModulatorType.PHASE))
-    assert get_modulator_type() == ModulatorType.PHASE  # the shaper told by the actuator prevails
+    extension = _extension(None)
+    assert BeamShaping.modulator_type.fget(types.SimpleNamespace(shaper=BeamShaping.shaper.fget(extension))) == \
+        ModulatorType(chosen)
+
+    module = FakeModule(shaper_params())
+    fill_shaper_settings(module.settings.child('actuator_settings'), 'My SLM', 640, 480, 12.,
+                         modulator_type=ModulatorType.PHASE)
+    extension = _extension(module)
+    assert BeamShaping.shaper.fget(extension).modulator_type == ModulatorType.PHASE  # the actuator prevails
 
 
 @pytest.mark.parametrize('chosen', ['phase', 'amplitude', 'both'])
@@ -124,10 +121,11 @@ def test_default_shaper_modulator_type_is_chosen_in_the_preferences(monkeypatch,
 
 def test_sizes_follow_the_shaper():
     from pymodaq_plugins_beam_shaping.utilities import sizing
-    assert sizing.get_slm_size() == get_default_shaper().shape
-    set_shaper(Shaper('Other', 640, 480, 12., False, False, ModulatorType.PHASE))
-    assert sizing.get_slm_size() == (480, 640)
-    assert sizing.get_effective_slm_pixel_size() == 12. * sizing.get_binning()
+    default = get_default_shaper()
+    assert sizing.get_slm_size(default) == default.shape
+    other = Shaper('Other', 640, 480, 12., False, False, ModulatorType.PHASE)
+    assert sizing.get_slm_size(other) == (480, 640)
+    assert sizing.get_effective_slm_pixel_size(other) == 12. * sizing.get_binning()
 
 
 def test_preference_overwrites_the_calibration_choice_of_the_actuator(monkeypatch, caplog):

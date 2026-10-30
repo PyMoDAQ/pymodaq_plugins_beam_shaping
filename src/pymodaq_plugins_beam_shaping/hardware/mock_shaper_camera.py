@@ -2,6 +2,7 @@ import numpy as np
 
 from pymodaq.utils.data import DataActuator
 
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 from pymodaq_plugins_beam_shaping.utilities.sizing import get_slm_size, get_effective_slm_pixel_size
 
 
@@ -27,11 +28,11 @@ def gaussian_fwhm(x: np.ndarray, x0: float, fwhm: float) -> np.ndarray:
     return np.exp(- 2 * np.log(2) * ((x - x0) / fwhm) ** 2)
 
 
-def compute_grid() -> tuple[np.ndarray, np.ndarray]:
+def compute_grid(shaper: Shaper) -> tuple[np.ndarray, np.ndarray]:
     """ Compute the centered positions on the grid in microns given the value of the pixel width"""
 
-    n_pixel_height, n_pixel_width = get_slm_size()
-    pixel_height, pixel_width = (get_effective_slm_pixel_size(), get_effective_slm_pixel_size())
+    n_pixel_height, n_pixel_width = get_slm_size(shaper)
+    pixel_height, pixel_width = (get_effective_slm_pixel_size(shaper), get_effective_slm_pixel_size(shaper))
 
     x = np.arange(0, n_pixel_width, 1) * pixel_width   #um
     x = x-np.mean(x)
@@ -45,9 +46,10 @@ class ShaperCamera:
 
     gaussian_width_ini = 7e3
 
-    def __init__(self):
-        self._slm_values: np.ndarray = np.zeros(get_slm_size())
-        self._slm_amplitudes: np.ndarray = np.ones(get_slm_size())
+    def __init__(self, shaper: Shaper = None):
+        self.shaper: Shaper = shaper if shaper is not None else get_default_shaper()
+        self._slm_values: np.ndarray = np.zeros(get_slm_size(self.shaper))
+        self._slm_amplitudes: np.ndarray = np.ones(get_slm_size(self.shaper))
 
         self._gaussian_width: float = None
         self._amplitude: np.ndarray = None
@@ -57,9 +59,8 @@ class ShaperCamera:
     def get_slm_phases(self) -> np.ndarray:
         return self._slm_values
 
-    @staticmethod
-    def get_slm_grid() -> tuple[np.ndarray, np.ndarray]:
-        return compute_grid()
+    def get_slm_grid(self) -> tuple[np.ndarray, np.ndarray]:
+        return compute_grid(self.shaper)
 
     @property
     def gaussian_width(self) -> float:
@@ -67,7 +68,7 @@ class ShaperCamera:
 
     @gaussian_width.setter
     def gaussian_width(self, value: float):
-        xx, yy = compute_grid()
+        xx, yy = compute_grid(self.shaper)
         self._gaussian_width = value
         self._amplitude = (gaussian_fwhm(xx, 0, self._gaussian_width) *
                            gaussian_fwhm(yy, 0, self._gaussian_width))

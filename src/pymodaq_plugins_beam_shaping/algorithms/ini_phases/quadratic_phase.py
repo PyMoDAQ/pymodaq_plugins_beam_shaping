@@ -89,9 +89,9 @@ class QuadraticPhase(PhaseBase):
         else:
             size = self.algo.shape
 
-        pixel_SLM = Q_(sizing.get_effective_slm_pixel_size(), 'um')
+        pixel_SLM = Q_(sizing.get_effective_slm_pixel_size(self.algo.shaper), 'um')
 
-        slm_size = [slm_size * pixel_SLM for slm_size in sizing.get_effective_slm_size()]
+        slm_size = [slm_size * pixel_SLM for slm_size in sizing.get_effective_slm_size(self.algo.shaper)]
         mask_size_um = Q_.from_list([size[0] * self.algo.target_field_pixels_sizes[0],
                                      size[1] * self.algo.target_field_pixels_sizes[1]])
 

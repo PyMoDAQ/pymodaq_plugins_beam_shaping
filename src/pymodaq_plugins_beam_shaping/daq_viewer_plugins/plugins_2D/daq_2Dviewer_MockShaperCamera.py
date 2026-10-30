@@ -48,7 +48,7 @@ class DAQ_2DViewer_MockShaperCamera(DAQ_Viewer_base):
             self.controller.gaussian_width = param.value()
 
     def get_mask_from_slits(self):
-        xx, yy = ShaperCamera.get_slm_grid()
+        xx, yy = self.controller.get_slm_grid()
         x_axis = xx[0]
         mask = np.zeros(xx.shape)
         ind_slit_11 = find_index(x_axis, - self.settings['calibration', 'slit_spacing'] / 2 -

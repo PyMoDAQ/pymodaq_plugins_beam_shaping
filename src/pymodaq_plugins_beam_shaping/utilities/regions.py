@@ -9,6 +9,7 @@ from typing import Optional, Sequence
 import numpy as np
 
 from pymodaq_plugins_beam_shaping.utilities import sizing
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper
 
 
 AXIS_UNIT_TO_UM = 1e6  # the axes of the Fields (hence the ROIs) are in m, the settings in um
@@ -29,31 +30,31 @@ def pixel_sizes_in_um(pixel_sizes: Sequence) -> np.ndarray:
     return np.array([getattr(size, 'm_as', lambda unit, _s=size: _s)('um') for size in pixel_sizes], dtype=float)
 
 
-def get_effective_area(pixel_sizes: Sequence) -> tuple[np.ndarray, np.ndarray]:
+def get_effective_area(shaper: Shaper, pixel_sizes: Sequence) -> tuple[np.ndarray, np.ndarray]:
     """ Position of the origin and size (in um, (y, x)) of the SLM effective area in a plane of given pixel sizes"""
-    pos_pxl, size_pxl = sizing.get_effective_area_pos_size_in_pxls()
+    pos_pxl, size_pxl = sizing.get_effective_area_pos_size_in_pxls(shaper)
     pxl = pixel_sizes_in_um(pixel_sizes)
     return pos_pxl * pxl, size_pxl * pxl
 
 
-def default_slices(pixel_sizes: Sequence, fraction: float = 2 / 3) -> tuple[slice, slice]:
+def default_slices(shaper: Shaper, pixel_sizes: Sequence, fraction: float = 2 / 3) -> tuple[slice, slice]:
     """ Region centered on the effective area and covering a fraction of its size (in um)"""
-    pos, size = get_effective_area(pixel_sizes)
+    pos, size = get_effective_area(shaper, pixel_sizes)
     center = pos + size / 2
     half = size * fraction / 2
     return tuple(slice(float(c - h), float(c + h)) for c, h in zip(center, half))
 
 
-def constrain_slices(slices: Sequence[slice], pixel_sizes: Sequence) -> tuple[slice, slice]:
+def constrain_slices(shaper: Shaper, slices: Sequence[slice], pixel_sizes: Sequence) -> tuple[slice, slice]:
     """ Restrict the slices (in um) to the effective area"""
-    pos, size = get_effective_area(pixel_sizes)
+    pos, size = get_effective_area(shaper, pixel_sizes)
     return tuple(slice(float(max(_slice.start, p)), float(min(_slice.stop, p + s)))
                  for _slice, p, s in zip(slices, pos, size))
 
 
-def are_slices_in_area(slices: Sequence[slice], pixel_sizes: Sequence) -> bool:
+def are_slices_in_area(shaper: Shaper, slices: Sequence[slice], pixel_sizes: Sequence) -> bool:
     """ True if the slices (in um) are not empty and lie in the effective area"""
-    pos, size = get_effective_area(pixel_sizes)
+    pos, size = get_effective_area(shaper, pixel_sizes)
     tol = 1.  # um, the slices are stored with a 1 um resolution
     return all(_slice.start < _slice.stop and _slice.start >= p - tol and _slice.stop <= p + s + tol
                for _slice, p, s in zip(slices, pos, size))
