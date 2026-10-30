@@ -93,8 +93,9 @@ def test_mock_shaper_accepts_its_modulator_type(qapp, monkeypatch, chosen):
         assert plugin.settings['shaper_properties', 'modulator_type'] == chosen
         shape = plugin.controller.get_slm_phases().shape
         phase, amplitude = np.full(shape, 1.5), np.full(shape, 0.5)
-        data = [amplitude] if chosen == 'amplitude' else [phase] if chosen == 'phase' else [phase, amplitude]
-        plugin.move_abs(DataActuator('shaper', data=data))
+        # a single array: real for the phase or the amplitude, complex (amplitude * exp(i phase)) for both
+        data = {'amplitude': amplitude, 'phase': phase, 'both': amplitude * np.exp(1j * phase)}[chosen]
+        plugin.move_abs(DataActuator('shaper', data=[data]))
         assert np.all(plugin.controller.get_slm_phases() == (0 if chosen == 'amplitude' else 1.5))
         assert np.all(plugin.controller.get_slm_amplitudes() == (1 if chosen == 'phase' else 0.5))
     finally:

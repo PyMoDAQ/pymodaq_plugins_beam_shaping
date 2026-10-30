@@ -116,13 +116,14 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
         modulator_type = ModulatorType(self.settings['shaper_properties', 'modulator_type'])
         if modulator_type == ModulatorType.AMPLITUDE:  # one array: the amplitude
             self.controller.apply_amplitude(value[0])
-        else:  # one array: the phase (or grey levels); for both: the phase then the amplitude
+        elif modulator_type == ModulatorType.BOTH and np.iscomplexobj(value[0]):  # one complex array: amplitude * e^(i phase)
+            self.controller.apply_amplitude(np.abs(value[0]))
+            self.controller.apply_phase(np.angle(value[0]))
+        else:  # one array: the phase (or grey levels)
             if 'as_grey_levels' in value.extra_attributes and value.as_grey_levels:
                 self.controller.apply_grey_scale(value[0])
             else:
                 self.controller.apply_phase(value[0])
-            if modulator_type == ModulatorType.BOTH and len(value) > 1:
-                self.controller.apply_amplitude(value[1])
 
         self.current_value = value
         self.emit_status(ThreadCommand('Update_Status', ['SLM Updated']))
