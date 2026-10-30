@@ -653,7 +653,7 @@ class BeamShaping(CustomExt):
         self.update_from_shaper()
 
     def apply_calibration_preference(self):
-        """Impose the preference ``use_internal_calibration`` (section default_shaper) to the Shaper actuator
+        """Impose the preference ``use_internal_calibration`` (section calibration) to the Shaper actuator
 
         The extension is the one that can calibrate: if the actuator has an internal calibration and its
         ``use_internal_calibration`` setting differs from the preference, it is overwritten (and a warning is logged).
@@ -663,13 +663,13 @@ class BeamShaping(CustomExt):
         if self._shaper_actuator is None:
             return
         shaper = Shaper.from_module(self._shaper_actuator)
-        wanted = bool(plugin_config('default_shaper', 'use_internal_calibration'))
+        wanted = bool(plugin_config('calibration', 'use_internal_calibration'))
         if shaper is None or not shaper.has_internal_calibration or shaper.use_internal_calibration == wanted:
             return
         self._shaper_actuator.settings.child(self._shaper_actuator._hw_settings_name, PROPERTIES_NAME,
                                              'use_internal_calibration').setValue(wanted)
         logger.warning(f'The setting "Use internal calibration" of the Shaper actuator was {not wanted}, it is set to '
-                       f'{wanted} as in the preferences of BeamShaping (default_shaper > use_internal_calibration)')
+                       f'{wanted} as in the preferences of BeamShaping (calibration > use_internal_calibration)')
 
     def update_from_shaper(self):
         """Read the shaper again (Shaper actuator or default one) and update what depends on it: the fields"""
