@@ -1,6 +1,7 @@
 import numpy as np
 from pymodaq_utils.math_utils import greater2n, is_power_of_two
 from pymodaq_plugins_beam_shaping import config as plugin_config
+from pymodaq_plugins_beam_shaping.utilities.shaper import get_shaper
 
 
 def get_binning() -> int:
@@ -14,9 +15,7 @@ def get_effective_needed_field_size() -> tuple[int, int]:
     if not is_power_of_two(binning):
         raise ValueError('binning must be a multiple of 2')
     if plugin_config('sizing', 'square_size'):
-        needed_field_size = (greater2n(max(plugin_config('SLM', plugin_config('SLM', 'default_slm')[0], 'height'),
-                                           plugin_config('SLM', plugin_config('SLM', 'default_slm')[0], 'width'))) //
-                             binning)
+        needed_field_size = greater2n(max(get_slm_size())) // binning
         needed_field_size = (needed_field_size, needed_field_size)
     else:
         needed_field_size = tuple(np.array(get_slm_size()) // binning)
@@ -24,25 +23,22 @@ def get_effective_needed_field_size() -> tuple[int, int]:
 
 
 def get_slm_size() -> tuple[int, int]:
-    return (plugin_config('SLM', plugin_config('SLM', 'default_slm')[0], 'height'),
-            plugin_config('SLM', plugin_config('SLM', 'default_slm')[0], 'width'))
+    """The shape (height, width) of the shaper in pixels"""
+    return get_shaper().shape
 
 
 def get_effective_slm_size() -> tuple[int, int]:
     binning = plugin_config('sizing', 'binning')
     if not is_power_of_two(binning):
         raise ValueError('binning must be a multiple of 2')
-    size = (np.array([plugin_config('SLM', plugin_config('SLM', 'default_slm')[0], 'height'),
-                                       plugin_config('SLM', plugin_config('SLM', 'default_slm')[0], 'width')]) //
-         binning)
+    size = np.array(get_slm_size()) // binning
     return int(size[0]), int(size[1])
 
 
 def get_effective_slm_pixel_size() -> float:
-    """ Compute from the configuration values the effective SLM pixel size in microns"""
+    """ Compute the effective SLM pixel size in microns (the one of the shaper times the binning)"""
 
-    return (plugin_config('SLM', plugin_config('SLM', 'default_slm')[0], 'pixel_size') *
-            plugin_config('sizing', 'binning'))
+    return get_shaper().pixel_size * plugin_config('sizing', 'binning')
 
 
 def unbin_to_real_slm(phase: np.ndarray, binning: int = None) -> np.ndarray:

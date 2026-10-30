@@ -5,66 +5,93 @@ Algorithms for Beam Shaping
 
 Overview
 --------
-PyMoDAQ-BeamShaping implements **8 algorithms** for beam shaping, categorized into **3 families**:
+PyMoDAQ-BeamShaping provides **8 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
+by its name in the *Algorithm* settings of the extension. The list is built when the extension starts: the algorithms of
+BeamShaping itself, then the ones provided by other installed packages (see :ref:`sec-algorithms-external`).
 
-.. list-table:: **Implemented Algorithms**
+.. list-table:: **Algorithms, as named in the interface**
    :header-rows: 1
-   :widths: 25 10 10 10 10 35
+   :widths: 17 14 7 9 9 9 35
 
-   * - **Algorithm Family**
+   * - **Family**
+     - **Name in the interface**
      - **Setup**
      - **Iterative**
      - **Amplitude**
      - **Phase**
      - **Remarks**
-   * - Direct Application
-     - 2f
+   * - Direct application
+     - Direct
+     - no lens
      - ❌
      - ✅
      - ✅
-     - Direct application of target phase/amplitude.
-   * - Direct Diffractive Modulation
+     - Sends the selected target field to the modulator (phase, amplitude or both depending on the shaper).
+   * - Direct diffractive modulation
+     - Diffractive
      - 4f
      - ❌
      - ✅
      - ❌
-     - Various implementations (Clark 2016).
-   * - Direct Diffractive Modulation (CheckerBoard)
+     - Amplitude images with a phase-only modulator and a filter in the Fourier plane, several diffractive models
+       (:cite:t:`Clark2016`).
+   * - Direct diffractive modulation
+     - OL2014 - Amplitude/Phase Checkerboard
      - 4f
      - ❌
      - ✅
      - ✅
-     - Encodes phase+amplitude (Mendoza-Yero 2014).
-   * - Gerchberg-Saxton (GS)
+     - Encodes phase and amplitude with a checkerboard (:cite:t:`mendoza-yero_encoding_2014`).
+   * - Iterative alternating projections
+     - Gerchberg-Saxton
      - 2f
      - ✅
      - ✅
      - ❌
-     - Classic phase retrieval (Gerchberg 1972).
-   * - Weighted Gerchberg-Saxton
+     - Classic phase retrieval (:cite:t:`gerchberg_practical_1972`).
+   * - Iterative alternating projections
+     - Projections
      - 2f
      - ✅
      - ✅
      - ❌
-     - Improved convergence (Wu 2021).
-   * - MRAF
+     - Gerchberg-Saxton with options: weighting (:cite:t:`Wu2021`) and Mixed-Region
+       Amplitude Freedom (MRAF, :cite:t:`pasienski_high-accuracy_2008`) with a region of interest.
+   * - Iterative alternating projections
+     - slmsuite Hologram
      - 2f
      - ✅
      - ✅
      - ❌
-     - Mixed-Region Amplitude Freedom (Pasienski 2008).
-   * - Iterative Cost Function Minimization (PyTorch)
+     - GS and weighted GS methods (WGS-Leonardo, -Kim, -Nogrette, -Wu, -tanh), optionally on the GPU. Provided by
+       ``pymodaq_plugins_slmsuite``, listed once installed with its ``beamshaping`` extra
+       (see :doc:`slmsuite`).
+   * - Iterative cost function minimization
+     - Minimize
      - 2f
      - ✅
      - ✅
      - ✅
-     - Gradient-based optimization.
-   * - Iterative Cost Function Minimization (Scipy)
+     - Minimization of a loss function with ``pytorch`` and ``pytorch-minimize``
+       (:cite:t:`bowman_high-fidelity_2017`). The modulated quantity depends on the loss.
+   * - Iterative cost function minimization
+     - TorchOptim
      - 2f
      - ✅
      - ✅
      - ✅
-     - Scipy-based optimization.
+     - Minimization of a loss function with the L-BFGS optimizer of ``pytorch`` (same reference as *Minimize*).
+
+The settings of each algorithm are detailed in :doc:`algorithm_reference`.
+
+With *Minimize* and *TorchOptim*, the losses that shape the amplitude only (*LeastSquares*, *MSELoss*, *SmoothL1Loss*,
+*LeastExponent*) work well. The three losses that try to shape the amplitude **and** the phase (*Chicken*,
+*ChickenArnaud*, *LSQAmplitudePhase*, after :cite:t:`bowman_high-fidelity_2017`) give results that are not satisfactory yet and do not
+seem to reproduce the ones of the paper.
+
+*Minimize* and *TorchOptim* are only listed if ``pytorch`` is installed (``pip install
+pymodaq_plugins_beam_shaping[pytorch]``). **Setup** is the propagation model assumed between the modulator and the
+output plane (see :ref:`sec-algorithms-propagation`).
 
 .. _sec-algorithms-theory:
 
@@ -190,6 +217,7 @@ shaping for the MRAF algorithm using different initial phase type and mixing par
    \eta = \frac{\sum_{\mathbf{r}_{out}\in S} I_{out}(\mathbf{r}_{out})}{\sum_{\mathbf{r}_{in}} I_{in}(\mathbf{r}_{in})}.
 
 .. _FIG-metrics:
+
 .. figure:: /_images/measurement_amplitude.png
    :alt: Intensity-Only Shaping Results
    :width: 100%
@@ -205,7 +233,9 @@ shaping for the MRAF algorithm using different initial phase type and mixing par
 
 .. note::
    The metrics (NRMSE, Fidelity, Efficiency) are **automatically saved** in the ``.h5beam`` file under
-   ``/RawData/Algorithm/``. See :numref:`sec-h5beam-structure` for details.
+   ``/RawData/Algorithm/``. See :ref:`h5beam-structure` for details.
+
+.. _sec-algorithms-external:
 
 Algorithms provided by other packages
 -------------------------------------

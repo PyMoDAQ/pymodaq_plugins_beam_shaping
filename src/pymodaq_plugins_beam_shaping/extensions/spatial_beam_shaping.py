@@ -33,7 +33,8 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
-from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper, set_shaper
+from pymodaq_plugins_utils.hardware.shaper import PROPERTIES_NAME
 
 logger = set_logger(get_module_name(__file__))
 layout_path = get_set_layout_path(user=True)
@@ -107,6 +108,7 @@ class BeamShaping(CustomExt):
         return self._target_field_loader.field
 
     def do_things_after_init(self):
+        self.apply_calibration_preference()
         self._input_field_loader.load_field()
         self._target_field_loader.load_field()
 
@@ -121,10 +123,25 @@ class BeamShaping(CustomExt):
 
     def do_things_after_experiment_set(self, experiment_name: str):
         super().do_things_after_experiment_set(experiment_name)
+        self._disconnect_shaper_actuator()
         if self.modules_manager is not None and 'Shaper' in self.modules_manager.actuators_name:
             self._shaper_actuator = self.modules_manager.get_mod_from_name('Shaper', 'act')
+            # the plugin tells what the shaper is when it is initialized, possibly after the experiment is set
+            self._shaper_actuator.init_signal.connect(self._shaper_actuator_initialized)
         else:
             self._shaper_actuator = None
+        self.update_from_shaper()
+
+    def _disconnect_shaper_actuator(self):
+        if self._shaper_actuator is not None:
+            try:
+                self._shaper_actuator.init_signal.disconnect(self._shaper_actuator_initialized)
+            except (RuntimeError, TypeError):  # the module is gone or was not connected
+                pass
+
+    def _shaper_actuator_initialized(self, initialized: bool):
+        if initialized:
+            self.update_from_shaper()
 
     def update_modulator_field(self, field: Field):
         """ field contains here the modulator field"""
@@ -140,11 +157,18 @@ class BeamShaping(CustomExt):
                                   )
     @property
     def shaper(self) -> Shaper:
-        if self._shaper is None:
-            self._shaper = get_shaper()
-            if self.has_action('calibration'):
-                self.set_action_visible('calibration', self._shaper.modulator_type == ModulatorType.PHASE)
-        return self._shaper
+        """The shaper as told by the Shaper actuator (once initialized), else the default one"""
+        shaper = None
+        if self._shaper_actuator is not None:
+            shaper = Shaper.from_module(self._shaper_actuator)
+        set_shaper(shaper)  # None: the default shaper
+        if shaper is None:
+            shaper = get_default_shaper()
+        if (self._shaper is None or self._shaper.modulator_type != shaper.modulator_type) and \
+                self.has_action('calibration'):
+            self.set_action_visible('calibration', shaper.modulator_type == ModulatorType.PHASE)
+        self._shaper = shaper
+        return shaper
 
     def send_field_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
         """ Send the modulator field to the shaper depending on its modulation type
@@ -628,6 +652,32 @@ class BeamShaping(CustomExt):
         self._target_field_loader.update_pixels(algo.get_target_pixels_size(field_size))
 
     def do_things_after_config_changed(self):
+        self.update_from_shaper()
+
+    def apply_calibration_preference(self):
+        """Impose the preference ``use_internal_calibration`` (section calibration) to the Shaper actuator
+
+        The extension is the one that can calibrate: if the actuator has an internal calibration and its
+        ``use_internal_calibration`` setting differs from the preference, it is overwritten (and a warning is logged).
+        Called at the start of the extension, when the experiment is set, when the actuator is initialized and when
+        the preferences change.
+        """
+        if self._shaper_actuator is None:
+            return
+        shaper = Shaper.from_module(self._shaper_actuator)
+        wanted = bool(plugin_config('calibration', 'use_internal_calibration'))
+        if shaper is None or not shaper.has_internal_calibration or shaper.use_internal_calibration == wanted:
+            return
+        self._shaper_actuator.settings.child(self._shaper_actuator._hw_settings_name, PROPERTIES_NAME,
+                                             'use_internal_calibration').setValue(wanted)
+        logger.warning(f'The setting "Use internal calibration" of the Shaper actuator was {not wanted}, it is set to '
+                       f'{wanted} as in the preferences of BeamShaping (calibration > use_internal_calibration)')
+
+    def update_from_shaper(self):
+        """Read the shaper again (Shaper actuator or default one) and update what depends on it: the fields"""
+        self.apply_calibration_preference()
+        if self._input_field_loader is None or self._target_field_loader is None or self._algorithm is None:
+            return  # the user interface is not set up yet
         self._shaper = None  # make sure to check if the shaper object should be reinit
         self._input_field_loader.updated_slm(self.shaper.name)
         self._input_field_loader.update_apply_mask(size=self.slm_shape, apply=True)

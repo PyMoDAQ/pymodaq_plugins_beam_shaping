@@ -16,6 +16,7 @@ dependencies = [
     "pymodaq_utils>=5.3.1,<5.4",
     "pymodaq_gui>=5.3.0,<5.4",
     "pymodaq_data>=5.3.0,<5.4",
+    "pymodaq_plugins_utils>=5.3.4",
     'pyfftw',
     'scikit-image',
     'opencv-python',

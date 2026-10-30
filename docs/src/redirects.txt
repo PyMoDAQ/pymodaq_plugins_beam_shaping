@@ -1,0 +1,1 @@
+# "old_page new_page" for each page that is renamed or removed (paths relative to docs/src, without extension)
