@@ -129,6 +129,10 @@ datatables_options = {
     'paging': True,
 }
 
+# -- Options for rediraffe -----------------------------------------------------
+# Redirections of the pages that are renamed or removed, one "old_page new_page" per line (without the extension)
+rediraffe_redirects = 'redirects.txt'
+
 # -- Options for intersphinx ---------------------------------------------------
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
