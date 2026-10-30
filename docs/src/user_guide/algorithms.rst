@@ -66,8 +66,6 @@ BeamShaping itself, then the ones provided by other installed packages (see :ref
      - GS and weighted GS methods (WGS-Leonardo, -Kim, -Nogrette, -Wu, -tanh), optionally on the GPU. Provided by
        ``pymodaq_plugins_slmsuite``, listed once installed with its ``beamshaping`` extra
        (see :doc:`slmsuite`).
-
-The settings of each algorithm are detailed in :doc:`algorithm_reference`.
    * - Iterative cost function minimization
      - Minimize
      - 2f
@@ -83,6 +81,8 @@ The settings of each algorithm are detailed in :doc:`algorithm_reference`.
      - ✅
      - ✅
      - Minimization of a loss function with the L-BFGS optimizer of ``pytorch`` (same reference as *Minimize*).
+
+The settings of each algorithm are detailed in :doc:`algorithm_reference`.
 
 The phase and amplitude implementations of *Minimize* and *TorchOptim* (Bowman et al. 2017) give results that are not
 satisfactory yet and do not seem to reproduce the ones of the paper.
