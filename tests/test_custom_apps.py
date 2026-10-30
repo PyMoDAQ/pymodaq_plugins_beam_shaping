@@ -1,5 +1,7 @@
 """Create and use the CustomApp / CustomExt of the package, as the Dashboard does, to catch the incompatibilities with
 the PyMoDAQ release (base classes, viewers, ROI API)"""
+import types
+
 import pytest
 from qtpy import QtWidgets
 
@@ -78,3 +80,36 @@ def test_extension_on_empty_dashboard(qtbot):
     assert roi.pos()[0] * 1e6 == pytest.approx(pos[1] + size[1] / 6, rel=1e-3)
 
     assert extension.quit_fun()
+
+
+def test_extension_updates_the_fields_from_the_shaper(qtbot):
+    from pymodaq.dashboard import create_load_dashboard
+    from pymodaq.utils.gui_utils.loader_utils import create_extension
+    from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
+    from pymodaq_plugins_beam_shaping.utilities.shaper import (ModulatorType, set_shaper, shaper_params,
+                                                               fill_shaper_settings)
+    from pymodaq_gui.parameter import Parameter
+    from pymodaq_plugins_beam_shaping.utilities import sizing
+
+    _, dashboard = create_load_dashboard()
+    win_ext, extension = create_extension(dashboard, BeamShaping)
+    try:
+        before = extension.input_field.shape
+
+        # a Shaper actuator that tells what the shaper is, as the extension reads it once initialized
+        actuator = types.SimpleNamespace(_hw_settings_name='actuator_settings', settings=Parameter.create(
+            name='settings', type='group', children=[
+                {'name': 'actuator_settings', 'type': 'group', 'children': shaper_params()}]))
+        fill_shaper_settings(actuator.settings.child('actuator_settings'), 'Other', 512, 256, 12.,
+                             modulator_type=ModulatorType.PHASE)
+        extension._shaper_actuator = actuator
+        extension.update_from_shaper()
+
+        assert extension.shaper.name == 'Other'
+        assert sizing.get_slm_size() == (256, 512)
+        assert extension.slm_shape == (256 // 2, 512 // 2)  # binned
+        assert extension.input_field.shape != before
+        assert extension.input_field.shape == sizing.get_effective_needed_field_size()
+    finally:
+        set_shaper(None)
+        extension.quit_fun()
