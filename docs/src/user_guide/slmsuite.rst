@@ -40,7 +40,9 @@ setting is checked or the data carries ``as_grey_levels=True``.
 
 Name the actuator **Shaper** in the Dashboard. It tells the extension the number of pixels, the size of the pixels and
 whether the SLM has an internal calibration: the Meadowlark SLMs (look-up table loaded from the hardware) or any SLM for
-which slmsuite knows a look-up table. The working wavelength is a setting of the actuator. The Meadowlark and Holoeye
+which slmsuite knows a look-up table. The working wavelength is a setting of the actuator (*wavelength_nm*): when the extension is loaded, it imposes
+the wavelength of the setup (preference ``[setup] wavelength_nm``) and logs a warning if it had to change it. If the actuator
+is already initialized, initialize it again to take it into account. The Meadowlark and Holoeye
 actuators have been validated on real devices by the maintainer.
 
 .. _sec-slmsuite-algorithm:
