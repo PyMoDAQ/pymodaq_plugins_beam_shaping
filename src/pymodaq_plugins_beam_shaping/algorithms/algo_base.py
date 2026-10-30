@@ -3,6 +3,8 @@ from typing import Optional, Union, Tuple, TYPE_CHECKING
 
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
+
+from pymodaq_utils.warnings import deprecation_msg
 from pyqtgraph.parametertree import Parameter
 from qtpy import QtWidgets
 
@@ -12,7 +14,7 @@ from pymodaq_data import Q_, DataRaw, DataToExport
 from pymodaq_gui.managers.parameter_manager import ParameterManager
 
 from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, ApplyMaskTo,
-                                                           LensSetup, CrossTalk, PhaseManipulation, SLMType)
+                                                           LensSetup, CrossTalk, PhaseManipulation)
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
@@ -47,7 +49,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     ALGO_NAME: str = None  # to be reimplemented
     SETUP_TYPE: LensSetup = None # to be reimplemented
     ALGOTYPE = AlgoType.AMPLITUDE
-    slm_type = SLMType.LCOS
+    slm_type = ModulatorType.PHASE
     INI_PHASE = True  # if True, the algorithm will init an initial phase
     ITERATIVE = False
     MANUAL_LOOP = True
@@ -292,12 +294,24 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
                                         np.array([self.efficiency])],
                        labels=[self.fitness_name, 'efficiency'])
 
-    def compute_phase(self, do_step=True, ini_phase: np.ndarray = None, **kwargs):
-        """ Compute the phase to apply to SLM given the target Field
+    def compute_phase_and_or_amplitude(self, do_step=True, ini_phase: np.ndarray = None, **kwargs):
+        """ Compute the phase or the amplitude to apply to SLM given the target Field
 
         To be subclassed in real implementation
         """
+        # if not reimplemented this method will be called and will test for backcompatibility self.compute_phase
+        try:
+            return self.compute_phase(do_step=do_step, ini_phase=ini_phase, **kwargs)
+        except NotImplementedError:
+            raise NotImplementedError
 
+    def compute_phase(self, do_step=True, ini_phase: np.ndarray = None, **kwargs):
+        """ Compute the phase to apply to SLM given the target Field
+
+        Deprecated, use :meth:`compute_phase_and_or_amplitude`
+
+        """
+        deprecation_msg('compute_phase is deprecated, use compute_phase_and_or_amplitude')
         raise NotImplementedError
 
     def get_fields_to_plot(self) -> DataToExport:

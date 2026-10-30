@@ -82,7 +82,7 @@ class GbSax(AlgoBase):
         field_modulator_corrected = self.compute_backward_fft(field_output_corrected)
         self.set_phase_in_modulator_plane(field_modulator_corrected.phase)
 
-    def compute_phase(self, do_step=True, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
         self.propagate_field()
         self.evolve_field()
 

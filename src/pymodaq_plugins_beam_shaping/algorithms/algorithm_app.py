@@ -467,7 +467,7 @@ class AlgoApp(CustomApp):
 
 
     def connect_things(self):
-        self.connect_action(Actions.STEP, self.compute_phase)
+        self.connect_action(Actions.STEP, self.compute_phase_and_or_amplitude)
         self.connect_action(Actions.COMPUTE_FFT, lambda: self.compute_fft(update_plots=True))
         self.connect_action(Actions.CONTINUOUS, self.compute_phase_loop)
         self.connect_action('ini_algo', self.ini_algo)
@@ -521,7 +521,7 @@ class AlgoApp(CustomApp):
             for child in self.settings.child('stopping').children():
                 child.setOpts(enabled=True)
 
-    def compute_phase(self):
+    def compute_phase_and_or_amplitude(self):
         self.command_runner.emit(ThreadCommand(Actions.STEP, attribute=self._current_phase))
         self.set_action_enabled(Actions.CONTINUOUS, True)
 
@@ -659,7 +659,7 @@ class AlgoRunner(QtCore.QObject):
         self._iter_index += 1
         self.algo_iter_count.emit(self._iter_index)
         self.algo.start()
-        self.algo.compute_phase(do_step=True, ini_phase=ini_phase)
+        self.algo.compute_phase_and_or_amplitude(do_step=True, ini_phase=ini_phase)
         self.algo_output_signal.emit(self.algo.get_fields_to_plot())
         self.algo.stop()
         self.algo_stopped_signal.emit()
@@ -671,7 +671,7 @@ class AlgoRunner(QtCore.QObject):
             while self.running and not stop_criteria:
                 self._iter_index += 1
                 self.algo.start()
-                self.algo.compute_phase(do_step=True, ini_phase=ini_phase)
+                self.algo.compute_phase_and_or_amplitude(do_step=True, ini_phase=ini_phase)
                 fields = self.algo.get_fields_to_plot()
                 metrics = [data_array[0] for data_array in fields.get_data_from_name('metrics')]
                 self.algo_output_signal.emit(fields)
@@ -686,7 +686,7 @@ class AlgoRunner(QtCore.QObject):
             self._iter_index += 1
             self.algo_iter_count.emit(self._iter_index)
             self.algo.start()
-            self.algo.compute_phase(do_step=False, ini_phase=ini_phase)  # the continuous run is handled by the algo itself. If possible
+            self.algo.compute_phase_and_or_amplitude(do_step=False, ini_phase=ini_phase)  # the continuous run is handled by the algo itself. If possible
             #it should update the plots during the course of the initialization... See minimizer.py as an example
         self.algo.stop()
         self.algo_stopped_signal.emit()

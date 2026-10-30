@@ -82,7 +82,7 @@ class TorchOptim(TorchBase):
         loss.backward()
         return loss
 
-    def compute_phase(self, do_step=True, ini_phase=None, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, ini_phase=None, **kwargs):
         if ini_phase is not None or self.mask is None:
             self.phase_distribution = ini_phase
             self.ini_optimizer()

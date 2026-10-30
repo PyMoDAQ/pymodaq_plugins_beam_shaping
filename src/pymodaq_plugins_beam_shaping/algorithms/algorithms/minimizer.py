@@ -97,7 +97,7 @@ class Minimize(TorchBase):
         pass
 
 
-    def compute_phase(self, do_step=True, ini_phase=None, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, ini_phase=None, **kwargs):
         self.iter = 0
 
         if ini_phase is not None:

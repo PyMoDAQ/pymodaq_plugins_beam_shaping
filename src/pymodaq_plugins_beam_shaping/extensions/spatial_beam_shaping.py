@@ -164,16 +164,18 @@ class BeamShaping(CustomExt):
                 self.send_phase_to_shaper(field, send_to_shaper, with_corrections)
                 self.send_amplitude_to_shaper(field, send_to_shaper, with_corrections)
 
-    def send_amplitude_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
+    def send_amplitude_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=False):
         """ Send the modulator amplitude to the shaper
 
         Parameters
         ----------
         field: the field to send
         send_to_shaper: should we send it?
-        with_corrections: should we add corrections, mostly for the field's phase
+        with_corrections: should we add corrections, mostly for the field's phase so probably unused here
         """
-        raise NotImplementedError
+        if self._shaper_actuator is not None and send_to_shaper:
+            amplitude_dwa = DataShaper('amplitude', data=[field.amplitude])
+            self._shaper_actuator.move_abs(amplitude_dwa)
 
     def send_phase_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
         """ Send the modulator phase to the shaper

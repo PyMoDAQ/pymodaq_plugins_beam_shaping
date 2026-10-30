@@ -223,7 +223,7 @@ class OE2016(AlgoBase):
     def __init__(self, parent: 'AlgoApp' = None, *args, **kwargs):
         super().__init__(parent)
 
-    def compute_phase(self, do_step=True, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
 
         diff_phase = diff_factory.get_phase(self.settings['diff_model'],
                                             input_field=self._input_field,
@@ -244,7 +244,7 @@ class OE2016(AlgoBase):
         self.output_field.axes = self.output_field.get_axes()
 
     def value_changed(self, param):
-        self.parent_app.compute_phase()
+        self.parent_app.compute_phase_and_or_amplitude()
 
 
 

@@ -53,7 +53,7 @@ class OL2014(AlgoBase):
     def __init__(self, parent: 'AlgoApp' = None, *args, **kwargs):
         super().__init__(parent)
 
-    def compute_phase(self, do_step=True, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
 
 
         odd_mask = self.create_checker_board()
@@ -96,7 +96,7 @@ class OL2014(AlgoBase):
         return mask
 
     def value_changed(self, param):
-        self.parent_app.compute_phase()
+        self.parent_app.compute_phase_and_or_amplitude()
 
 
 
