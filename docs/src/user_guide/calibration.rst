@@ -19,7 +19,7 @@ SLM Calibration
 .. _sec-calibration-why:
 
 Why Calibrate?
--------------
+--------------
 SLMs do **not** linearly convert **gray levels** (0–255) to **optical phase** (0–2π).
 Calibration establishes the **gray-level-to-phase mapping** for accurate beam shaping.
 
@@ -45,6 +45,7 @@ Calibration Procedure
         ~/.pymodaq/beam_shaping/calibration.h5
 
 .. _FIG-calibration:
+
 .. figure:: /_images/calibration.png
    :alt: SLM Calibration Module
    :width: 60%
@@ -61,12 +62,14 @@ For a result on the calibration process, see :numref:`FIG-calibration`.
 .. _sec-calibration-using:
 
 Using Calibration
-----------------
+-----------------
 
 
 If no calibration file is found, an error message will prompt you to calibrate first.
 
 .. note::
-   Some SLMs (e.g., Holoeye Pluto) support **internal calibration**.
-   Enable this in the **Shaper** section of the preferences. In this case, no pymodaq calibration is needed
-   (but you'll have to trust the internal calibration)
+   Some SLMs (e.g., Holoeye Pluto) support **internal calibration**. The Shaper actuator tells it to the extension
+   (``has_internal_calibration`` in its ``shaper_properties`` group, see :doc:`shapers`). Whether it is used is the
+   preference *use_internal_calibration* (``[calibration]``, checked by default), imposed by the extension to the
+   actuator: no pymodaq calibration is then needed (but you'll have to trust the internal calibration). Uncheck it to
+   use the calibration of BeamShaping.

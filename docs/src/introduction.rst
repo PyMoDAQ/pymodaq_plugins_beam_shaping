@@ -37,6 +37,7 @@ Applications
      - Wavefront correction (aberration compensation).
 
 .. _FIG-schema:
+
 .. figure:: /_images/layout.png
    :alt: General Beam-Shaping Problem
    :width: 90%
