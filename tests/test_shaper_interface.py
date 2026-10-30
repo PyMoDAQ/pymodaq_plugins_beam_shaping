@@ -70,6 +70,18 @@ def test_default_shaper_from_the_configuration():
     assert not default.has_internal_calibration
 
 
+@pytest.mark.parametrize('chosen', ['phase', 'amplitude', 'both'])
+def test_default_shaper_modulator_type_is_chosen_in_the_preferences(monkeypatch, chosen):
+    # the preferences show the list as a combobox and move the selected item first
+    from pymodaq_plugins_beam_shaping.utilities import shaper as shaper_module
+    types_ = ['phase', 'amplitude', 'both']
+    types_.insert(0, types_.pop(types_.index(chosen)))
+    real_config = shaper_module.config
+    monkeypatch.setattr(shaper_module, 'config',
+                        lambda *args: types_ if args == ('default_shaper', 'modulator_type') else real_config(*args))
+    assert get_default_shaper().modulator_type == ModulatorType(chosen)
+
+
 def test_sizes_follow_the_shaper():
     from pymodaq_plugins_beam_shaping.utilities import sizing
     assert sizing.get_slm_size() == get_default_shaper().shape
