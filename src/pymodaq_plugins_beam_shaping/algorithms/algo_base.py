@@ -47,6 +47,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     ALGO_NAME: str = None  # to be reimplemented
     SETUP_TYPE: LensSetup = None # to be reimplemented
     ALGOTYPE = AlgoType.AMPLITUDE
+    # the modulators the algorithm can compute a mask for (a shaper modulating both accepts any algorithm)
+    MODULATOR_TYPES: tuple[ModulatorType] = (ModulatorType.PHASE, )
     INI_PHASE = True  # if True, the algorithm will init an initial phase
     ITERATIVE = False
     MANUAL_LOOP = True
@@ -76,6 +78,11 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         self._output_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
 
         self.update_mask = True
+
+    @classmethod
+    def supports(cls, modulator_type: ModulatorType) -> bool:
+        """True if the algorithm can be used with a shaper of this modulation type"""
+        return ModulatorType(modulator_type) == ModulatorType.BOTH or modulator_type in cls.MODULATOR_TYPES
 
     @property
     def shaper(self) -> Shaper:

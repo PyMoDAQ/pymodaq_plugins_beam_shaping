@@ -7,6 +7,7 @@ from typing import Callable
 
 from pymodaq_utils.logger import set_logger, get_module_name
 from pymodaq_plugins_beam_shaping.algorithms.algo_base import AlgoBase
+from pymodaq_plugins_beam_shaping.utilities.shaper import ModulatorType
 
 logger = set_logger(get_module_name(__file__))
 
@@ -110,3 +111,8 @@ class AlgorithmFactory:
     @property
     def algorithms(self):
         return list(self.algorithms_registry.keys())
+
+    @classmethod
+    def algorithms_for(cls, modulator_type: ModulatorType) -> list[str]:
+        """The names of the registered algorithms that can be used with a shaper of this modulation type"""
+        return [name for name, algo in cls.algorithms_registry.items() if algo.supports(modulator_type)]

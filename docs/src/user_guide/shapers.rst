@@ -14,7 +14,10 @@ The modulator can be of several kinds. Most spatial light modulators (SLM) are *
 LCOS), but a shaper can also be **amplitude only**, such as a digital micromirror device (DMD) or other micromirror
 arrays, or able to modulate both. The mask sent to the actuator is then a phase for a phase modulator and an amplitude
 (or the binary pattern of a DMD) for an amplitude modulator, as declared by the ``modulator_type`` of the shaper
-(see below). The algorithms must be chosen accordingly, see :doc:`algorithms`.
+(see below). The list of algorithms of the extension only proposes those that can compute a mask for the modulator of
+the shaper: each algorithm declares the modulators it supports in its ``MODULATOR_TYPES`` class attribute (a tuple of
+``ModulatorType``, phase only by default), and a shaper modulating both phase and amplitude accepts any algorithm. See
+:doc:`algorithms`.
 
 The extension asks the actuator itself what the modulator is, once the actuator is initialized: number of pixels, size of
 the pixels, name, type of modulation (phase, amplitude or both) and whether the shaper has an internal calibration
