@@ -67,6 +67,7 @@ If no calibration file is found, an error message will prompt you to calibrate f
 
 .. note::
    Some SLMs (e.g., Holoeye Pluto) support **internal calibration**. The Shaper actuator tells it to the extension
-   (``has_internal_calibration`` in its ``shaper_properties`` group, see :doc:`shapers`), there is nothing to set in
-   the preferences. The choice *use internal calibration* of that group, checked by default in this case, selects it:
-   no pymodaq calibration is then needed (but you'll have to trust the internal calibration).
+   (``has_internal_calibration`` in its ``shaper_properties`` group, see :doc:`shapers`). Whether it is used is the
+   preference *use_internal_calibration* (``[default_shaper]``, checked by default), imposed by the extension to the
+   actuator: no pymodaq calibration is then needed (but you'll have to trust the internal calibration). Uncheck it to
+   use the calibration of BeamShaping.
