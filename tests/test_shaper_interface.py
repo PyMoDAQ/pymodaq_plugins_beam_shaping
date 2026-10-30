@@ -7,7 +7,7 @@ from pymodaq_gui.parameter import Parameter
 from pymodaq_plugins_utils.hardware.shaper import (Shaper, ModulatorType, shaper_params, fill_shaper_settings,
                                                    GEOMETRY_NAME, PROPERTIES_NAME)
 from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
-from pymodaq_plugins_beam_shaping.utilities.shaper import DEFAULT_SHAPER, get_shaper, set_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import get_default_shaper, get_shaper, set_shaper
 
 
 class FakeModule:
@@ -33,8 +33,8 @@ def reset_shaper():
 def test_extension_uses_the_actuator_once_initialized():
     module = FakeModule(shaper_params())
     extension = _extension(module)
-    assert BeamShaping.shaper.fget(extension) is DEFAULT_SHAPER  # not initialized yet: default shaper
-    assert get_shaper() is DEFAULT_SHAPER
+    assert BeamShaping.shaper.fget(extension) == get_default_shaper()  # not initialized yet: default shaper
+    assert get_shaper() == get_default_shaper()
 
     fill_shaper_settings(module.settings.child('actuator_settings'), 'My SLM', 1920, 1080, 8., 9.,
                          modulator_type=ModulatorType.PHASE, has_internal_calibration=True)
@@ -48,8 +48,8 @@ def test_extension_uses_the_actuator_once_initialized():
 
 
 def test_extension_without_actuator_or_groups():
-    assert BeamShaping.shaper.fget(_extension(None)) is DEFAULT_SHAPER
-    assert BeamShaping.shaper.fget(_extension(FakeModule([]))) is DEFAULT_SHAPER
+    assert BeamShaping.shaper.fget(_extension(None)) == get_default_shaper()
+    assert BeamShaping.shaper.fget(_extension(FakeModule([]))) == get_default_shaper()
 
 
 def test_mock_shaper_gives_the_default_shaper(qapp):
@@ -58,13 +58,21 @@ def test_mock_shaper_gives_the_default_shaper(qapp):
 
     plugin = make_actuator(DAQ_Move_MockShaper)
     shaper = Shaper.from_settings(plugin.settings.child(GEOMETRY_NAME), plugin.settings.child(PROPERTIES_NAME))
-    assert shaper == DEFAULT_SHAPER
+    assert shaper == get_default_shaper()
     plugin.close()
+
+
+def test_default_shaper_from_the_configuration():
+    from pymodaq_plugins_beam_shaping import config
+    default = get_default_shaper()
+    assert (default.width, default.height) == (config('default_shaper', 'width'), config('default_shaper', 'height'))
+    assert default.modulator_type == ModulatorType.PHASE
+    assert not default.has_internal_calibration
 
 
 def test_sizes_follow_the_shaper():
     from pymodaq_plugins_beam_shaping.utilities import sizing
-    assert sizing.get_slm_size() == DEFAULT_SHAPER.shape
+    assert sizing.get_slm_size() == get_default_shaper().shape
     set_shaper(Shaper('Other', 640, 480, 12., False, False, ModulatorType.PHASE))
     assert sizing.get_slm_size() == (480, 640)
     assert sizing.get_effective_slm_pixel_size() == 12. * sizing.get_binning()

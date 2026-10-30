@@ -10,7 +10,7 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
-from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, DEFAULT_SHAPER
+from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, get_default_shaper
 from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
@@ -42,7 +42,7 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
 
     def set_shaper_geometry(self):
         """Fill the shaper settings groups read by the BeamShaping extension, with the default shaper"""
-        shaper = DEFAULT_SHAPER
+        shaper = get_default_shaper()
         fill_shaper_settings(self.settings, shaper.name, shaper.width, shaper.height, shaper.pixel_size,
                              modulator_type=shaper.modulator_type,
                              has_internal_calibration=shaper.has_internal_calibration)
