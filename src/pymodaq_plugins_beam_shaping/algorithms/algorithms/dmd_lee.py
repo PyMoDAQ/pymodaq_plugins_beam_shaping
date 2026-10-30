@@ -17,7 +17,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType, SLMType
+from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -106,12 +106,6 @@ class DmDLee(AlgoBase):
         self.output_field.calibrate_axes(target_pixel_sizes)
         self.output_field.axes = self.output_field.get_axes()
 
-    def create_checker_board(self) -> np.ndarray:
-
-        block_size = self.settings['block_size']
-        y, x = np.indices(self._modulator_field.shape)
-        mask = ((x // block_size) + (y // block_size)) % 2
-        return mask
 
     def value_changed(self, param):
         self.parent_app.compute_phase_and_or_amplitude()
