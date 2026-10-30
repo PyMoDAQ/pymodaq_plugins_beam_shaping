@@ -19,9 +19,13 @@ settings of the actuator, ``shaper_geometry`` and ``shaper_properties``, defined
 wants to be used as a Shaper only needs to add these groups to its parameters (``shaper_params()``) and to fill them in
 ``ini_stage`` (``fill_shaper_settings``); it does not depend on BeamShaping.
 
-There is no configuration file for the shapers. If the actuator is not initialized or does not provide these groups, the
-extension uses a default shaper, the same for all the shapers: 1920 x 1080 pixels of 8 µm, phase modulation, no
-internal calibration.
+The shaper is read from the actuator when the experiment (preset) is set and whenever the actuator is initialized, and the
+fields (input, target) are rebuilt for its number of pixels and pixel size. There is no list of shapers to configure. If
+the actuator is absent, not initialized or does not provide these groups, the extension uses a **default shaper**, the
+same for all the shapers, described in the ``[default_shaper]`` section of the configuration file of BeamShaping
+(``name``, ``width``, ``height``, ``pixel_size`` in µm, ``has_internal_calibration``, ``use_internal_calibration``,
+``modulator_type``). By default: 1920 x 1080 pixels of 8 µm, phase modulation, no internal calibration. Edit it there
+for an instrument whose plugin does not tell what it is.
 
 The choice *use internal calibration* of the ``shaper_properties`` group is the one of the user: when checked (default
 if the shaper has an internal calibration), the phase is sent in radians and converted by the driver, otherwise it is

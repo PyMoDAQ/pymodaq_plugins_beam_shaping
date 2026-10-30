@@ -89,6 +89,10 @@ defaults of slmsuite, see :doc:`slmsuite`.
 Minimize and TorchOptim
 -----------------------
 
+.. warning::
+   The implementation of this algorithm in BeamShaping is **not satisfactory yet**: its results are not good and do not
+   seem to reproduce the ones of the paper (Bowman et al. 2017). Do not rely on it for now.
+
 Both minimize a **loss function** between the output and the target fields with respect to the phase of the modulator
 (**2f** setup, iterative), based on `Bowman et al., Optics Express 25(10), 2017 <https://doi.org/10.1364/OE.25.011692>`_ (conjugate gradient
 minimisation) and implemented with ``pytorch``. They are only listed if ``pytorch`` is installed

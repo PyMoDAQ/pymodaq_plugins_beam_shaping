@@ -84,6 +84,9 @@ The settings of each algorithm are detailed in :doc:`algorithm_reference`.
      - ✅
      - Minimization of a loss function with the L-BFGS optimizer of ``pytorch`` (same reference as *Minimize*).
 
+The phase and amplitude implementations of *Minimize* and *TorchOptim* (Bowman et al. 2017) give results that are not
+satisfactory yet and do not seem to reproduce the ones of the paper.
+
 *Minimize* and *TorchOptim* are only listed if ``pytorch`` is installed (``pip install
 pymodaq_plugins_beam_shaping[pytorch]``). **Setup** is the propagation model assumed between the modulator and the
 output plane (see :ref:`sec-algorithms-propagation`).
