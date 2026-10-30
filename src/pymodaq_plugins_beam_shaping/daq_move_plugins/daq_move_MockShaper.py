@@ -10,7 +10,7 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
-from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, ModulatorType
+from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, DEFAULT_SHAPER
 from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
@@ -41,14 +41,11 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
         self.controller: ShaperCamera = None
 
     def set_shaper_geometry(self):
-        """Fill the shaper settings groups read by the BeamShaping extension"""
-        height, width = sizing.get_slm_size()
-        slm = sizing.plugin_config('SLM', 'default_slm')[0]
-        fill_shaper_settings(self.settings, slm, width, height,
-                             float(sizing.plugin_config('SLM', slm, 'pixel_size')),
-                             modulator_type=ModulatorType(sizing.plugin_config('SLM', slm, 'modulator_type')[0]),
-                             has_internal_calibration=bool(sizing.plugin_config('SLM', slm,
-                                                                                'has_internal_calibration')))
+        """Fill the shaper settings groups read by the BeamShaping extension, with the default shaper"""
+        shaper = DEFAULT_SHAPER
+        fill_shaper_settings(self.settings, shaper.name, shaper.width, shaper.height, shaper.pixel_size,
+                             modulator_type=shaper.modulator_type,
+                             has_internal_calibration=shaper.has_internal_calibration)
 
     def get_actuator_value(self):
         """Get the current value from the hardware with scaling conversion.
