@@ -29,12 +29,12 @@ The shaper is read from the actuator when the experiment (preset) is set and whe
 fields (input, target) are rebuilt for its number of pixels and pixel size. There is no list of shapers to configure. If
 the actuator is absent, not initialized or does not provide these groups, the extension uses a **default shaper**, the
 same for all the shapers, described in the ``[default_shaper]`` section of the configuration file of BeamShaping
-(``name``, ``width``, ``height``, ``pixel_size`` in µm, ``has_internal_calibration``, ``use_internal_calibration``,
+(``name``, ``width``, ``height``, ``pixel_size`` in µm, ``has_internal_calibration``,
 ``modulator_type``). By default: 1920 x 1080 pixels of 8 µm, phase modulation, no internal calibration. Edit it there
 for an instrument whose plugin does not tell what it is.
 
 The choice *use internal calibration* is a preference of BeamShaping (``use_internal_calibration`` in the
-``[default_shaper]`` section, checked by default). When the shaper has an internal calibration, the extension imposes
+``[calibration]`` section, checked by default). When the shaper has an internal calibration, the extension imposes
 this preference to the setting of the same name of the ``shaper_properties`` group of the actuator, at its start, when
 the experiment is set, when the actuator is initialized and when the preferences change. If it differs, the setting of
 the actuator is overwritten and a warning is logged. When it is checked, the phase is sent in radians and converted by
