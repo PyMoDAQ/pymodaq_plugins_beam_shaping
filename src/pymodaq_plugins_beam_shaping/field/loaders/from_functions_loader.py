@@ -13,8 +13,6 @@ from scipy.special import genlaguerre, hermite
 
 from pymodaq_plugins_beam_shaping import config as plugin_config
 
-SLM = plugin_config('SLM', 'default_slm')
-
 
 
 class BaseFieldLoader(FieldLoader):

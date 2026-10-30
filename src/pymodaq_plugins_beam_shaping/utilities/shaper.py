@@ -1,35 +1,36 @@
-import dataclasses
+from typing import Optional
 
-from pymodaq_utils.enums import StrEnum
-from pymodaq_utils.config import GlobalConfig
+# The shaper contract (settings groups of the instrument plugin, Shaper dataclass) lives in pymodaq_plugins_utils
+from pymodaq_plugins_utils.hardware.shaper import Shaper, ModulatorType, shaper_params, fill_shaper_settings
 
-config = GlobalConfig()
+from pymodaq_plugins_beam_shaping import config
 
-
-class ModulatorType(StrEnum):
-    PHASE = 'phase'
-    AMPLITUDE = 'amplitude'
-    BOTH = 'both'
+_current_shaper: Optional[Shaper] = None
 
 
-@dataclasses.dataclass
-class Shaper:
-    name: str
-    width: int
-    height: int
-    pixel_size: float  # in micrometer
-    has_internal_calibration: bool
-    use_internal_calibration: bool
-    modulator_type: ModulatorType
+def get_default_shaper() -> Shaper:
+    """The shaper described in the ``default_shaper`` section of the configuration file
+
+    It is used as long as no Shaper actuator tells what the shaper is (actuator absent or not initialized, or a plugin
+    that does not provide the shaper settings groups): the same for all the shapers.
+    """
+    has_internal_calibration = bool(config('default_shaper', 'has_internal_calibration'))
+    return Shaper(name=config('default_shaper', 'name'),
+                  width=config('default_shaper', 'width'),
+                  height=config('default_shaper', 'height'),
+                  pixel_size=config('default_shaper', 'pixel_size'),
+                  has_internal_calibration=has_internal_calibration,
+                  use_internal_calibration=has_internal_calibration and
+                  bool(config('calibration', 'use_internal_calibration')),
+                  modulator_type=ModulatorType(config('default_shaper', 'modulator_type')[0]))
+
+
+def set_shaper(shaper: Optional[Shaper]):
+    """Set the shaper that get_shaper returns, None to go back to the default one"""
+    global _current_shaper
+    _current_shaper = shaper
 
 
 def get_shaper() -> Shaper:
-    default_slm = config('beam_shaping', 'SLM', 'default_slm')[0]
-    return Shaper(name=default_slm,
-                  width=config('beam_shaping', 'SLM', default_slm, 'width'),
-                  height=config('beam_shaping', 'SLM', default_slm, 'height'),
-                  pixel_size=config('beam_shaping', 'SLM', default_slm, 'pixel_size'),
-                  has_internal_calibration=config('beam_shaping', 'SLM', default_slm, 'has_internal_calibration'),
-                  use_internal_calibration=config('beam_shaping', 'SLM', default_slm, 'use_internal_calibration'),
-                  modulator_type=ModulatorType(config('beam_shaping', 'SLM', default_slm, 'modulator_type')[0])
-                  )
+    """The shaper last told by the Shaper actuator (see the BeamShaping extension), else the default one"""
+    return _current_shaper if _current_shaper is not None else get_default_shaper()

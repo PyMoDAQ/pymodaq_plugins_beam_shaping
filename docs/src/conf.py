@@ -33,7 +33,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     'sphinx.ext.doctest',
     'sphinx.ext.coverage',
-    'sphinx.ext.imgmath',
+    'sphinx.ext.mathjax',  # equations rendered in the browser, no LaTeX needed on the build machine (Read the Docs)
     'sphinx.ext.githubpages',
     'sphinx.ext.autosummary',
     'releases',
@@ -53,18 +53,8 @@ numfig_format = {
     'section': 'Section %s',
 }
 
-html_css_files = [
-    'https://fonts.googleapis.com/icon?family=Material+Icons',
-    'css/custom.css',  # Pour styliser les icônes
-]
-
 bibtex_bibfiles = ['bibtex.bib']  # Chemin relatif à docs/
 bibtex_reference_style = 'author_year'  # Style de citation (ex: "Weber 2021")
-
-# Configuration pour imgmath (équations LaTeX)
-imgmath_image_format = 'png'  # ou 'svg'
-imgmath_font_size = 14
-imgmath_dpi = 150
 
 # -- Options for autodocumentation ---------------------------------------------
 autodoc_member_order = "groupwise"
@@ -120,7 +110,12 @@ html_theme_options = {
 }
 
 html_css_files = [
+    'https://fonts.googleapis.com/icon?family=Material+Icons',
     'css/overflow.css',
+    'css/layout.css',  # full-width content, tables kept within it
+]
+html_js_files = [
+    'js/sidebar_toggle.js',  # button to hide the navigation sidebar
 ]
 
 html_static_path = ["_static", "_images"]  # NOUVEAU: Ajout de "_images"
@@ -133,6 +128,10 @@ datatables_options = {
     'searching': True,
     'paging': True,
 }
+
+# -- Options for rediraffe -----------------------------------------------------
+# Redirections of the pages that are renamed or removed, one "old_page new_page" per line (without the extension)
+rediraffe_redirects = 'redirects.txt'
 
 # -- Options for intersphinx ---------------------------------------------------
 intersphinx_mapping = {

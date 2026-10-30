@@ -10,6 +10,8 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
+from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, get_default_shaper
+from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
 class DAQ_Move_MockShaper(DAQ_Move_base):
@@ -32,11 +34,18 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
     _epsilons: Union[float, List[float]] = 0.1
     data_actuator_type = DataActuatorType.DataActuator
 
-    params = [] + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilons)
+    params = shaper_params() + comon_parameters_fun(is_multiaxes, axis_names=_axis_names, epsilon=_epsilons)
 
 
     def ini_attributes(self):
         self.controller: ShaperCamera = None
+
+    def set_shaper_geometry(self):
+        """Fill the shaper settings groups read by the BeamShaping extension, with the default shaper"""
+        shaper = get_default_shaper()
+        fill_shaper_settings(self.settings, shaper.name, shaper.width, shaper.height, shaper.pixel_size,
+                             modulator_type=shaper.modulator_type,
+                             has_internal_calibration=shaper.has_internal_calibration)
 
     def get_actuator_value(self):
         """Get the current value from the hardware with scaling conversion.
@@ -79,6 +88,7 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
         """
         if self.is_master:  # is needed when controller is master
             self.controller = ShaperCamera() #  arguments for instantiation!)
+            self.set_shaper_geometry()
             initialized = True
         else:
             self.controller = controller
