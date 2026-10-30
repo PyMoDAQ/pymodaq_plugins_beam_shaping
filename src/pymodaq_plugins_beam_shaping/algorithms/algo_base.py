@@ -256,14 +256,15 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
 
         To be subclassed if the given implementation below is not correct for your algorithm"""
         if self.ALGOTYPE == AlgoType.AMPLITUDE:
-            self.fitness_name = 'NRMSE'
+            self.fitness_name = 'Intensity NRMSE'
             return self.nrmse
 
         elif self.ALGOTYPE == AlgoType.AMPLITUDE_PHASE:
             self.fitness_name = 'Fidelity Error'
             return 1 - self.fidelity_error
         else:
-            raise TypeError('Algorithm type not supported')
+            self.fitness_name = 'Phase NRMSE'
+            return self.phase_nrmse
 
     @property
     def fidelity_error(self) -> float:
@@ -286,6 +287,20 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
                 np.sum(
                     (self._target_field.intensity[tuple(slices)] - self._output_field.intensity[tuple(slices)]) ** 2) /
                 np.sum(self._target_field.intensity[tuple(slices)] ** 2)))
+
+    @property
+    def phase_nrmse(self) -> float:
+        """Compute the NRMSE using the phase array as if a field amplitude"""
+        if self.apply_mask(ApplyMaskTo.TARGET):
+            slices = self.get_mask_slices(ApplyMaskTo.TARGET)
+        else:
+            slices = (...,)
+        norm = 1
+
+        return np.sqrt(1 / norm * (
+                np.sum(
+                    (self._target_field.phase[tuple(slices)]**2 - self._output_field.phase[tuple(slices)]**2) ** 2) /
+                np.sum(self._target_field.phase[tuple(slices)] ** 4)))
 
     @property
     def efficiency(self) -> float:
