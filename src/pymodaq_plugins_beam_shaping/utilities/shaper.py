@@ -25,6 +25,12 @@ def get_default_shaper() -> Shaper:
                   modulator_type=ModulatorType(config('default_shaper', 'modulator_type')[0]))
 
 
+def get_modulator_type() -> ModulatorType:
+    """The modulation type (phase, amplitude or both) of the current shaper: the one told by the Shaper actuator, else
+    the one of the default shaper. The single place to ask for it."""
+    return get_shaper().modulator_type
+
+
 def set_shaper(shaper: Optional[Shaper]):
     """Set the shaper that get_shaper returns, None to go back to the default one"""
     global _current_shaper

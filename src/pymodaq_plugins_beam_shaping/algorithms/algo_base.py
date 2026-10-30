@@ -6,7 +6,7 @@ from scipy.ndimage.filters import gaussian_filter
 from pyqtgraph.parametertree import Parameter
 from qtpy import QtWidgets
 
-from pymodaq_plugins_beam_shaping.utilities.shaper import get_shaper, ModulatorType
+from pymodaq_plugins_beam_shaping.utilities.shaper import get_modulator_type, ModulatorType
 from pymodaq_utils.math_utils import gauss2D
 from pymodaq_data import Q_, DataRaw, DataToExport
 from pymodaq_gui.managers.parameter_manager import ParameterManager
@@ -195,10 +195,10 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         self._target_field.amplitude = np.sqrt(intensity)
 
     def set_field_in_modulator_plane(self, field: Field):
-        shaper = get_shaper()
-        if shaper.modulator_type == ModulatorType.PHASE:
+        modulator_type = get_modulator_type()
+        if modulator_type == ModulatorType.PHASE:
             self.set_phase_in_modulator_plane(field.phase)
-        elif shaper.modulator_type == ModulatorType.AMPLITUDE:
+        elif modulator_type == ModulatorType.AMPLITUDE:
             self.set_amplitude_in_modulator_plane(field.amplitude)
         else:
             self.set_phase_in_modulator_plane(field.phase)
