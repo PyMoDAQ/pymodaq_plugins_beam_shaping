@@ -5,134 +5,86 @@ Algorithms for Beam Shaping
 
 Overview
 --------
-PyMoDAQ-BeamShaping implements **8 algorithms** for beam shaping, categorized into **3 families**:
+PyMoDAQ-BeamShaping provides **8 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
+by its name in the *Algorithm* settings of the extension. The list is built when the extension starts: the algorithms of
+BeamShaping itself, then the ones provided by other installed packages (see :ref:`sec-algorithms-external`).
 
-.. list-table:: **Implemented Algorithms**
+.. list-table:: **Algorithms, as named in the interface**
    :header-rows: 1
-   :widths: 25 10 10 10 10 35
+   :widths: 17 14 7 9 9 9 35
 
-   * - **Algorithm Family**
+   * - **Family**
+     - **Name in the interface**
      - **Setup**
      - **Iterative**
      - **Amplitude**
      - **Phase**
      - **Remarks**
-   * - Direct Application
-     - 2f
+   * - Direct application
+     - Direct
+     - no lens
      - ❌
      - ✅
      - ✅
-     - Direct application of target phase/amplitude.
-   * - Direct Diffractive Modulation
+     - Sends the selected target field to the modulator (phase, amplitude or both depending on the shaper).
+   * - Direct diffractive modulation
+     - Diffractive
      - 4f
      - ❌
      - ✅
      - ❌
-     - Various implementations (Clark 2016).
-   * - Direct Diffractive Modulation (CheckerBoard)
+     - Amplitude images with a phase-only modulator and a filter in the Fourier plane, several diffractive models
+       (`Clark 2016 <https://doi.org/10.1364/OE.24.006249>`_).
+   * - Direct diffractive modulation
+     - OL2014 - Amplitude/Phase Checkerboard
      - 4f
      - ❌
      - ✅
      - ✅
-     - Encodes phase+amplitude (Mendoza-Yero 2014).
-   * - Gerchberg-Saxton (GS)
+     - Encodes phase and amplitude with a checkerboard (Mendoza-Yero, Optics Letters 39(7), 2014).
+   * - Iterative alternating projections
+     - Gerchberg-Saxton
      - 2f
      - ✅
      - ✅
      - ❌
      - Classic phase retrieval (Gerchberg 1972).
-   * - Weighted Gerchberg-Saxton
+   * - Iterative alternating projections
+     - Projections
      - 2f
      - ✅
      - ✅
      - ❌
-     - Improved convergence (Wu 2021).
-   * - MRAF
+     - Gerchberg-Saxton with options: weighting (`Wu 2021 <https://doi.org/10.1364/OE.413723>`_) and Mixed-Region
+       Amplitude Freedom (MRAF, `Pasienski 2008 <https://doi.org/10.1364/OE.16.002176>`_) with a region of interest.
+   * - Iterative alternating projections
+     - slmsuite Hologram
      - 2f
      - ✅
      - ✅
      - ❌
-     - Mixed-Region Amplitude Freedom (Pasienski 2008).
-   * - Iterative Cost Function Minimization (PyTorch)
+     - GS and weighted GS methods (WGS-Leonardo, -Kim, -Nogrette, -Wu, -tanh), optionally on the GPU. Provided by
+       ``pymodaq_plugins_slmsuite``, listed once installed with its ``beamshaping`` extra
+       (see :doc:`slmsuite`).
+   * - Iterative cost function minimization
+     - Minimize
      - 2f
      - ✅
      - ✅
      - ✅
-     - Gradient-based optimization.
-   * - Iterative Cost Function Minimization (Scipy)
-     - 2f
-     - ✅
-     - ✅
-     - ✅
-     - Scipy-based optimization.
-
-.. _sec-algorithms-list:
-
-Algorithms available in the interface
--------------------------------------
-
-The algorithm is chosen by its name in the *Algorithm* settings of the extension. The list is built when the extension
-starts: the algorithms of BeamShaping itself, followed by the ones provided by other installed packages
-(see :ref:`sec-algorithms-external`).
-
-.. list-table:: **Names of the algorithms in the interface**
-   :header-rows: 1
-   :widths: 24 10 10 10 46
-
-   * - **Name**
-     - **Setup**
-     - **Iterative**
-     - **Modulates**
-     - **Description**
-   * - Direct
-     - no lens
-     - ❌
-     - amplitude and phase
-     - Sends the selected target field to the modulator (phase, amplitude or both depending on the shaper).
-   * - Diffractive
-     - 4f
-     - ❌
-     - amplitude
-     - Amplitude images with a phase-only modulator and a filter in the Fourier plane, several diffractive models
-       (`Clark 2016 <https://doi.org/10.1364/OE.24.006249>`_).
-   * - OL2014 - Amplitude/Phase Checkerboard
-     - 4f
-     - ❌
-     - amplitude and phase
-     - Amplitude and phase with a phase-only modulator and a checkerboard encoding
-       (Mendoza-Yero, Optics Letters 39(7), 2014).
-   * - Gerchberg-Saxton
-     - 2f
-     - ✅
-     - amplitude
-     - Classic iterative phase retrieval in the Fourier plane of a lens.
-   * - Projections
-     - 2f
-     - ✅
-     - amplitude
-     - Gerchberg-Saxton with options: weighting (`Wu 2021 <https://doi.org/10.1364/OE.413723>`_) and MRAF with a region
-       of interest (`Pasienski 2008 <https://doi.org/10.1364/OE.16.002176>`_).
-   * - Minimize
-     - 2f
-     - ✅
-     - set by the loss
      - Minimization of a loss function with ``pytorch`` and ``pytorch-minimize``
-       (Optics Express 25(10), 11695, 2017). Needs ``pip install pymodaq_plugins_beam_shaping[pytorch]``.
-   * - TorchOptim
+       (Optics Express 25(10), 11695, 2017). The modulated quantity depends on the loss.
+   * - Iterative cost function minimization
+     - TorchOptim
      - 2f
      - ✅
-     - set by the loss
+     - ✅
+     - ✅
      - Gradient-based minimization of a loss function with ``pytorch`` optimizers (same reference as *Minimize*).
-   * - slmsuite Hologram
-     - 2f
-     - ✅
-     - amplitude
-     - GS and weighted GS methods (WGS-Leonardo, -Kim, -Nogrette, -Wu, -tanh) computed by
-       `slmsuite <https://github.com/holodyne/slmsuite>`_, optionally on the GPU. Provided by the package
-       ``pymodaq_plugins_slmsuite`` (see :ref:`sec-shapers-slmsuite`), only listed once it is installed with its
-       ``beamshaping`` extra.
 
-The *Minimize* and *TorchOptim* algorithms are only listed if ``pytorch`` is installed.
+*Minimize* and *TorchOptim* are only listed if ``pytorch`` is installed (``pip install
+pymodaq_plugins_beam_shaping[pytorch]``). **Setup** is the propagation model assumed between the modulator and the
+output plane (see :ref:`sec-algorithms-propagation`).
 
 .. _sec-algorithms-theory:
 

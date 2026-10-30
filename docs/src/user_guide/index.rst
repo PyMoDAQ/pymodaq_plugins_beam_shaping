@@ -9,6 +9,7 @@ User Guide
    fields
    algorithms
    shapers
+   slmsuite
    calibration
    corrections
    data_management

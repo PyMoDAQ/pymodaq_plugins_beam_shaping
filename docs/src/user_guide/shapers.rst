@@ -47,25 +47,12 @@ Available shapers
        calibration). *HoloeyeMock* needs no hardware.
    * - Slmsuite, SlmsuiteSimulated, SlmsuiteMeadowlark, SlmsuiteHoloeye
      - `pymodaq_plugins_slmsuite <https://github.com/PyMoDAQ/pymodaq_plugins_slmsuite>`_
-     - Any SLM supported by *slmsuite*: Holoeye, Meadowlark, Santec, Hamamatsu, mirrored screens... (see below).
+     - Any SLM supported by *slmsuite*: Holoeye, Meadowlark, Santec, Hamamatsu, mirrored screens... (see :doc:`slmsuite`).
 
 .. _sec-shapers-slmsuite:
 
 slmsuite
 --------
 
-`slmsuite <https://github.com/holodyne/slmsuite>`_ is an open source Python package (MIT license, *slmsuite
-Developers*, maintained by Holodyne Labs, `documentation <https://slmsuite.holodyne.com/>`_) for the control of spatial
-light modulators and the computation of holograms. If you use it through BeamShaping, please cite slmsuite (see the
-reference to use on its project page) together with this package.
-
-The package `pymodaq_plugins_slmsuite <https://github.com/PyMoDAQ/pymodaq_plugins_slmsuite>`_ makes it available in
-PyMoDAQ:
-
-* **Shaper actuators** for the SLMs supported by slmsuite, with the interface described above.
-* **The slmsuite Hologram algorithm** in the list of algorithms of BeamShaping (GS and weighted GS methods, see
-  :ref:`sec-algorithms-list`), installed with::
-
-    pip install pymodaq_plugins_slmsuite[beamshaping]
-
-The vendor driver of the SLM has to be installed separately (see the slmsuite documentation).
+Any SLM supported by `slmsuite <https://github.com/holodyne/slmsuite>`_ can be used as Shaper through the actuators of
+``pymodaq_plugins_slmsuite``. See the page :doc:`slmsuite`.
