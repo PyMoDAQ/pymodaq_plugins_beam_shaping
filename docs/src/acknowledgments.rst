@@ -57,7 +57,7 @@ Tools Used
 ----------
 - **Sphinx** (with ``sphinx-rtd-theme``) for documentation generation.
 - **reStructuredText** (``.rst``) for writing.
-- **LaTeX** for mathematical equations (integrated via ``sphinx.ext.imgmath``).
+- **LaTeX** syntax for mathematical equations (rendered in the browser by MathJax via ``sphinx.ext.mathjax``).
 - **HDF5** for describing the structure of ``.h5beam`` files.
 
 

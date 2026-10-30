@@ -33,7 +33,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     'sphinx.ext.doctest',
     'sphinx.ext.coverage',
-    'sphinx.ext.imgmath',
+    'sphinx.ext.mathjax',  # equations rendered in the browser, no LaTeX needed on the build machine (Read the Docs)
     'sphinx.ext.githubpages',
     'sphinx.ext.autosummary',
     'releases',
@@ -60,11 +60,6 @@ html_css_files = [
 
 bibtex_bibfiles = ['bibtex.bib']  # Chemin relatif à docs/
 bibtex_reference_style = 'author_year'  # Style de citation (ex: "Weber 2021")
-
-# Configuration pour imgmath (équations LaTeX)
-imgmath_image_format = 'png'  # ou 'svg'
-imgmath_font_size = 14
-imgmath_dpi = 150
 
 # -- Options for autodocumentation ---------------------------------------------
 autodoc_member_order = "groupwise"
