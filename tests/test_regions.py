@@ -7,9 +7,11 @@ from pymodaq_data import Q_
 from pymodaq_gui.utils.dock import DockArea
 
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
+from pymodaq_plugins_beam_shaping.utilities.shaper import get_default_shaper
 
 
 PIXELS = (Q_(8., 'um'), Q_(8., 'um'))
+SHAPER = get_default_shaper()
 
 
 def test_slices_to_indexes_matches_vsig():
@@ -30,17 +32,17 @@ def test_slices_to_indexes_clipped():
 
 
 def test_default_slices_are_two_thirds_centered():
-    pos, size = regions.get_effective_area(PIXELS)
-    slices = regions.default_slices(PIXELS)
+    pos, size = regions.get_effective_area(SHAPER, PIXELS)
+    slices = regions.default_slices(SHAPER, PIXELS)
     for _slice, p, s in zip(slices, pos, size):
         assert _slice.stop - _slice.start == pytest.approx(2 / 3 * s)
         assert (_slice.start + _slice.stop) / 2 == pytest.approx(p + s / 2)
-    assert regions.are_slices_in_area(slices, PIXELS)
+    assert regions.are_slices_in_area(SHAPER, slices, PIXELS)
 
 
 def test_legacy_pixel_slices_are_not_valid():
     legacy = regions.parse_slices('(slice(277, 1770, None), slice(252, 1795, None))')
-    assert not regions.are_slices_in_area(legacy, PIXELS)
+    assert not regions.are_slices_in_area(SHAPER, legacy, PIXELS)
     assert regions.parse_slices('') is None
 
 
@@ -70,8 +72,8 @@ def test_loader_mask_in_real_units(qtbot, dockarea):
     app.settings.child('utils', 'masking', 'show_mask').setValue(True)
 
     region = app.get_mask_region()
-    assert regions.are_slices_in_area(region, app.get_pixel_sizes())
-    pos, size = sizing.get_effective_area_pos_size_in_pxls()
+    assert regions.are_slices_in_area(SHAPER, region, app.get_pixel_sizes())
+    pos, size = sizing.get_effective_area_pos_size_in_pxls(SHAPER)
     idx = app.get_mask_as_slices()
     for _slice, p, s in zip(idx, pos, size):
         assert _slice.stop - _slice.start == pytest.approx(2 / 3 * s, abs=2)
@@ -93,15 +95,15 @@ def test_algo_app_slices(qtbot, dockarea):
     from pymodaq_plugins_beam_shaping.field import Field
 
     app = AlgoApp(dockarea)
-    shape = sizing.get_effective_needed_field_size()
+    shape = sizing.get_effective_needed_field_size(SHAPER)
     app.set_target_field(Field(amplitude=np.ones(shape), pixel_sizes=PIXELS))
     region = app.get_mask_region(ApplyMaskTo.TARGET)
-    assert region is not None and regions.are_slices_in_area(region, PIXELS)
+    assert region is not None and regions.are_slices_in_area(SHAPER, region, PIXELS)
 
     app.settings.child(str(ApplyMaskTo.TARGET), 'apply_mask').setValue(True)
     app.update_target_slices((slice(0., 1e9), slice(0., 1e9)))  # constrained to the effective area
     idx = app.get_mask_as_slices(ApplyMaskTo.TARGET)
-    pos, size = sizing.get_effective_area_pos_size_in_pxls()
+    pos, size = sizing.get_effective_area_pos_size_in_pxls(SHAPER)
     for _slice, p, s in zip(idx, pos, size):
         assert _slice.start == pytest.approx(p, abs=1)
         assert _slice.stop == pytest.approx(p + s, abs=1)

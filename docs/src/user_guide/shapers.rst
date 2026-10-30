@@ -14,7 +14,10 @@ The modulator can be of several kinds. Most spatial light modulators (SLM) are *
 LCOS), but a shaper can also be **amplitude only**, such as a digital micromirror device (DMD) or other micromirror
 arrays, or able to modulate both. The mask sent to the actuator is then a phase for a phase modulator and an amplitude
 (or the binary pattern of a DMD) for an amplitude modulator, as declared by the ``modulator_type`` of the shaper
-(see below). The algorithms must be chosen accordingly, see :doc:`algorithms`.
+(see below). The list of algorithms of the extension only proposes those that can compute a mask for the modulator of
+the shaper: each algorithm declares the modulators it supports in its ``MODULATOR_TYPES`` class attribute (a tuple of
+``ModulatorType``, phase only by default), and a shaper modulating both phase and amplitude accepts any algorithm. See
+:doc:`algorithms`.
 
 The extension asks the actuator itself what the modulator is, once the actuator is initialized: number of pixels, size of
 the pixels, name, type of modulation (phase, amplitude or both) and whether the shaper has an internal calibration
@@ -25,8 +28,9 @@ settings of the actuator, ``shaper_geometry`` and ``shaper_properties``, defined
 wants to be used as a Shaper only needs to add these groups to its parameters (``shaper_params()``) and to fill them in
 ``ini_stage`` (``fill_shaper_settings``); it does not depend on BeamShaping.
 
-The shaper is read from the actuator when the experiment (preset) is set and whenever the actuator is initialized, and the
-fields (input, target) are rebuilt for its number of pixels and pixel size. There is no list of shapers to configure. If
+The shaper is read from the actuator when the experiment is loaded and whenever the actuator is initialized (also by
+hand, after a manual deinit/reinit). The extension then gives the same shaper to the algorithms, the fields (input,
+target) and the corrections, which are rebuilt for its number of pixels and pixel size. There is no list of shapers to configure. If
 the actuator is absent, not initialized or does not provide these groups, the extension uses a **default shaper**, the
 same for all the shapers, described in the ``[default_shaper]`` section of the configuration file of BeamShaping
 (``name``, ``width``, ``height``, ``pixel_size`` in µm, ``has_internal_calibration``,

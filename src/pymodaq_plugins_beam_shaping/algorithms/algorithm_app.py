@@ -9,6 +9,7 @@ import pymodaq_gui.qt_utils
 from pymodaq_data import DataCalculated
 from pymodaq_gui.plotting.items.roi import RoiInfo
 from pymodaq_utils.utils import ThreadCommand
+from pymodaq_utils.logger import set_logger, get_module_name
 from pymodaq_utils.config import GlobalConfig
 
 from pymodaq_data.data import DataRaw, DataToExport, DataDim
@@ -40,6 +41,9 @@ from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
 from pymodaq_plugins_beam_shaping.utilities.h5saving import ShapingSaver
 
 from pymodaq_plugins_beam_shaping.utilities import sizing, regions
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
+
+logger = set_logger(get_module_name(__file__))
 
 algo_factory = AlgorithmFactory()
 phase_factory = PhaseFactory()
@@ -112,8 +116,9 @@ class AlgoApp(CustomApp):
     algo_changed = QtCore.Signal(AlgoBase)
     fields_to_plot = QtCore.Signal(DataToExport)
 
-    def __init__(self, dockarea, toolbar: QtWidgets.QToolBar=None):
+    def __init__(self, dockarea, toolbar: QtWidgets.QToolBar=None, shaper: Shaper = None):
         super().__init__(dockarea, toolbar=toolbar)
+        self.shaper = shaper if shaper is not None else get_default_shaper()
         self.runner_thread: QtCore.QThread = None
 
         self._algorithm: AlgoBase = None
@@ -436,8 +441,8 @@ class AlgoApp(CustomApp):
     def setup_actions(self):
         self.add_widget('algorithms', QtWidgets.QComboBox,
                         tip='select the algorithm to compute the phase')
-        self.get_action('algorithms').addItems(plugin_config('algo', 'default_algo'))
-        self.get_action('algorithms').setCurrentText(plugin_config('algo', 'default_algo')[0])
+        self.get_action('algorithms').addItems(self.algorithms)
+        self.get_action('algorithms').setCurrentText(self.algorithms[0])
         self.add_action('ini_algo', 'Init Algo', 'start', checkable=True,
                         icon_checked_color=self.get_theme().green,
                         auto_menu=False)
@@ -490,8 +495,39 @@ class AlgoApp(CustomApp):
         self.settings_widget.setEnabled(enable)
 
     @property
+    def shaper(self) -> Shaper:
+        return getattr(self, '_shaper', None) or get_default_shaper()
+
+    @shaper.setter
+    def shaper(self, shaper: Shaper):
+        self._shaper = shaper
+        if self.has_action('algorithms'):
+            self.update_available_algorithms()
+
+    @property
     def algorithms(self) -> list[str]:
-        return algo_factory.algorithms
+        """The algorithms usable with the modulation type of the shaper, in the order of the configuration"""
+        usable = algo_factory.algorithms_for(self.shaper.modulator_type)
+        names = [name for name in plugin_config('algo', 'default_algo') if name in usable]
+        return names if names else usable
+
+    def update_available_algorithms(self):
+        """Only list the algorithms that can be used with the shaper; change the current one if it cannot"""
+        combo = self.get_action('algorithms')
+        current = combo.currentText()
+        names = self.algorithms
+        if not names:
+            logger.warning(f'No algorithm available for a shaper modulating the {self.shaper.modulator_type}')
+            return
+        if [combo.itemText(ind) for ind in range(combo.count())] == names:
+            return
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(names)
+        combo.setCurrentText(current if current in names else names[0])
+        combo.blockSignals(False)
+        if combo.currentText() != current and self._algorithm is not None:
+            self.set_algorithm()
 
     @property
     def algorithm_name(self) -> str:
@@ -548,7 +584,7 @@ class AlgoApp(CustomApp):
             pixel_sizes = self.get_plane_pixel_sizes(apply_to)
             if region is None or pixel_sizes is None:
                 return None
-            return regions.slices_to_indexes(region, pixel_sizes, sizing.get_effective_needed_field_size())
+            return regions.slices_to_indexes(region, pixel_sizes, sizing.get_effective_needed_field_size(self.shaper))
         else:
             return None
 
@@ -565,7 +601,7 @@ class AlgoApp(CustomApp):
         """ Set the mask region (slices in m) constrained to the effective area of the plane"""
         pixel_sizes = self.get_plane_pixel_sizes(apply_to)
         if pixel_sizes is not None:
-            slices = regions.constrain_slices(slices, pixel_sizes)
+            slices = regions.constrain_slices(self.shaper, slices, pixel_sizes)
         self.settings.child(str(apply_to), 'slices').setValue(regions.slices_to_str(slices))
 
     def check_slices(self):
@@ -575,8 +611,8 @@ class AlgoApp(CustomApp):
             if pixel_sizes is None:
                 continue
             region = self.get_mask_region(apply_to)
-            if region is None or not regions.are_slices_in_area(region, pixel_sizes):
-                self.update_slices(apply_to, regions.default_slices(pixel_sizes))
+            if region is None or not regions.are_slices_in_area(self.shaper, region, pixel_sizes):
+                self.update_slices(apply_to, regions.default_slices(self.shaper, pixel_sizes))
 
     def value_changed(self, param: Parameter):
         for applied in ApplyMaskTo.values():

@@ -33,7 +33,7 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
-from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper, set_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper
 from pymodaq_plugins_utils.hardware.shaper import PROPERTIES_NAME
 
 logger = set_logger(get_module_name(__file__))
@@ -161,7 +161,6 @@ class BeamShaping(CustomExt):
         shaper = None
         if self._shaper_actuator is not None:
             shaper = Shaper.from_module(self._shaper_actuator)
-        set_shaper(shaper)  # None: the default shaper
         if shaper is None:
             shaper = get_default_shaper()
         if (self._shaper is None or self._shaper.modulator_type != shaper.modulator_type) and \
@@ -169,6 +168,11 @@ class BeamShaping(CustomExt):
             self.set_action_visible('calibration', shaper.modulator_type == ModulatorType.PHASE)
         self._shaper = shaper
         return shaper
+
+    @property
+    def modulator_type(self) -> ModulatorType:
+        """The modulation type of the shaper, read again from the actuator"""
+        return self.shaper.modulator_type
 
     def send_field_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
         """ Send the modulator field to the shaper depending on its modulation type
@@ -180,9 +184,9 @@ class BeamShaping(CustomExt):
         with_corrections: should we add corrections, mostly for the field's phase
         """
         if self._shaper_actuator is not None:
-            if self.shaper.modulator_type == ModulatorType.PHASE:
+            if self.modulator_type == ModulatorType.PHASE:
                self.send_phase_to_shaper(field, send_to_shaper, with_corrections)
-            elif self.shaper.modulator_type == ModulatorType.AMPLITUDE:
+            elif self.modulator_type == ModulatorType.AMPLITUDE:
                 self.send_amplitude_to_shaper(field, send_to_shaper, with_corrections)
             else:
                 self.send_phase_to_shaper(field, send_to_shaper, with_corrections)
@@ -305,7 +309,7 @@ class BeamShaping(CustomExt):
                             dwa_input_amplitude = loader.load_data(node.path)
                         elif node.attrs.get('label', '') == 'Phase':
                             dwa_input_phase = loader.load_data(node.path)
-            if dwa_modulator_amplitude.shape != sizing.get_effective_needed_field_size():
+            if dwa_modulator_amplitude.shape != sizing.get_effective_needed_field_size(self.shaper):
                 messagebox(
                     title='Sizing Issue',
                     text='Could not load this file as the size is not coherent with the current sizing configuration')
@@ -380,22 +384,24 @@ class BeamShaping(CustomExt):
         self._target_dockarea = gutils.DockArea()
         self._target_field_loader = FieldLoaderApp(self._target_dockarea,
                                              modules_manager=self.modules_manager,
-                                             title='Target Field Loader')
+                                             title='Target Field Loader',
+                                             shaper=self.shaper)
         self._target_field_loader.set_loader_in_settings(
             plugin_config('target', 'default_loader')[0])
 
 
         self._input_field_dockarea = gutils.DockArea()
         self._input_field_loader = FieldLoaderApp(self._input_field_dockarea,
-                                                  title='Input Field Loader')
+                                                  title='Input Field Loader',
+                                                  shaper=self.shaper)
         self._input_field_loader.set_loader_in_settings(
             plugin_config('input', 'default_loader')[0])
-        self._input_field_loader.updated_slm(self.shaper.name)
         self._input_field_loader.update_apply_mask(size=self.slm_shape, apply=True)
 
         self._corrections_dockarea = gutils.DockArea()
         self._corrections = Correction(self._corrections_dockarea,
-                                       title='Phase Corrections')
+                                       title='Phase Corrections',
+                                       shaper=self.shaper)
 
         self.docks['output_field'] = gutils.Dock('Output Plane')
         self.docks['modulator_field'] = gutils.Dock('Modulator Plane')
@@ -468,7 +474,7 @@ class BeamShaping(CustomExt):
         self.add_action('calibration', 'Calibration', 'equalizer',
                         tip='Perform a calibration of the SLM phase wrt the grey levels applied to it.',
                         checkable=True, menu='calibration',
-                        enabled=self.shaper.modulator_type == ModulatorType.PHASE)
+                        enabled=self.modulator_type == ModulatorType.PHASE)
         self.add_action('show_calibration', 'ShowCalibration',
                         tip='Show the saved calibration curve if any...', auto_toolbar=False,
                         checkable=False, menu='calibration')
@@ -528,7 +534,7 @@ class BeamShaping(CustomExt):
 
     def do_things_after_ui_setup(self):
 
-        self._algorithm = AlgoApp(self.dockarea, toolbar=self.toolbar)
+        self._algorithm = AlgoApp(self.dockarea, toolbar=self.toolbar, shaper=self.shaper)
         self.dockarea.addDock(self._algorithm.docks['algo_settings'], 'left')
         self._algorithm.algo_changed.connect(self.update_target_loader_from_algo)
         self._algorithm.algo_changed.connect(self.update_ui_from_algo)
@@ -622,7 +628,7 @@ class BeamShaping(CustomExt):
     @property
     def slm_shape(self) -> tuple[int, int]:
         """ Get the shape of the configured SLM"""
-        return sizing.get_effective_slm_size()
+        return sizing.get_effective_slm_size(self.shaper)
 
     def add_corrections_actuators(self):
         try:
@@ -644,8 +650,8 @@ class BeamShaping(CustomExt):
             logger.exception('Could not create Corrections Actuators', exc_info=e)
 
     def update_target_loader_from_algo(self, algo: AlgoBase):
-        pixel_size = Q_(sizing.get_effective_slm_pixel_size(), 'um')
-        needed_pixel_size = sizing.get_effective_needed_field_size()
+        pixel_size = Q_(sizing.get_effective_slm_pixel_size(self.shaper), 'um')
+        needed_pixel_size = sizing.get_effective_needed_field_size(self.shaper)
 
         field_size = (pixel_size * needed_pixel_size[0], pixel_size * needed_pixel_size[1])
 
@@ -679,11 +685,14 @@ class BeamShaping(CustomExt):
         if self._input_field_loader is None or self._target_field_loader is None or self._algorithm is None:
             return  # the user interface is not set up yet
         self._shaper = None  # make sure to check if the shaper object should be reinit
-        self._input_field_loader.updated_slm(self.shaper.name)
+        shaper = self.shaper
+        self._algorithm.shaper = shaper
+        self._corrections.update_shaper(shaper)
+        self._input_field_loader.update_shaper(shaper)
         self._input_field_loader.update_apply_mask(size=self.slm_shape, apply=True)
         self._input_field_loader.loader.load_field(notify=True)
 
-        self._target_field_loader.updated_slm(self.shaper.name)
+        self._target_field_loader.update_shaper(shaper)
         self.update_target_loader_from_algo(self.algorithm.algorithm) #will reload the target
 
     def show_target(self, show=True):

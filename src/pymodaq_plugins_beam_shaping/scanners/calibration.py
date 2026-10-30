@@ -19,6 +19,7 @@ from pymodaq_data.data import Axis, DataDistribution, DataToExport
 from pymodaq.utils.scanner.scan_factory import ScannerFactory, ScannerBase
 from pymodaq.utils.scanner.scanners._1d_scanners import Scan1DBase
 
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 from pymodaq_plugins_beam_shaping.utilities.sizing import get_slm_size
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
 
@@ -93,7 +94,9 @@ class Scan1DCalibration(Scan1DBase):
         To be reimplemented if needed
 
         """
-        shaper_shape = get_slm_size()
+        # the actuator scanned is the Shaper: it tells its size, else the default shaper is used
+        shaper = Shaper.from_module(self.actuators[0]) or get_default_shaper()
+        shaper_shape = get_slm_size(shaper)
         data = np.zeros(shaper_shape, dtype=np.uint8)
         data[:, shaper_shape[1] // 2:] = self.positions[scan_index, axis_index]
         data = data.astype(np.uint8)

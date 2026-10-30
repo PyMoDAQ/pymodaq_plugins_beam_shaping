@@ -10,7 +10,8 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
-from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, get_default_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import (shaper_params, fill_shaper_settings, get_default_shaper,
+                                                            ModulatorType, Shaper)
 from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
@@ -40,9 +41,8 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
     def ini_attributes(self):
         self.controller: ShaperCamera = None
 
-    def set_shaper_geometry(self):
-        """Fill the shaper settings groups read by the BeamShaping extension, with the default shaper"""
-        shaper = get_default_shaper()
+    def set_shaper_geometry(self, shaper: Shaper):
+        """Fill the shaper settings groups read by the BeamShaping extension"""
         fill_shaper_settings(self.settings, shaper.name, shaper.width, shaper.height, shaper.pixel_size,
                              modulator_type=shaper.modulator_type,
                              has_internal_calibration=shaper.has_internal_calibration)
@@ -87,8 +87,9 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
             False if initialization failed otherwise True
         """
         if self.is_master:  # is needed when controller is master
-            self.controller = ShaperCamera() #  arguments for instantiation!)
-            self.set_shaper_geometry()
+            shaper = get_default_shaper()  # the mock is a shaper like the one of the preferences
+            self.controller = ShaperCamera(shaper)
+            self.set_shaper_geometry(shaper)
             initialized = True
         else:
             self.controller = controller
@@ -111,10 +112,18 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
 
         if value.shape == (1,):
             value.data = [value[0][0] * np.ones_like(self.controller.get_slm_phases())]
-        if 'as_grey_levels' in value.extra_attributes and value.as_grey_levels:
-            self.controller.apply_grey_scale(value[0])
-        else:
-            self.controller.apply_phase(value[0])
+
+        modulator_type = ModulatorType(self.settings['shaper_properties', 'modulator_type'])
+        if modulator_type == ModulatorType.AMPLITUDE:  # one array: the amplitude
+            self.controller.apply_amplitude(value[0])
+        elif modulator_type == ModulatorType.BOTH and np.iscomplexobj(value[0]):  # one complex array: amplitude * e^(i phase)
+            self.controller.apply_amplitude(np.abs(value[0]))
+            self.controller.apply_phase(np.angle(value[0]))
+        else:  # one array: the phase (or grey levels)
+            if 'as_grey_levels' in value.extra_attributes and value.as_grey_levels:
+                self.controller.apply_grey_scale(value[0])
+            else:
+                self.controller.apply_phase(value[0])
 
         self.current_value = value
         self.emit_status(ThreadCommand('Update_Status', ['SLM Updated']))

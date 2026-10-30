@@ -1,11 +1,7 @@
-from typing import Optional
-
 # The shaper contract (settings groups of the instrument plugin, Shaper dataclass) lives in pymodaq_plugins_utils
 from pymodaq_plugins_utils.hardware.shaper import Shaper, ModulatorType, shaper_params, fill_shaper_settings
 
 from pymodaq_plugins_beam_shaping import config
-
-_current_shaper: Optional[Shaper] = None
 
 
 def get_default_shaper() -> Shaper:
@@ -23,14 +19,3 @@ def get_default_shaper() -> Shaper:
                   use_internal_calibration=has_internal_calibration and
                   bool(config('calibration', 'use_internal_calibration')),
                   modulator_type=ModulatorType(config('default_shaper', 'modulator_type')[0]))
-
-
-def set_shaper(shaper: Optional[Shaper]):
-    """Set the shaper that get_shaper returns, None to go back to the default one"""
-    global _current_shaper
-    _current_shaper = shaper
-
-
-def get_shaper() -> Shaper:
-    """The shaper last told by the Shaper actuator (see the BeamShaping extension), else the default one"""
-    return _current_shaper if _current_shaper is not None else get_default_shaper()
