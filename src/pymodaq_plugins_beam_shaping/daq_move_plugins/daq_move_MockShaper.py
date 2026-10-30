@@ -10,7 +10,8 @@ from pymodaq_utils.utils import ThreadCommand  # object used to send info back t
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.hardware.mock_shaper_camera import ShaperCamera
-from pymodaq_plugins_beam_shaping.utilities.shaper import shaper_params, fill_shaper_settings, get_default_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import (shaper_params, fill_shaper_settings, get_default_shaper,
+                                                            ModulatorType)
 from pymodaq_plugins_beam_shaping.utilities import sizing
 
 
@@ -111,10 +112,17 @@ class DAQ_Move_MockShaper(DAQ_Move_base):
 
         if value.shape == (1,):
             value.data = [value[0][0] * np.ones_like(self.controller.get_slm_phases())]
-        if 'as_grey_levels' in value.extra_attributes and value.as_grey_levels:
-            self.controller.apply_grey_scale(value[0])
-        else:
-            self.controller.apply_phase(value[0])
+
+        modulator_type = ModulatorType(self.settings['shaper_properties', 'modulator_type'])
+        if modulator_type == ModulatorType.AMPLITUDE:  # one array: the amplitude
+            self.controller.apply_amplitude(value[0])
+        else:  # one array: the phase (or grey levels); for both: the phase then the amplitude
+            if 'as_grey_levels' in value.extra_attributes and value.as_grey_levels:
+                self.controller.apply_grey_scale(value[0])
+            else:
+                self.controller.apply_phase(value[0])
+            if modulator_type == ModulatorType.BOTH and len(value) > 1:
+                self.controller.apply_amplitude(value[1])
 
         self.current_value = value
         self.emit_status(ThreadCommand('Update_Status', ['SLM Updated']))

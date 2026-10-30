@@ -47,6 +47,7 @@ class ShaperCamera:
 
     def __init__(self):
         self._slm_values: np.ndarray = np.zeros(get_slm_size())
+        self._slm_amplitudes: np.ndarray = np.ones(get_slm_size())
 
         self._gaussian_width: float = None
         self._amplitude: np.ndarray = None
@@ -77,8 +78,15 @@ class ShaperCamera:
     def apply_phase(self, value: np.ndarray):
         self._slm_values = value
 
+    def get_slm_amplitudes(self) -> np.ndarray:
+        return self._slm_amplitudes
+
+    def apply_amplitude(self, value: np.ndarray):
+        """Transmission (between 0 and 1) of each pixel of an amplitude modulator"""
+        self._slm_amplitudes = value
+
     def get_camera(self, amplitude_mask: np.ndarray = None) -> np.ndarray:
-        field = self._amplitude * np.exp(1j * self._slm_values)
+        field = self._amplitude * self._slm_amplitudes * np.exp(1j * self._slm_values)
         if amplitude_mask is not None and amplitude_mask.shape == field.shape:
             field *= amplitude_mask
         return np.abs(np.fft.fftshift(np.fft.fft2(np.fft.fftshift(field))) /

@@ -33,7 +33,8 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
-from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper, set_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import (Shaper, ModulatorType, get_default_shaper, set_shaper,
+                                                                    get_modulator_type)
 from pymodaq_plugins_utils.hardware.shaper import PROPERTIES_NAME
 
 logger = set_logger(get_module_name(__file__))
@@ -170,6 +171,12 @@ class BeamShaping(CustomExt):
         self._shaper = shaper
         return shaper
 
+    @property
+    def modulator_type(self) -> ModulatorType:
+        """The modulation type of the shaper (see :func:`get_modulator_type`), read again from the actuator"""
+        self.shaper  # refresh the current shaper from the actuator
+        return get_modulator_type()
+
     def send_field_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
         """ Send the modulator field to the shaper depending on its modulation type
 
@@ -180,9 +187,9 @@ class BeamShaping(CustomExt):
         with_corrections: should we add corrections, mostly for the field's phase
         """
         if self._shaper_actuator is not None:
-            if self.shaper.modulator_type == ModulatorType.PHASE:
+            if self.modulator_type == ModulatorType.PHASE:
                self.send_phase_to_shaper(field, send_to_shaper, with_corrections)
-            elif self.shaper.modulator_type == ModulatorType.AMPLITUDE:
+            elif self.modulator_type == ModulatorType.AMPLITUDE:
                 self.send_amplitude_to_shaper(field, send_to_shaper, with_corrections)
             else:
                 self.send_phase_to_shaper(field, send_to_shaper, with_corrections)
@@ -466,7 +473,7 @@ class BeamShaping(CustomExt):
         self.add_action('calibration', 'Calibration', 'equalizer',
                         tip='Perform a calibration of the SLM phase wrt the grey levels applied to it.',
                         checkable=True, menu='calibration',
-                        enabled=self.shaper.modulator_type == ModulatorType.PHASE)
+                        enabled=self.modulator_type == ModulatorType.PHASE)
         self.add_action('show_calibration', 'ShowCalibration',
                         tip='Show the saved calibration curve if any...', auto_toolbar=False,
                         checkable=False, menu='calibration')
