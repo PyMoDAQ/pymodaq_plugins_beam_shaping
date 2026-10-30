@@ -136,7 +136,10 @@ def test_roi_select_is_the_same_in_both_viewers(qtbot, dockarea):
     # moved in the phase viewer: follows in the amplitude viewer and in the settings
     phase.ROIselect.setPos((phase.ROIselect.pos()[0] + 3., phase.ROIselect.pos()[1] + 2.))
     assert geometry(amp) == pytest.approx(geometry(phase))
-    assert [group[name] for name in ('x', 'y', 'width', 'height')] == pytest.approx(geometry(phase))
+    # the ROIs are in the units of the axes (m), the settings in um
+    assert [group[name] * 1e-6 for name in ('x', 'y', 'width', 'height')] == pytest.approx(geometry(phase))
+    assert all(group.child(name).opts['suffix'] == 'µm' and group.child(name).opts['decimals'] == 0
+               for name in ('x', 'y', 'width', 'height'))
 
     # resized in the amplitude viewer
     amp.ROIselect.set_width(4.)
@@ -145,9 +148,9 @@ def test_roi_select_is_the_same_in_both_viewers(qtbot, dockarea):
     # the settings drive both, and who listens to the viewers (the extension) is told
     infos = []
     app.amp_viewer.roi_select_signal.connect(infos.append)
-    group.child('x').setValue(1.5)
+    group.child('x').setValue(150.)  # um
     assert infos
-    assert amp.ROIselect.center()[0] == pytest.approx(1.5) and phase.ROIselect.center()[0] == pytest.approx(1.5)
+    assert amp.ROIselect.center()[0] == pytest.approx(150e-6) and phase.ROIselect.center()[0] == pytest.approx(150e-6)
 
     # hidden from the phase button: hidden in both, and placed again nowhere when shown again
     before = geometry(amp)
