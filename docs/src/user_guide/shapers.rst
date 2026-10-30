@@ -10,6 +10,12 @@ The extension sends the computed mask to the actuator named **Shaper** in the Da
 instrument plugin can be used, as long as its actuator accepts a 2D array of the size of the modulator as target
 (a phase in radians, or grey levels when the data carries the attribute ``as_grey_levels=True``).
 
+The modulator can be of several kinds. Most spatial light modulators (SLM) are **phase only** (liquid crystal on silicon,
+LCOS), but a shaper can also be **amplitude only**, such as a digital micromirror device (DMD) or other micromirror
+arrays, or able to modulate both. The mask sent to the actuator is then a phase for a phase modulator and an amplitude
+(or the binary pattern of a DMD) for an amplitude modulator, as declared by the ``modulator_type`` of the shaper
+(see below). The algorithms must be chosen accordingly, see :doc:`algorithms`.
+
 The extension asks the actuator itself what the modulator is, once the actuator is initialized: number of pixels, size of
 the pixels, name, type of modulation (phase, amplitude or both) and whether the shaper has an internal calibration
 (conversion of a phase into grey levels done by the driver). This information is given by two read-only groups of
