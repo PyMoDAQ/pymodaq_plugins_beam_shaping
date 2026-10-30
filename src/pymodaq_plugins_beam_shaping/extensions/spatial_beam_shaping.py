@@ -34,6 +34,7 @@ from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper, set_shaper
+from pymodaq_plugins_utils.hardware.shaper import PROPERTIES_NAME
 
 logger = set_logger(get_module_name(__file__))
 layout_path = get_set_layout_path(user=True)
@@ -107,6 +108,7 @@ class BeamShaping(CustomExt):
         return self._target_field_loader.field
 
     def do_things_after_init(self):
+        self.apply_calibration_preference()
         self._input_field_loader.load_field()
         self._target_field_loader.load_field()
 
@@ -650,8 +652,28 @@ class BeamShaping(CustomExt):
     def do_things_after_config_changed(self):
         self.update_from_shaper()
 
+    def apply_calibration_preference(self):
+        """Impose the preference ``use_internal_calibration`` (section default_shaper) to the Shaper actuator
+
+        The extension is the one that can calibrate: if the actuator has an internal calibration and its
+        ``use_internal_calibration`` setting differs from the preference, it is overwritten (and a warning is logged).
+        Called at the start of the extension, when the experiment is set, when the actuator is initialized and when
+        the preferences change.
+        """
+        if self._shaper_actuator is None:
+            return
+        shaper = Shaper.from_module(self._shaper_actuator)
+        wanted = bool(plugin_config('default_shaper', 'use_internal_calibration'))
+        if shaper is None or not shaper.has_internal_calibration or shaper.use_internal_calibration == wanted:
+            return
+        self._shaper_actuator.settings.child(self._shaper_actuator._hw_settings_name, PROPERTIES_NAME,
+                                             'use_internal_calibration').setValue(wanted)
+        logger.warning(f'The setting "Use internal calibration" of the Shaper actuator was {not wanted}, it is set to '
+                       f'{wanted} as in the preferences of BeamShaping (default_shaper > use_internal_calibration)')
+
     def update_from_shaper(self):
         """Read the shaper again (Shaper actuator or default one) and update what depends on it: the fields"""
+        self.apply_calibration_preference()
         if self._input_field_loader is None or self._target_field_loader is None or self._algorithm is None:
             return  # the user interface is not set up yet
         self._shaper = None  # make sure to check if the shaper object should be reinit

@@ -29,7 +29,7 @@ width = 1920
 height = 1080
 pixel_size = 8.0  # in micrometer
 has_internal_calibration = false
-use_internal_calibration = false
+use_internal_calibration = true  # imposed to the Shaper actuator if it has an internal calibration (then used instead of the calibration of BeamShaping)
 modulator_type = ['phase', 'amplitude', 'both']  #first elet in the list used as default
 
 [target]
