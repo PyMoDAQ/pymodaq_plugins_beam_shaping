@@ -12,7 +12,7 @@ Most algorithms start from an *initial phase* of the modulator, which is also a 
 
 * **Random**: a random phase.
 * **Quadratic**: a quadratic phase ``R (p² + q²) + D (p cos θ + q sin θ)`` (``p`` and ``q`` are the normalized pixel
-  indexes, see `Bowman et al., Optics Express 25(10), 2017 <https://doi.org/10.1364/OE.25.011692>`_) with the groups *Quadratic
+  indexes, see :cite:t:`bowman_high-fidelity_2017`) with the groups *Quadratic
   Amplitude* (``Auto`` computes the X and Y amplitudes from the size of the target mask, ``X Quad.``, ``Y Quad.``,
   ``Coeff`` as a multiplicative coefficient) and *Linear Shift* (``Auto`` computes the shift from the position of the
   target mask, ``X Shift``, ``Y shift``).
@@ -32,7 +32,7 @@ Diffractive
 
 Creates an amplitude image with a **phase-only** modulator in a **4f** line with a circular filter in the Fourier plane
 that removes the undiffracted light. Not iterative. Implements the five methods A to E discussed in
-`Clark et al., Optics Express, 2016 <https://doi.org/10.1364/OE.24.006249>`_.
+:cite:t:`Clark2016`.
 
 *Settings*:
 
@@ -44,7 +44,7 @@ OL2014 - Amplitude/Phase Checkerboard
 -------------------------------------
 
 Creates **amplitude and phase** images with a phase-only modulator in a **4f** line with a filter in the Fourier plane,
-by encoding the complex field on a checkerboard (Mendoza-Yero et al., Optics Letters 39(7), 1740, 2014). Not iterative.
+by encoding the complex field on a checkerboard (:cite:t:`mendoza-yero_encoding_2014`). Not iterative.
 
 *Settings*:
 
@@ -54,7 +54,7 @@ by encoding the complex field on a checkerboard (Mendoza-Yero et al., Optics Let
 Gerchberg-Saxton
 ----------------
 
-The classic iterative phase retrieval (Gerchberg and Saxton, 1972) for an amplitude image with a phase-only modulator
+The classic iterative phase retrieval (:cite:t:`gerchberg_practical_1972`) for an amplitude image with a phase-only modulator
 in the Fourier plane of a lens (**2f**). The wavelength and the focal length of the lens are those of the experimental
 setup.
 
@@ -66,9 +66,8 @@ Projections
 Gerchberg-Saxton with variants, **2f** setup, iterative.
 
 * **Weighting**: weights the target amplitude with the difference to the calculated output amplitude
-  (`Wu et al., Optics Express, 2021 <https://doi.org/10.1364/OE.413723>`_).
-* **MRAF** (Mixed-Region Amplitude Freedom, `Pasienski and DeMarco, Optics Express, 2008
-  <https://doi.org/10.1364/OE.16.002176>`_): the amplitude is imposed in a signal region and left free in the rest. A
+  (:cite:t:`Wu2021`).
+* **MRAF** (Mixed-Region Amplitude Freedom, :cite:t:`pasienski_high-accuracy_2008`): the amplitude is imposed in a signal region and left free in the rest. A
   region of interest (rectangular or elliptical) has to be selected in the target plane.
 
 *Settings*:
@@ -129,7 +128,7 @@ Minimize and TorchOptim
 
   .. warning::
      The amplitude-only losses work well. The three losses that shape both amplitude and phase (*Chicken*,
-     *ChickenArnaud*, *LSQAmplitudePhase*, after Bowman et al. 2017) give results that are **not satisfactory yet** and
+     *ChickenArnaud*, *LSQAmplitudePhase*, after :cite:t:`bowman_high-fidelity_2017`) give results that are **not satisfactory yet** and
      do not seem to reproduce the ones of the paper.
 
 *Minimize* only: ``Method`` of the minimizer (default l-bfgs): bfgs, l-bfgs, cg, newton-cg, newton-exact, dogleg,

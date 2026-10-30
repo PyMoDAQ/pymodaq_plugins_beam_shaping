@@ -34,29 +34,29 @@ BeamShaping itself, then the ones provided by other installed packages (see :ref
      - ✅
      - ❌
      - Amplitude images with a phase-only modulator and a filter in the Fourier plane, several diffractive models
-       (`Clark 2016 <https://doi.org/10.1364/OE.24.006249>`_).
+       (:cite:t:`Clark2016`).
    * - Direct diffractive modulation
      - OL2014 - Amplitude/Phase Checkerboard
      - 4f
      - ❌
      - ✅
      - ✅
-     - Encodes phase and amplitude with a checkerboard (Mendoza-Yero, Optics Letters 39(7), 2014).
+     - Encodes phase and amplitude with a checkerboard (:cite:t:`mendoza-yero_encoding_2014`).
    * - Iterative alternating projections
      - Gerchberg-Saxton
      - 2f
      - ✅
      - ✅
      - ❌
-     - Classic phase retrieval (Gerchberg 1972).
+     - Classic phase retrieval (:cite:t:`gerchberg_practical_1972`).
    * - Iterative alternating projections
      - Projections
      - 2f
      - ✅
      - ✅
      - ❌
-     - Gerchberg-Saxton with options: weighting (`Wu 2021 <https://doi.org/10.1364/OE.413723>`_) and Mixed-Region
-       Amplitude Freedom (MRAF, `Pasienski 2008 <https://doi.org/10.1364/OE.16.002176>`_) with a region of interest.
+     - Gerchberg-Saxton with options: weighting (:cite:t:`Wu2021`) and Mixed-Region
+       Amplitude Freedom (MRAF, :cite:t:`pasienski_high-accuracy_2008`) with a region of interest.
    * - Iterative alternating projections
      - slmsuite Hologram
      - 2f
@@ -73,7 +73,7 @@ BeamShaping itself, then the ones provided by other installed packages (see :ref
      - ✅
      - ✅
      - Minimization of a loss function with ``pytorch`` and ``pytorch-minimize``
-       (Bowman et al., Optics Express 25(10), 2017). The modulated quantity depends on the loss.
+       (:cite:t:`bowman_high-fidelity_2017`). The modulated quantity depends on the loss.
    * - Iterative cost function minimization
      - TorchOptim
      - 2f
@@ -86,7 +86,7 @@ The settings of each algorithm are detailed in :doc:`algorithm_reference`.
 
 With *Minimize* and *TorchOptim*, the losses that shape the amplitude only (*LeastSquares*, *MSELoss*, *SmoothL1Loss*,
 *LeastExponent*) work well. The three losses that try to shape the amplitude **and** the phase (*Chicken*,
-*ChickenArnaud*, *LSQAmplitudePhase*, after Bowman et al. 2017) give results that are not satisfactory yet and do not
+*ChickenArnaud*, *LSQAmplitudePhase*, after :cite:t:`bowman_high-fidelity_2017`) give results that are not satisfactory yet and do not
 seem to reproduce the ones of the paper.
 
 *Minimize* and *TorchOptim* are only listed if ``pytorch`` is installed (``pip install
