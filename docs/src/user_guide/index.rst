@@ -8,6 +8,7 @@ User Guide
    interface
    fields
    algorithms
+   shapers
    calibration
    corrections
    data_management
