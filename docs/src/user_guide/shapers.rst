@@ -19,8 +19,9 @@ settings of the actuator, ``shaper_geometry`` and ``shaper_properties``, defined
 wants to be used as a Shaper only needs to add these groups to its parameters (``shaper_params()``) and to fill them in
 ``ini_stage`` (``fill_shaper_settings``); it does not depend on BeamShaping.
 
-If the actuator is not initialized or does not provide these groups, the extension falls back on the SLM described in
-the configuration file of BeamShaping (``SLM`` section).
+There is no configuration file for the shapers. If the actuator is not initialized or does not provide these groups, the
+extension uses a default shaper, the same for all the shapers: 1920 x 1080 pixels of 8 µm, phase modulation, no
+internal calibration.
 
 The choice *use internal calibration* of the ``shaper_properties`` group is the one of the user: when checked (default
 if the shaper has an internal calibration), the phase is sent in radians and converted by the driver, otherwise it is

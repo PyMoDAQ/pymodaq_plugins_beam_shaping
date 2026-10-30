@@ -66,6 +66,8 @@ BeamShaping itself, then the ones provided by other installed packages (see :ref
      - GS and weighted GS methods (WGS-Leonardo, -Kim, -Nogrette, -Wu, -tanh), optionally on the GPU. Provided by
        ``pymodaq_plugins_slmsuite``, listed once installed with its ``beamshaping`` extra
        (see :doc:`slmsuite`).
+
+The settings of each algorithm are detailed in :doc:`algorithm_reference`.
    * - Iterative cost function minimization
      - Minimize
      - 2f
@@ -73,14 +75,14 @@ BeamShaping itself, then the ones provided by other installed packages (see :ref
      - ✅
      - ✅
      - Minimization of a loss function with ``pytorch`` and ``pytorch-minimize``
-       (Optics Express 25(10), 11695, 2017). The modulated quantity depends on the loss.
+       (Bowman et al., Optics Express 25(10), 2017). The modulated quantity depends on the loss.
    * - Iterative cost function minimization
      - TorchOptim
      - 2f
      - ✅
      - ✅
      - ✅
-     - Gradient-based minimization of a loss function with ``pytorch`` optimizers (same reference as *Minimize*).
+     - Minimization of a loss function with the L-BFGS optimizer of ``pytorch`` (same reference as *Minimize*).
 
 *Minimize* and *TorchOptim* are only listed if ``pytorch`` is installed (``pip install
 pymodaq_plugins_beam_shaping[pytorch]``). **Setup** is the propagation model assumed between the modulator and the

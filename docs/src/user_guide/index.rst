@@ -8,6 +8,7 @@ User Guide
    interface
    fields
    algorithms
+   algorithm_reference
    shapers
    slmsuite
    calibration
