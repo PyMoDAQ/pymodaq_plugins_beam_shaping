@@ -28,8 +28,9 @@ settings of the actuator, ``shaper_geometry`` and ``shaper_properties``, defined
 wants to be used as a Shaper only needs to add these groups to its parameters (``shaper_params()``) and to fill them in
 ``ini_stage`` (``fill_shaper_settings``); it does not depend on BeamShaping.
 
-The shaper is read from the actuator when the experiment (preset) is set and whenever the actuator is initialized, and the
-fields (input, target) are rebuilt for its number of pixels and pixel size. There is no list of shapers to configure. If
+The shaper is read from the actuator when the experiment is loaded and whenever the actuator is initialized (also by
+hand, after a manual deinit/reinit). The extension then gives the same shaper to the algorithms, the fields (input,
+target) and the corrections, which are rebuilt for its number of pixels and pixel size. There is no list of shapers to configure. If
 the actuator is absent, not initialized or does not provide these groups, the extension uses a **default shaper**, the
 same for all the shapers, described in the ``[default_shaper]`` section of the configuration file of BeamShaping
 (``name``, ``width``, ``height``, ``pixel_size`` in µm, ``has_internal_calibration``,
