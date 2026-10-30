@@ -53,11 +53,6 @@ numfig_format = {
     'section': 'Section %s',
 }
 
-html_css_files = [
-    'https://fonts.googleapis.com/icon?family=Material+Icons',
-    'css/custom.css',  # Pour styliser les icônes
-]
-
 bibtex_bibfiles = ['bibtex.bib']  # Chemin relatif à docs/
 bibtex_reference_style = 'author_year'  # Style de citation (ex: "Weber 2021")
 
@@ -115,7 +110,12 @@ html_theme_options = {
 }
 
 html_css_files = [
+    'https://fonts.googleapis.com/icon?family=Material+Icons',
     'css/overflow.css',
+    'css/layout.css',  # full-width content, tables kept within it
+]
+html_js_files = [
+    'js/sidebar_toggle.js',  # button to hide the navigation sidebar
 ]
 
 html_static_path = ["_static", "_images"]  # NOUVEAU: Ajout de "_images"
