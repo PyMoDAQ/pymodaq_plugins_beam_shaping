@@ -36,6 +36,9 @@ from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper
 from pymodaq_plugins_utils.hardware.shaper import PROPERTIES_NAME
 
+# name of the optional setting of a Shaper plugin that receives the wavelength (nm) of the setup
+WAVELENGTH_SETTING_NAME = 'wavelength_nm'
+
 logger = set_logger(get_module_name(__file__))
 layout_path = get_set_layout_path(user=True)
 
@@ -109,6 +112,7 @@ class BeamShaping(CustomExt):
 
     def do_things_after_init(self):
         self.apply_calibration_preference()
+        self.apply_wavelength()
         self._input_field_loader.load_field()
         self._target_field_loader.load_field()
 
@@ -677,9 +681,36 @@ class BeamShaping(CustomExt):
         logger.warning(f'The setting "Use internal calibration" of the Shaper actuator was {not wanted}, it is set to '
                        f'{wanted} as in the preferences of BeamShaping (calibration > use_internal_calibration)')
 
+    def apply_wavelength(self):
+        """Impose the wavelength of the setup (``setup > wavelength_nm`` of the preferences) to the Shaper actuator
+
+        A Shaper plugin that needs the wavelength (to convert phases into grey levels for instance) declares a
+        ``wavelength_nm`` setting (in nm): it is overwritten here, at the start of the extension, when the experiment
+        is loaded, when the actuator is initialized and when the preferences change. The plugin applies a change of the
+        setting directly (no re-initialization needed). The user is told by a popup whenever the value had to be
+        changed.
+        """
+        if self._shaper_actuator is None:
+            return
+        try:
+            setting = self._shaper_actuator.settings.child(self._shaper_actuator._hw_settings_name,
+                                                           WAVELENGTH_SETTING_NAME)
+        except (KeyError, AttributeError):
+            return  # this plugin does not need the wavelength
+        wanted = float(plugin_config('setup', 'wavelength_nm'))
+        if setting.value() == wanted:
+            return
+        old = setting.value()
+        setting.setValue(wanted)
+        message = (f'The wavelength of the Shaper actuator was {old} nm, it is set to {wanted} nm as in the setup '
+                   f'of the preferences of BeamShaping.')
+        logger.warning(message)
+        #messagebox(title='Wavelength', text=message)
+
     def update_from_shaper(self):
         """Read the shaper again (Shaper actuator or default one) and update what depends on it: the fields"""
         self.apply_calibration_preference()
+        self.apply_wavelength()
         if self._input_field_loader is None or self._target_field_loader is None or self._algorithm is None:
             return  # the user interface is not set up yet
         self._shaper = None  # make sure to check if the shaper object should be reinit
