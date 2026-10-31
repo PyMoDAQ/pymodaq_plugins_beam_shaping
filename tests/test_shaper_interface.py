@@ -161,17 +161,14 @@ def test_wavelength_of_the_setup_is_imposed_to_the_actuator(monkeypatch, caplog)
     module = FakeModule(shaper_params() + [{'name': 'wavelength_nm', 'type': 'float', 'value': 515.}])
     extension = _extension(module)
     monkeypatch.setattr(module_under_test, 'plugin_config', lambda *args: 800.)
-    popups = []
-    monkeypatch.setattr(module_under_test, 'messagebox', lambda **kwargs: popups.append(kwargs))
 
     BeamShaping.apply_wavelength(extension)
     assert module.settings['actuator_settings', 'wavelength_nm'] == 800.
-    assert 'initialize' not in caplog.text and 'initialize' not in popups[0]['text']
-    assert len(popups) == 1 and '800' in popups[0]['text']
+    assert '800' in caplog.text and 'initialize' not in caplog.text  # warned, no re-initialization needed
 
     caplog.clear()
     BeamShaping.apply_wavelength(extension)  # nothing to change anymore
-    assert not caplog.text and len(popups) == 1
+    assert not caplog.text
 
 
 def test_wavelength_ignored_by_a_plugin_that_does_not_need_it():
