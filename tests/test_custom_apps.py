@@ -136,9 +136,10 @@ def test_roi_select_is_the_same_in_both_viewers(qtbot, dockarea):
     # moved in the phase viewer: follows in the amplitude viewer and in the settings
     phase.ROIselect.setPos((phase.ROIselect.pos()[0] + 3., phase.ROIselect.pos()[1] + 2.))
     assert geometry(amp) == pytest.approx(geometry(phase))
-    # the ROIs are in the units of the axes (m), the settings in um
-    assert [group[name] * 1e-6 for name in ('x', 'y', 'width', 'height')] == pytest.approx(geometry(phase))
-    assert all(group.child(name).opts['suffix'] == 'µm' and group.child(name).opts['decimals'] == 0
+    # in the units of the axes (m), displayed with SI prefix and rounded to the micron
+    assert [group[name] for name in ('x', 'y', 'width', 'height')] == pytest.approx(geometry(phase), abs=0.5e-6)
+    assert all(round(group[name], 6) == group[name] for name in ('x', 'y', 'width', 'height'))
+    assert all(group.child(name).opts['suffix'] == 'm' and group.child(name).opts['siPrefix']
                for name in ('x', 'y', 'width', 'height'))
 
     # resized in the amplitude viewer
@@ -148,7 +149,7 @@ def test_roi_select_is_the_same_in_both_viewers(qtbot, dockarea):
     # the settings drive both, and who listens to the viewers (the extension) is told
     infos = []
     app.amp_viewer.roi_select_signal.connect(infos.append)
-    group.child('x').setValue(150.)  # um
+    group.child('x').setValue(150e-6)
     assert infos
     assert amp.ROIselect.center()[0] == pytest.approx(150e-6) and phase.ROIselect.center()[0] == pytest.approx(150e-6)
 

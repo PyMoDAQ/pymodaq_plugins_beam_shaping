@@ -99,15 +99,15 @@ class FieldLoaderApp(CustomApp):
             {'title': 'ROI Select', 'name': 'roi_select', 'type': 'group', 'children': [
                 {'title': 'Show:', 'name': 'show', 'type': 'bool', 'value': False,
                  'tip': 'Show the ROI Select in the Amplitude and Phase viewers (same as their ROI Select button)'},
-                {'title': 'Center X:', 'name': 'x', 'type': 'float', 'value': 0., 'decimals': 0, 'step': 1.,
-                 'suffix': 'µm', 'siPrefix': False},
-                {'title': 'Center Y:', 'name': 'y', 'type': 'float', 'value': 0., 'decimals': 0, 'step': 1.,
-                 'suffix': 'µm', 'siPrefix': False},
-                {'title': 'Width:', 'name': 'width', 'type': 'float', 'value': 0., 'decimals': 0, 'step': 1.,
-                 'suffix': 'µm', 'siPrefix': False,
-                 'tip': 'null until the ROI has been placed, see sync_roi_selects'},
-                {'title': 'Height:', 'name': 'height', 'type': 'float', 'value': 0., 'decimals': 0, 'step': 1.,
-                 'suffix': 'µm', 'siPrefix': False},
+                {'title': 'Center X:', 'name': 'x', 'type': 'float', 'value': 0., 'decimals': 4, 'step': 1e-6,
+                 'suffix': 'm', 'siPrefix': True, 'tip': 'rounded to the micron'},
+                {'title': 'Center Y:', 'name': 'y', 'type': 'float', 'value': 0., 'decimals': 4, 'step': 1e-6,
+                 'suffix': 'm', 'siPrefix': True, 'tip': 'rounded to the micron'},
+                {'title': 'Width:', 'name': 'width', 'type': 'float', 'value': 0., 'decimals': 4, 'step': 1e-6,
+                 'suffix': 'm', 'siPrefix': True,
+                 'tip': 'rounded to the micron, null until the ROI has been placed, see sync_roi_selects'},
+                {'title': 'Height:', 'name': 'height', 'type': 'float', 'value': 0., 'decimals': 4, 'step': 1e-6,
+                 'suffix': 'm', 'siPrefix': True, 'tip': 'rounded to the micron'},
             ]},
             {'title': 'Masking', 'name': 'masking', 'type': 'group', 'children': [
                 {'title': 'Mask Type', 'name': 'mask_type', 'type': 'list', 'value': str(MaskType.SQUARE),
@@ -329,13 +329,13 @@ class FieldLoaderApp(CustomApp):
             # the signal of a ROI gives the ROI itself instead of the value of the property it changed
             for key, value in values.items():
                 if isinstance(value, pgROI):
-                    values[key] = value.center()[{'x': 0, 'y': 1}[key]] if key in 'xy' else getattr(value, key)()
+                    value = value.center()[{'x': 0, 'y': 1}[key]] if key in 'xy' else getattr(value, key)()
+                if key != 'show':
+                    value = round(float(value), 6)  # in m (the units of the axes): rounded to the micron
+                values[key] = value
             return values
 
-        # the sync holds the values in the units of the axes (m) as the ROIs, the settings are in um
-        um = regions.AXIS_UNIT_TO_UM
-        self._roi_select_sync = DictSync({'show': group['show'],
-                                          **{name: group[name] / um for name in ('x', 'y', 'width', 'height')}},
+        self._roi_select_sync = DictSync({name: group[name] for name in ('show', 'x', 'y', 'width', 'height')},
                                          validator=roi_to_values)
 
         for viewer in (self.amp_viewer, self.phase_viewer):
@@ -367,13 +367,8 @@ class FieldLoaderApp(CustomApp):
 
         # a ROI set from the settings (or the other viewer) does not tell the viewer: say it, for who uses roi_select_signal
         self._roi_select_sync.value_changed.connect(lambda _: self.amp_viewer.selected_region_changed())
-        def um_property(param):
-            return dict(signal=param.sigValueChanged, getter=lambda: param.value() / um,
-                        setter=lambda value: param.setValue(value * um), mode=SyncMode.BIDIRECTIONAL)
-
         self._roi_select_sync.bind_parameter(group, property_map={
-            'show': {'param': group.child('show')},
-            **{name: um_property(group.child(name)) for name in ('x', 'y', 'width', 'height')}})
+            name: {'param': group.child(name)} for name in ('show', 'x', 'y', 'width', 'height')})
 
     def show_roi_target(self, show=True):
         self.amp_viewer.roi_target.setVisible(show)
