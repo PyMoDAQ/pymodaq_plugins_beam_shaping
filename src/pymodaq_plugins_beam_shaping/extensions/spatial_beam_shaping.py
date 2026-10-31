@@ -705,7 +705,7 @@ class BeamShaping(CustomExt):
         message = (f'The wavelength of the Shaper actuator was {old} nm, it is set to {wanted} nm as in the setup '
                    f'of the preferences of BeamShaping.')
         logger.warning(message)
-        messagebox(title='Wavelength', text=message)
+        #messagebox(title='Wavelength', text=message)
 
     def update_from_shaper(self):
         """Read the shaper again (Shaper actuator or default one) and update what depends on it: the fields"""
