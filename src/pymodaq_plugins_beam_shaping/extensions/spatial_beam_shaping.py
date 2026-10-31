@@ -471,6 +471,11 @@ class BeamShaping(CustomExt):
                         menu='shaping_tools')
 
         self.toolbar.addSeparator()
+        self.add_action('wrap_phase', 'Wrap Phase', 'format_text_wrap',
+                        tip='Wrap (green) / unwrap (red) the displayed phase', checkable=True, checked=True,
+                        icon_checked_color=self.get_theme().green, icon_color=self.get_theme().red)
+
+        self.toolbar.addSeparator()
         self.add_action('calibration', 'Calibration', 'equalizer',
                         tip='Perform a calibration of the SLM phase wrt the grey levels applied to it.',
                         checkable=True, menu='calibration',
@@ -608,6 +613,14 @@ class BeamShaping(CustomExt):
             self.intermediate_viewer.show_data(dwa_intermediate)
         except ValueError:  # means no intermediate data to plot
             pass
+
+        if not self.is_action_checked('wrap_phase'):  # phase is wrapped by default!
+            dte_modulator.get_data_from_full_name('modulator/phase')[0] = \
+            np.unwrap(dte_modulator.get_data_from_full_name('modulator/phase')[0])
+
+            dte_output.get_data_from_full_name('output/phase')[0] = \
+            np.unwrap(dte_output.get_data_from_full_name('output/phase')[0])
+
         self.modulator_viewers.show_data(dte_modulator)
         self.output_viewers.show_data(dte_output)
         self.metrics_viewer.show_data(metrics.split_as_dte('Metrics'))
