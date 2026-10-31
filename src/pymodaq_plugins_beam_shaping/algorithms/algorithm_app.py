@@ -469,8 +469,6 @@ class AlgoApp(CustomApp):
                         tip='Browse the content of the current HDF5 file')
         self.set_action_visible(Actions.SHOW_SAVED_DATA, False)
 
-
-
     def connect_things(self):
         self.connect_action(Actions.STEP, self.compute_phase_and_or_amplitude)
         self.connect_action(Actions.COMPUTE_FFT, lambda: self.compute_fft(update_plots=True))
@@ -482,7 +480,6 @@ class AlgoApp(CustomApp):
         self.connect_action(Actions.SAVE_CONTINUOUS, self.do_save_continuous)
         self.connect_action(Actions.SHOW_SAVE_SETTINGS, self.show_saver_settings)
         self.connect_action(Actions.SHOW_SAVED_DATA, self.show_continuous_data)
-
 
     def enable_things(self, enable=True, exclude: tuple[str]= ()):
         """ Given the initialization state of the chosen algorithm enable or not some actions and settings"""

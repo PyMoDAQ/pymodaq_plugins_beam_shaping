@@ -75,7 +75,7 @@ class DmDLee(AlgoBase):
         xx, yy = self.compute_grid()
 
 
-        amplitude_dmd = 1/2 * (1 + np.cos(2 * np.pi * (xx -yy) / self.settings['super_pixel'] -
+        amplitude_dmd = 1/2 * (1 + np.cos(2 * np.pi * (xx) / self.settings['super_pixel'] -
                                           self._target_field.phase))
 
         amplitude_dmd = self.threshold_amplitude(amplitude_dmd)
