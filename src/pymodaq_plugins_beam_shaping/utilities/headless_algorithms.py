@@ -15,6 +15,7 @@ import numpy as np
 
 from pymodaq_plugins_beam_shaping.field.factory import LoaderFactory, register_loaders
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory, register_algorithms
+from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, register_phases
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
@@ -59,14 +60,18 @@ def parameter_names(manager) -> list[str]:
 
 
 def list_available():
-    """ Print the algorithms and the loaders with their parameters"""
+    """ Print the algorithms, the initial phases and the loaders with their parameters"""
     ensure_qapp()
     register_loaders()
     register_algorithms()
+    register_phases()
     print('Algorithms (name: parameters)')
     for name in AlgorithmFactory.algorithms_registry:
         algo = AlgorithmFactory.get_algorithm(name)(parent=None)
         print(f'  {name}: {parameter_names(algo)}')
+    print('Initial phases (name: parameters)')
+    for name, phase_class in PhaseFactory._registry.items():
+        print(f'  {name}: {parameter_names(_phase_settings(phase_class))}')
     print('Loaders (name: parameters)')
     for name, loader_class in LoaderFactory.loader_registry.items():
         loader = loader_class(parent=HeadlessApp(get_default_shaper()))
@@ -199,24 +204,59 @@ def set_fields(algo, input_field, target_field):
     algo.set_target_field(algo.scale_target_with_geometry(target_field))
 
 
+def get_target_field(algo):
+    """ The target as the algorithm uses it, after :func:`set_fields`: scaled to the target plane (its axes are the
+    ones of the target plane) and normalized to the intensity of the input field"""
+    return algo._target_field
+
+
 def set_mask(app: HeadlessApp, apply_to: ApplyMaskTo, slices_um: Optional[tuple], mask_type: str = 'elliptical'):
     """ Apply a mask given as ((start, stop) along y, (start, stop) along x) in um around the center of the field,
     None to remove it"""
     app.masks[str(apply_to)] = None if slices_um is None else (tuple(slice(*s) for s in slices_um), mask_type)
 
 
-def initial_phase(algo, kind: Union[str, np.ndarray] = 'zero') -> np.ndarray:
-    """ 'zero', 'random' or the given array"""
+def default_mask(algo, apply_to: ApplyMaskTo, fraction: float = 2 / 3) -> tuple:
+    """ The default region of a mask, as in the extension: centered and covering 2/3 of the effective area of the SLM
+    in the plane (target or intermediate), given as ((start, stop) along y, (start, stop) along x) in um around the
+    center of the field, rounded to the um"""
+    if str(apply_to) == str(ApplyMaskTo.INTERMEDIATE):
+        pixel_sizes = algo.intermediate_pixel_sizes
+    else:
+        pixel_sizes = algo._target_field.pixels_sizes
+    shape = sizing.get_effective_needed_field_size(algo.shaper)
+    half_field = np.array(shape) * regions.pixel_sizes_in_um(pixel_sizes) / 2
+    slices = regions.default_slices(algo.shaper, pixel_sizes, fraction)
+    return tuple((round(_slice.start - half), round(_slice.stop - half)) for _slice, half in zip(slices, half_field))
+
+
+def _phase_settings(phase_class):
+    """ The parameters of an initial phase, as the group the app gives it"""
+    from pyqtgraph.parametertree import Parameter
+    holder = type('PhaseSettings', (), {})()
+    holder.settings = Parameter.create(name=phase_class.__name__, type='group',
+                                       children=[dict(child) for child in phase_class.params])
+    return holder
+
+
+def initial_phase(algo, kind: Union[str, np.ndarray] = 'FlatPhase', params: Optional[dict] = None) -> np.ndarray:
+    """ The initial phase computed by one of the phases of the factory, as in the app (see :func:`list_available`
+    for the names and their parameters), or the given array"""
     if isinstance(kind, np.ndarray):
         return kind
-    if kind == 'random':
-        return np.random.default_rng(0).uniform(-np.pi, np.pi, algo.shape)
-    return np.zeros(algo.shape)
+    register_phases()
+    phase_class = PhaseFactory.get_phase(kind)
+    holder = _phase_settings(phase_class)
+    set_parameters(holder, params or {})
+    return phase_class(holder.settings, algo).compute_phase()
 
 
-def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'zero'):
-    """ Run the algorithm (iterations only for the iterative ones), the results are in its fields"""
-    phase = initial_phase(algo, ini_phase)
+def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
+                  ini_phase_params: Optional[dict] = None):
+    """ Run the algorithm (iterations only for the iterative ones), the results are in its fields
+
+    The initial phase is the name of a phase of the factory with its parameters, or an array"""
+    phase = initial_phase(algo, ini_phase, ini_phase_params) if algo.INI_PHASE else np.zeros(algo.shape)
     algo.do_things_after_init()
     if algo.INI_PHASE:
         algo.define_input_phase(phase)
@@ -228,12 +268,332 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
     return algo
 
 
-def plot(algo, show: bool = True):
-    """ Plot all the data of the algorithm (output, modulator, metrics, intermediate plane) with matplotlib"""
+_qt_viewers = []  # keep the qt viewers alive (they would be garbage collected otherwise)
+
+
+def _image_axes(figure):
+    """ The axes of a figure showing 2D data (pcolormesh), not the 1D plots"""
+    from matplotlib.collections import QuadMesh
+    return [ax for ax in figure.axes if any(isinstance(c, QuadMesh) for c in ax.collections)]
+
+
+def equal_aspect(figure):
+    """ Same scale along both axes for the 2D data of a figure"""
+    for ax in _image_axes(figure):
+        ax.set_aspect('equal')
+    return figure
+
+
+def log_intensity(field, decades: float = 6., name: str = ''):
+    """ The intensity of a field in log10, clipped ``decades`` below its maximum, as a data object to plot"""
+    intensity = field.intensity
+    floor = intensity.max() * 10 ** -decades if intensity.max() > 0 else 1.
+    dwa = field.intensity_as_dwa(name, name='log10_intensity')
+    dwa.data = [np.log10(np.maximum(intensity, floor))]
+    dwa.labels = ['log10(Intensity)']
+    return dwa
+
+
+def customize(figure, clims: Optional[list] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
+              units: str = 'um'):
+    """ Customize a matplotlib figure of fields: color limits of each image (a list, one (min, max) or None per image,
+    in the plotting order), zoom along x and y given in um (the axes are in ``units``)"""
+    for ax, clim in zip(_image_axes(figure), clims or []):
+        if clim is not None:
+            for mesh in ax.collections:
+                mesh.set_clim(*clim)
+    for lim, setter in ((xlim, 'set_xlim'), (ylim, 'set_ylim')):
+        if lim is not None:
+            values = [Q_(value, 'um').m_as(units) for value in lim]
+            for ax in _image_axes(figure):
+                getattr(ax, setter)(*values)
+    return figure
+
+
+def customize_qt(dispatcher, clims: Optional[list] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
+                 units: str = 'um'):
+    """ Starting state of the qt viewers of a field (one per data, in the plotting order): color levels (a list, one
+    (min, max) or None per viewer) and zoom along x and y given in um (the axes are in ``units``). Both can then be
+    changed interactively"""
+    x_range = None if xlim is None else [Q_(value, 'um').m_as(units) for value in xlim]
+    y_range = None if ylim is None else [Q_(value, 'um').m_as(units) for value in ylim]
+    for index, viewer in enumerate(dispatcher.viewers):
+        view = getattr(viewer, 'view', None)
+        if view is None or not hasattr(view, 'histogrammer'):  # not a 2D viewer
+            continue
+        clim = (clims or [])[index] if index < len(clims or []) else None
+        if clim is not None:
+            view.histogrammer.get_histogram('red').setLevels(*clim)
+        if x_range is not None or y_range is not None:
+            view.plotitem.vb.setRange(xRange=x_range, yRange=y_range, padding=0)
+    return dispatcher
+
+
+def center_axes(dte):
+    """ Axes of the 2D data in um with their origin at the center of the field, as the masks and the zoom"""
+    for dwa in dte:
+        if dwa.dim.name == 'Data2D':
+            for axis in dwa.axes:
+                if axis.units:
+                    axis.scaling = Q_(axis.scaling, axis.units).m_as('um')
+                    axis.units = 'um'
+                axis.offset = -axis.scaling * axis.size / 2
+    return dte
+
+
+def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'um', color: str = 'red'):
+    """ Draw the outline of a mask (((start, stop) along y, (start, stop) along x) in um around the center of the
+    field) on the 2D data of a matplotlib figure (axes in ``units``, um for the plots of this module)"""
+    from matplotlib.patches import Ellipse, Rectangle
+    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in limits] for limits in slices_um]
+    for ax in _image_axes(figure):
+        if MaskType(mask_type) == MaskType.ELLIPTICAL:
+            patch = Ellipse(((x0 + x1) / 2, (y0 + y1) / 2), x1 - x0, y1 - y0)
+        else:
+            patch = Rectangle((x0, y0), x1 - x0, y1 - y0)
+        patch.set(fill=False, edgecolor=color, linewidth=1.5)
+        ax.add_patch(patch)
+    return figure
+
+
+def draw_mask_qt(dispatcher, slices_um, mask_type: str = 'elliptical', units: str = 'um', color: str = 'r'):
+    """ Draw the outline of a mask on the 2D viewers of a ViewerDispatcher, replacing the previous one"""
+    import pyqtgraph
+    for plotitem, roi in getattr(dispatcher, 'mask_rois', []):
+        plotitem.removeItem(roi)
+    dispatcher.mask_rois = []
+    if slices_um is None:
+        return dispatcher
+    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in limits] for limits in slices_um]
+    for viewer in dispatcher.viewers:
+        view = getattr(viewer, 'view', None)
+        if view is None or not hasattr(view, 'plotitem'):
+            continue
+        roi_class = pyqtgraph.EllipseROI if MaskType(mask_type) == MaskType.ELLIPTICAL else pyqtgraph.RectROI
+        roi = roi_class((x0, y0), (x1 - x0, y1 - y0), pen=pyqtgraph.mkPen(color, width=2), movable=False,
+                        resizable=False, rotatable=False)
+        for handle in roi.getHandles():
+            roi.removeHandle(handle)
+        view.plotitem.addItem(roi)
+        dispatcher.mask_rois.append((view.plotitem, roi))
+    return dispatcher
+
+
+def _clear(figure):
+    """ Empty a figure to draw it again, its title included (Figure.clear keeps the previous one)"""
+    for text in list(figure.texts):
+        text.remove()
+    figure._suptitle = None
+    figure.clear()
+
+
+def _draw_2d(figure, dte):
+    """ Draw 2D data in a matplotlib figure, one row per data object (as the matplotlib plotter of PyMoDAQ, but in a
+    given figure so that it can be updated)"""
+    _clear(figure)
+    for row, dwa in enumerate(dte):
+        xaxis = dwa.get_axis_from_index(1)[0]
+        yaxis = dwa.get_axis_from_index(0)[0]
+        for column, array in enumerate(dwa):
+            ax = figure.add_subplot(len(dte), len(dwa), row * len(dwa) + column + 1)
+            ax.pcolormesh(xaxis.get_data(), yaxis.get_data(), array)
+            ax.set_title(f'{dwa.name}/{dwa.labels[column]}')
+            ax.set_xlabel(f'{xaxis.label} ({xaxis.units})')
+            ax.set_ylabel(f'{yaxis.label} ({yaxis.units})')
+    return figure
+
+
+def _is_inline() -> bool:
+    import matplotlib
+    return 'inline' in matplotlib.get_backend().lower()
+
+
+def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True, mask=None, figure=None,
+          title: str = ''):
+    """ Plot with matplotlib (returns the figure) or with the qt viewers of PyMoDAQ (returns the ViewerDispatcher,
+    interactive when the IDE runs a Qt event loop, in Spyder: graphics backend set to Qt or Automatic)
+
+    figure: a Figure or a ViewerDispatcher returned by a previous call, to update it instead of creating a new one
+    """
+    center_axes(dte)
+    units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'um'
+    if backend == 'qt':
+        ensure_qapp()
+        viewer = dte.plot('qt', viewer=figure)
+        if figure is None:
+            _qt_viewers.append(viewer)
+        customize_qt(viewer, clims, xlim, ylim, units)
+        if mask is not None or hasattr(viewer, 'mask_rois'):
+            draw_mask_qt(viewer, *(mask if mask is not None else (None,)), units=units)
+        return viewer
     from matplotlib import pyplot as plt
-    figure = algo.get_fields_to_plot().plot('matplotlib')
-    figure.set_size_inches(9, 14)  # one row per data, make room for the titles
-    figure.tight_layout()
+    reuse = figure is not None
+    if all(dwa.dim.name == 'Data2D' for dwa in dte):
+        figure = _draw_2d(figure if reuse else plt.figure(), dte)
+    else:
+        if reuse:
+            plt.close(figure)
+        figure = dte.plot('matplotlib')
+        reuse = False
+    figure.set_size_inches(*size)
+    customize(figure, clims, xlim, ylim, units=units)
+    if mask is not None:
+        draw_mask(figure, *mask, units=units)
+    equal_aspect(figure)
+    if title:
+        figure.suptitle(title)
+    figure.tight_layout(rect=(0, 0, 1, 0.96 if title else 1))  # room for the title
     if show:
+        _display(figure, reuse)
+    return figure
+
+
+def _display(figure, reuse: bool):
+    """ Show a new figure, or redraw an updated one (displayed again with the inline backend of Spyder or Jupyter,
+    whose figures are static images)"""
+    from matplotlib import pyplot as plt
+    if reuse and _is_inline():
+        try:
+            from IPython.display import display
+            display(figure)
+        except ImportError:
+            pass
+    elif reuse:
+        figure.canvas.draw_idle()
+        figure.show()
+    else:
         plt.show()
+
+
+def snap(algo, ini_phase: Union[str, np.ndarray] = 'FlatPhase', ini_phase_params: Optional[dict] = None):
+    """ One step of the algorithm without any mask, to look at the intermediate plane (4f setups) before placing its
+    mask: returns a copy of the intermediate field, None for algorithms without intermediate plane. The masks set in
+    the app are kept for the next runs"""
+    masks = dict(algo.parent_app.masks)
+    try:
+        for key in algo.parent_app.masks:
+            algo.parent_app.masks[key] = None
+        run_algorithm(algo, 1, ini_phase, ini_phase_params)
+    finally:
+        algo.parent_app.masks.update(masks)
+    return None if algo.intermediate_field is None else algo.intermediate_field.deepcopy()
+
+
+def plot_field(field, name: str = '', log: bool = False, decades: float = 6., clim: Optional[tuple] = None,
+               phase_clim: Optional[tuple] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
+               mask: Optional[tuple] = None, backend: str = 'matplotlib', figure=None, show: bool = True):
+    """ Plot the amplitude (or with ``log`` the intensity in log10, down to ``decades`` below its maximum) and the
+    phase of a field, the origin of the axes at the center of the field (as for the masks)
+
+    clim / phase_clim: (min, max) of the colors of the amplitude (or log10 intensity) and of the phase
+    xlim / ylim: zoom, (min, max) in um
+    mask: (slices in um, mask type) as given to :func:`set_mask`, its outline is drawn
+    backend: 'matplotlib' (returns the figure, to customize further) or 'qt' (interactive viewers of PyMoDAQ, the
+    options above give their starting state)
+    figure: what a previous call returned (Figure or ViewerDispatcher), updated instead of creating a new plot
+    """
+    from pymodaq_data.data import DataToExport
+    data = field.split_as_dte(name).data  # amplitude and phase side by side
+    if log:
+        data[0] = log_intensity(field, decades, name=name)
+    dte = DataToExport(name, data=data)
+    reuse = figure is not None
+    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False, mask=mask, figure=figure,
+                   title=name)
+    if backend != 'qt' and show:
+        _display(figure, reuse)
+    return figure
+
+
+def _overview_rows(algo) -> list:
+    """ The fields of the overview: (title, data object with the amplitude and the phase), in um around the center.
+    The intermediate plane (4f setups) is shown with its intensity in log scale"""
+    from pymodaq_data.data import DataToExport
+    rows = []
+    for title, field, log in (('Output Plane', algo.output_field, False),
+                              ('Modulator Plane', algo.modulator_field, False),
+                              ('Intermediate Plane', algo.intermediate_field, True)):
+        if field is None:
+            continue
+        data = field.split_as_dte(title).data
+        if log:
+            data[0] = log_intensity(field, name=title)
+        rows.append((title, center_axes(DataToExport(title, data=data))))
+    return rows
+
+
+def _plot_overview_matplotlib(algo, figure=None):
+    """ One figure with subplots: a row per field (amplitude | phase, titled with the field), then the metrics"""
+    from matplotlib import pyplot as plt
+    rows = _overview_rows(algo)
+    figure = plt.figure(figsize=(9, 3.5 * (len(rows) + 1))) if figure is None else figure
+    _clear(figure)
+    axes = figure.subplots(len(rows) + 1, 2, squeeze=False)
+    for (title, dte), row_axes in zip(rows, axes):
+        for ax, dwa in zip(row_axes, dte):
+            xaxis, yaxis = dwa.get_axis_from_index(1)[0], dwa.get_axis_from_index(0)[0]
+            ax.pcolormesh(xaxis.get_data(), yaxis.get_data(), dwa.data[0])
+            ax.set_title(f'{title}: {dwa.labels[0]}')
+            ax.set_xlabel(f'{xaxis.label} ({xaxis.units})')
+            ax.set_ylabel(f'{yaxis.label} ({yaxis.units})')
+            ax.set_aspect('equal')
+    metrics = algo.metrics_as_dwa()
+    ax = axes[-1][0]
+    ax.bar(metrics.labels, [float(array[0]) for array in metrics.data])
+    ax.set_title('Metrics')
+    axes[-1][1].axis('off')
+    figure.tight_layout()
+    return figure
+
+
+class QtOverview:
+    """ The overview in the qt backend, built as in the extension: a dock per field, titled with the field, holding a
+    ViewerDispatcher for its amplitude and phase (the intermediate plane shows its intensity in log scale), and a dock
+    for the metrics"""
+
+    def __init__(self, algo):
+        from pymodaq_gui.utils.dock import Dock, DockArea
+        from pymodaq_gui.plotting.data_viewers.viewer import ViewerDispatcher
+        ensure_qapp()
+        self.dockarea = DockArea()
+        self.dockarea.setWindowTitle('Algorithm overview')
+        self.docks, self.dispatchers = {}, {}
+        titles = ['Metrics', 'Modulator Plane', 'Output Plane'] + (
+            ['Intermediate Plane'] if algo.intermediate_field is not None else [])
+        placement = {'Metrics': ('left', None), 'Modulator Plane': ('right', None),
+                     'Output Plane': ('bottom', 'Modulator Plane'), 'Intermediate Plane': ('bottom', 'Metrics')}
+        for title in titles:
+            self.docks[title] = Dock(title)
+            position, relative_to = placement[title]
+            self.dockarea.addDock(self.docks[title], position, None if relative_to is None else self.docks[relative_to])
+            area = DockArea()
+            self.dispatchers[title] = ViewerDispatcher(area, title=title)
+            self.docks[title].addWidget(area)
+        self.dockarea.resize(1100, 800)
+        self.dockarea.show()
+        _qt_viewers.append(self)
+
+    def update(self, algo):
+        for title, dte in _overview_rows(algo):
+            if title in self.dispatchers:
+                self.dispatchers[title].show_data(dte)
+        self.dispatchers['Metrics'].show_data(algo.metrics_as_dwa().split_as_dte('Metrics'))  # as in the extension
+        return self
+
+
+def plot(algo, backend: str = 'matplotlib', figure=None, show: bool = True):
+    """ Overview of the algorithm: a plot per field (output, modulator and, in 4f setups, intermediate planes, each
+    with its amplitude and phase) and the metrics, as in the extension. In different planes, so without zoom: use
+    :func:`plot_field` on one field to customize its plot.
+
+    backend: 'matplotlib' (one figure made of subplots, returned) or 'qt' (a dock per field, each with its viewers)
+    figure: what a previous call returned, updated instead of creating a new plot
+    """
+    if backend == 'qt':
+        overview = figure if figure is not None else QtOverview(algo)
+        return overview.update(algo)
+    reuse = figure is not None
+    figure = _plot_overview_matplotlib(algo, figure)
+    if show:
+        _display(figure, reuse)
     return figure

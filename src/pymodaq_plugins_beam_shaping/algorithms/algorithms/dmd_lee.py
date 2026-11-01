@@ -76,9 +76,9 @@ class DmDLee(AlgoBase):
 
     ALGO_NAME = 'DMD Lee'
     STATUS = AlgoStatus.IN_PROGRESS
-    STATUS_NOTE = ('Carrier removal tested (tests/test_dmd_lee.py); with the default fields the intermediate plane is '
-                   'almost empty around the selected order')
-    ALGOTYPE = AlgoType.PHASE
+    STATUS_NOTE = ('Code tested but not tested on real hardware'
+                   )
+    ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
@@ -86,7 +86,11 @@ class DmDLee(AlgoBase):
 
     params = [
         {'title': 'Super Pixel size (pxls)', 'name': 'super_pixel', 'type': 'int', 'value': 5, 'min': 1},
-        {'title': 'threshold', 'name': 'threshold', 'type': 'float', 'value': 0.5, 'limits': [0., 1.]},
+        {'title': 'Binarize:', 'name': 'binarize', 'type': 'bool', 'value': True,
+         'tip': 'Threshold the pattern to 0 and 1, as a DMD can only do (needed for the real pattern). Unchecked: '
+                'the grey levels of the pattern are kept (ideal modulation)'},
+        {'title': 'threshold', 'name': 'threshold', 'type': 'float', 'value': 0.5, 'limits': [0., 1.],
+         'tip': 'Level above which the pattern is 1 (when binarized)'},
         {'title': 'Remove carrier:', 'name': 'remove_carrier', 'type': 'bool', 'value': True,
          'tip': 'Remove the linear phase of the filtered order: the spectrum is shifted so that the position of the '
                 'order goes to the zero frequency (needs the mask applied to the intermediate plane)'},
@@ -102,18 +106,20 @@ class DmDLee(AlgoBase):
         super().__init__(parent)
 
     def threshold_amplitude(self, amplitude: np.ndarray):
-        threshold = self.settings['threshold']
-
-        amplitude[amplitude > threshold] = 1
-        amplitude[amplitude <= threshold] = 0
+        """ Binarize the pattern if asked (a DMD pixel is either on or off)"""
+        if self.settings['binarize']:
+            threshold = self.settings['threshold']
+            amplitude[amplitude > threshold] = 1
+            amplitude[amplitude <= threshold] = 0
 
         return amplitude
 
     def compute_amplitude_pattern(self) -> np.ndarray:
         xx, yy = self.compute_grid()
 
+        modulation_depth = self._target_field.normalise_to_one().amplitude  # 1 where the target is the brightest
 
-        amplitude_dmd = 1/2 * (1 + np.cos(2 * np.pi * (xx - yy) / self.settings['super_pixel'] -
+        amplitude_dmd = 1/2 * (1 + modulation_depth  * np.cos(2 * np.pi * (xx - yy) / self.settings['super_pixel'] -
                                           self._target_field.phase))
 
         amplitude_dmd = self.threshold_amplitude(amplitude_dmd)

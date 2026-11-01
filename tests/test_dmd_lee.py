@@ -38,6 +38,7 @@ class _Lee(DmDLee):
 
     def __init__(self):
         super().__init__(parent=None)
+        self._target_field.amplitude = np.ones(self.shape)  # modulation depth of 1 everywhere
 
     def apply_mask(self, apply_to):
         return apply_to == ApplyMaskTo.INTERMEDIATE and self.mask_slices is not None
@@ -131,3 +132,18 @@ def test_carrier_factor(qapp):
     full = lee.get_carrier()
     lee.settings.child('carrier_factor').setValue(0.5)
     assert lee.get_carrier() == pytest.approx(tuple(value / 2 for value in full))
+
+
+def test_the_pattern_is_binarized_or_not_and_follows_the_target_amplitude(qapp):
+    lee = _Lee()
+    ny, nx = lee.shape
+    lee._target_field.amplitude = np.linspace(0., 5., ny * nx).reshape(ny, nx)  # any scale: the peak gets a depth of 1
+    assert set(np.unique(lee.compute_amplitude_pattern())) <= {0., 1.}  # binarized by default
+
+    lee.settings.child('binarize').setValue(False)
+    pattern = lee.compute_amplitude_pattern()
+    assert 0. <= pattern.min() and pattern.max() <= 1.
+    assert len(np.unique(pattern)) > 2
+    # where the target is null the pattern is flat (0.5), where it is the brightest the modulation is full
+    flat, full = pattern[0, :5], pattern[-1, -5:]
+    assert np.allclose(flat, 0.5, atol=0.01) and (full.max() - full.min()) > 0.5

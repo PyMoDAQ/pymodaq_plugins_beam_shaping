@@ -5,7 +5,7 @@ Algorithms for Beam Shaping
 
 Overview
 --------
-PyMoDAQ-BeamShaping provides **8 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
+PyMoDAQ-BeamShaping provides **9 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
 by its name in the *Algorithm* settings of the extension. The list is built when the extension starts: the algorithms of
 BeamShaping itself, then the ones provided by other installed packages (see :doc:`custom_algorithm`).
 
@@ -42,6 +42,14 @@ BeamShaping itself, then the ones provided by other installed packages (see :doc
      - ✅
      - ✅
      - Encodes phase and amplitude with a checkerboard (:cite:t:`mendoza-yero_encoding_2014`).
+   * - Direct diffractive modulation
+     - DMD Lee
+     - 4f
+     - ❌
+     - ✅
+     - ✅
+     - Lee hologram for binary amplitude modulators (DMD): amplitude and phase are encoded in a binary grating and one
+       diffraction order is filtered in the Fourier plane.
    * - Iterative alternating projections
      - Gerchberg-Saxton
      - 2f
@@ -249,27 +257,53 @@ Trying an algorithm outside of the extension
 
 The script ``scripts/algorithm_playground.py`` runs an algorithm without opening the extension: it is meant to be
 executed in an IDE (Spyder, VS Code...) or turned into a notebook (``jupytext --to ipynb algorithm_playground.py``).
-The file is made of cells delimited by ``# %%``. Copy it somewhere, edit the first cell, then run the cells one after
-the other:
+The file is made of cells delimited by ``# %%``, each one starting with its settings. Copy it somewhere, then run the
+cells one after the other, editing the settings on the way:
 
-* ``SHAPER_PARAMS``: values overriding the default shaper of the configuration (``width``, ``height``, ``pixel_size``,
-  ``modulator_type``...);
-* ``ALGORITHM`` and ``ALGORITHM_PARAMS``: the name of the algorithm as shown in the extension and the values of its
-  parameters, given by name (``'carrier_factor'``), with dots for parameters in a group (``'phase.load'``). An unknown
-  name raises an error listing the possible ones. ``N_ITERATIONS`` and ``INITIAL_PHASE`` ('zero', 'random' or an array)
-  complete the run;
-* ``INPUT_LOADER`` / ``INPUT_PARAMS`` and ``TARGET_LOADER`` / ``TARGET_PARAMS``: the loaders of the
-  :doc:`field loader <fields>` and their parameters, a Gaussian beam for the input and an image for the target by default;
-* ``APPLY_TARGET_MASK`` and ``APPLY_INTERMEDIATE_MASK``: set them to ``True`` to apply a mask (algorithms such as
-  *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field.
+* *Shaper*: ``SHAPER_PARAMS``, values overriding the default shaper of the configuration (``width``, ``height``,
+  ``pixel_size``, ``modulator_type``...), and ``PLOT_BACKEND``, ``'matplotlib'`` or ``'qt'`` (see below);
+* *Input field* and *Target field*: ``INPUT_LOADER`` / ``INPUT_PARAMS`` and ``TARGET_LOADER`` / ``TARGET_PARAMS``, the
+  loaders of the :doc:`field loader <fields>` and their parameters, a Gaussian beam for the input and an image for the
+  target by default. Each field is plotted once loaded (the target with the axes of the modulator plane, the algorithm
+  scales it to the target plane: ``pg.plot_field(pg.get_target_field(algo))`` shows it after the next cell);
+* *Algorithm*: ``ALGORITHM`` and ``ALGORITHM_PARAMS``, the name of the algorithm as shown in the extension and the
+  values of its parameters, given by name (``'carrier_factor'``), with dots for parameters in a group
+  (``'phase.load'``). An unknown name raises an error listing the possible ones. ``N_ITERATIONS`` completes the run, and
+  ``INITIAL_PHASE`` / ``INITIAL_PHASE_PARAMS`` give the initial phase as chosen in the extension, from the initial
+  phases factory (``'FlatPhase'``, ``'RandomPhase'``, ``'QuadraticPhase'``...) with its parameters, or a 2D array of the
+  shape of the fields;
+* *Snap*: ``pg.snap`` runs one step of the algorithm without any mask and plots the intermediate plane of 4f setups
+  (intensity in log scale), to see where the mask has to be placed;
+* *Masks*: set ``APPLY_TARGET_MASK`` or ``APPLY_INTERMEDIATE_MASK`` to ``True`` to apply a mask (algorithms such as
+  *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field (``None``: the default region
+  of the extension, centered and covering 2/3 of the effective area of the SLM in the plane, printed to be edited). The cell
+  draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
+  again until the mask is right.
 
-The next cells create the algorithm and the fields, apply the masks, run the algorithm and plot the output, the
-modulator and the metrics with matplotlib, through the ``plot`` method of the data objects. The last cell gives the
-results as ``Field`` objects. ``list_available()`` of the helper module
-``pymodaq_plugins_beam_shaping.utilities.headless_algorithms`` prints the algorithms and the loaders with the names of
-their parameters.
+The last cells run the algorithm, plot an overview as in the extension, then the output field and the intermediate
+plane of 4f setups (its intensity in log scale), and give the results as ``Field`` objects. The overview shows the
+output, modulator and intermediate planes with their amplitude and phase, and the metrics: with ``'qt'`` a dock per field
+titled with its name, each holding the viewers of the amplitude and of the phase, with ``'matplotlib'`` one figure made
+of subplots, a row per field. Running the cell again updates the overview instead of creating a new one.
+``list_available()`` of the helper module ``pymodaq_plugins_beam_shaping.utilities.headless_algorithms`` prints the
+algorithms, the initial phases and the loaders with the names of their parameters.
 
-After editing the code of an algorithm, do not run the whole script again: run again the cell creating the algorithm
+Each field is plotted with ``pg.plot_field``, whose arguments are written in the script so as to be edited:
+
+* ``log``: the intensity in log10 instead of the amplitude, down to ``decades`` (6 by default) below its maximum;
+* ``clim`` and ``phase_clim``: the (min, max) of the colors of the amplitude (or log10 intensity) and of the phase;
+* ``xlim`` and ``ylim``: a zoom, (min, max) in um, the axes of the plots being in um with their origin at the center of the
+  field, as for the masks;
+* ``mask``: (region, type) as for the masks, its outline is drawn;
+* ``figure``: what a previous call returned (matplotlib ``Figure`` or qt ``ViewerDispatcher``), updated instead of
+  creating a new plot. With the inline backend (static images), the updated figure is displayed again;
+* ``backend``: with ``'matplotlib'`` the figure is returned, both axes at the same scale, to be customized further
+  (``pg.customize(figure, clims, xlim, ylim)`` does the above on any figure). With ``'qt'``, the interactive viewers of
+  PyMoDAQ are opened instead, amplitude and phase side by side (``field.split_as_dte().plot('qt')``): the options above
+  give their starting state (``pg.customize_qt``), then zoom, color levels, ROI... are changed with the mouse. They need a Qt event
+  loop in the console: in Spyder, set *Preferences > IPython console > Graphics > Backend* to *Qt* or *Automatic*.
+
+After editing the code of an algorithm, do not run the whole script again: run again the *Algorithm* cell
 and the following ones. The cell starts with ``pg.reload_algorithm(ALGORITHM)``, which reloads the module of the
 algorithm and registers the new class again (the factory would otherwise keep the old one). It is used for the first
 run as well, so there is a single way of running. A base class defined in another module is not reloaded, do it

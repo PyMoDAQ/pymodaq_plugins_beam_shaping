@@ -51,6 +51,37 @@ by encoding the complex field on a checkerboard (:cite:t:`mendoza-yero_encoding_
 * ``Mask block size (pxls)`` (default 5): size of the blocks of the checkerboard.
 * ``amplitude divider`` (default 1).
 
+DMD Lee
+-------
+
+Creates **amplitude and phase** images with a binary **amplitude** modulator such as a DMD (Lee hologram, W.H. Lee,
+Progress in Optics, 1978), in a **4f** line with a filter in the Fourier plane that selects one diffraction order. Not
+iterative. The pattern sent to the modulator is ``½ (1 + A cos(2π (x - y) / period - φ))``: a grating whose phase
+shift is the phase ``φ`` of the target and whose modulation depth ``A`` is its amplitude, normalised so that its
+maximum is 1. The first order of the grating, selected by the mask of the intermediate plane (*Intermediate Masking*
+settings, which this algorithm needs), is the target field.
+
+*Settings*:
+
+* ``Super Pixel size (pxls)`` (default 5): period of the grating, in pixels.
+* ``Binarize`` (default checked): the pattern is thresholded to 0 and 1, as a DMD can only switch its pixels on or off.
+  Unchecked, the grey levels of the pattern are kept (an ideal modulation, not feasible on a DMD, to see what the
+  binarization costs).
+* ``threshold`` (default 0.5): level above which the pattern is 1 when it is binarized.
+* ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
+
+**The carrier.** The selected order is off the optical axis, so the output field carries a linear phase (a tilt of the
+beam, the *carrier*) on top of the phase of the target. With *Remove carrier* the algorithm removes it numerically: the
+spectrum is shifted so that the position of the order goes to the zero frequency. This position is the center of the
+mask (``Carrier from``: *Mask center*) or the center of gravity of the intensity of the spectrum inside the mask
+(*Spectrum centroid*, closer to the real peak, the default), multiplied by ``Carrier factor`` (1: all of it).
+
+This is a computation convenience, not what the setup does. In the setup, the carrier should normally be cancelled
+optically, by moving the second lens of the 4f slightly off the optical axis, together with the filter, so that the
+selected order goes through the axis of the lens: the beam then leaves the lens parallel to the optical axis, without
+tilt. The phase of the output plane of the algorithm is then the one of the setup. This follows from the paraxial
+model of the 4f line used by the extension, it is not checked on a real setup.
+
 Gerchberg-Saxton
 ----------------
 

@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from pymodaq_plugins_beam_shaping.field import Field
+from pymodaq_data import Q_
 
 
 class TestField:
@@ -26,3 +27,27 @@ class TestField:
 
 
 
+
+
+def test_split_as_dte_keeps_the_axes():
+    field = Field('myfield', amplitude=np.ones((10, 20)), phase=np.zeros((10, 20)),
+                  pixel_sizes=(Q_(2., 'um'), Q_(3., 'um')))
+    dte = field.split_as_dte()
+    assert len(dte) == 2
+    assert [dwa.labels for dwa in dte] == [['Amplitude'], ['Phase']]
+    for dwa in dte:
+        assert dwa.shape == (10, 20)
+        assert dwa.get_axis_from_index(1)[0].scaling == pytest.approx(3e-6)
+        assert dwa.get_axis_from_index(0)[0].scaling == pytest.approx(2e-6)
+
+
+def test_normalise_to_one_on_itself():
+    amplitude = np.array([[0., 2.], [4., 1.]])
+    field = Field('myfield', amplitude=amplitude, phase=np.full((2, 2), 0.3), pixel_sizes=(Q_(2., 'um'), Q_(3., 'um')))
+    normalised = field.normalise_to_one()
+    assert normalised.amplitude.max() == pytest.approx(1.) and normalised.intensity.max() == pytest.approx(1.)
+    assert np.allclose(normalised.amplitude, amplitude / 4.)
+    assert np.allclose(normalised.phase, 0.3)
+    assert normalised.pixels_sizes == field.pixels_sizes
+    assert field.amplitude.max() == 4.  # the field itself is not modified
+    assert Field('null', amplitude=np.zeros((2, 2))).normalise_to_one().amplitude.max() == 0.
