@@ -270,7 +270,7 @@ the other:
   name raises an error listing the possible ones. ``N_ITERATIONS`` and ``INITIAL_PHASE`` ('zero', 'random' or an array)
   complete the run;
 * ``INPUT_LOADER`` / ``INPUT_PARAMS`` and ``TARGET_LOADER`` / ``TARGET_PARAMS``: the loaders of the
-  :doc:`field loader <fields>` and their parameters, an image then a Laguerre-Gauss beam by default;
+  :doc:`field loader <fields>` and their parameters, a Gaussian beam for the input and an image for the target by default;
 * ``APPLY_TARGET_MASK`` and ``APPLY_INTERMEDIATE_MASK``: set them to ``True`` to apply a mask (algorithms such as
   *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field.
 
