@@ -1,4 +1,6 @@
 """Smoke test of the script used to try the algorithms outside of the application"""
+import sys
+
 import numpy as np
 import pytest
 
@@ -13,7 +15,7 @@ def prepare(algorithm: str, algo_params=None, **shaper_params):
     pg.ensure_qapp()
     shaper = pg.make_shaper(width=128, height=128, pixel_size=8., **shaper_params)
     app = pg.HeadlessApp(shaper)
-    algo = pg.create_algorithm(algorithm, app, algo_params)
+    algo = pg.create_algorithm(pg.reload_algorithm(algorithm), app, algo_params)
     pg.set_fields(algo, pg.load_field('ImageFiles', {'phase.load': False}, app),
                   pg.load_field('LaguerreGaussian', None, app))
     return app, algo
@@ -38,3 +40,35 @@ def test_parameters_are_set_without_widgets_and_masks_applied(qapp):
 def test_unknown_parameter_lists_the_possible_ones(qapp):
     with pytest.raises(KeyError, match='possible ones'):
         prepare('Projections', dict(nope=1))
+
+
+def test_reload_algorithm_takes_the_changes_into_account(qapp, tmp_path, monkeypatch):
+    code = """
+from pymodaq_plugins_beam_shaping.algorithms.algorithms.direct import Direct
+from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
+
+
+@AlgorithmFactory.register_algorithm()
+class TmpReload(Direct):
+    ALGO_NAME = 'TmpReload'
+    VERSION = {version}
+"""
+    module_file = tmp_path / 'tmp_reload_algo.py'
+    module_file.write_text(code.format(version=1))
+    monkeypatch.syspath_prepend(str(tmp_path))
+    import importlib
+    module = importlib.import_module('tmp_reload_algo')
+    try:
+        assert pg.AlgorithmFactory.get_algorithm('TmpReload').VERSION == 1
+        module_file.write_text(code.format(version=22))
+        reloaded = pg.reload_algorithm('TmpReload')
+        assert reloaded.VERSION == 22  # other length, the bytecode cache compares sizes and times
+        assert pg.AlgorithmFactory.get_algorithm('TmpReload') is reloaded
+
+        module_file.write_text('raise RuntimeError("broken")')
+        with pytest.raises(RuntimeError):
+            pg.reload_algorithm('TmpReload')
+        assert pg.AlgorithmFactory.get_algorithm('TmpReload') is reloaded  # still usable
+    finally:
+        pg.AlgorithmFactory.algorithms_registry.pop('TmpReload', None)
+        sys.modules.pop('tmp_reload_algo', None)

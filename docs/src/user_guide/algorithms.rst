@@ -280,6 +280,13 @@ results as ``Field`` objects. ``list_available()`` of the helper module
 ``pymodaq_plugins_beam_shaping.utilities.headless_algorithms`` prints the algorithms and the loaders with the names of
 their parameters.
 
+After editing the code of an algorithm, do not run the whole script again: run again the cell creating the algorithm
+and the following ones. The cell starts with ``pg.reload_algorithm(ALGORITHM)``, which reloads the module of the
+algorithm and registers the new class again (the factory would otherwise keep the old one). It is used for the first
+run as well, so there is a single way of running. A base class defined in another module is not reloaded, do it
+yourself with ``importlib.reload`` if you change it, and a syntax error in the algorithm raises while the previous
+version stays usable.
+
 .. note::
 
    The parameters of the algorithms are widgets, so a ``QApplication`` is needed. The helpers create it if there is none,
