@@ -30,6 +30,20 @@ logger = set_logger(get_module_name(__file__))
 plugin_config = PluginConfig()
 
 
+CARRIER_FROM = ('Mask center', 'Spectrum centroid')
+
+
+def spectrum_centroid(spectrum: np.ndarray) -> tuple[float, float]:
+    """ Center of gravity (rows, columns) of the intensity of a centered spectrum, relative to the zero frequency"""
+    intensity = np.abs(spectrum) ** 2
+    total = intensity.sum()
+    if total == 0:
+        raise ValueError('The spectrum is null: nothing to find the position of the order from')
+    rows, columns = np.indices(intensity.shape)
+    return tuple(float((index * intensity).sum() / total) - size // 2
+                 for index, size in zip((rows, columns), intensity.shape))
+
+
 def remove_linear_phase(field: np.ndarray, ky: float, kx: float) -> np.ndarray:
     """ Remove a linear phase from a complex array centered as the output of Field.ifft2
 
@@ -70,8 +84,14 @@ class DmDLee(AlgoBase):
         {'title': 'Super Pixel size (pxls)', 'name': 'super_pixel', 'type': 'int', 'value': 5, 'min': 1},
         {'title': 'threshold', 'name': 'threshold', 'type': 'float', 'value': 0.5, 'limits': [0., 1.]},
         {'title': 'Remove carrier:', 'name': 'remove_carrier', 'type': 'bool', 'value': True,
-         'tip': 'Remove the linear phase of the filtered order: the spectrum is shifted by the center of the mask '
-                'applied to the intermediate plane (needs this mask)'},
+         'tip': 'Remove the linear phase of the filtered order: the spectrum is shifted so that the position of the '
+                'order goes to the zero frequency (needs the mask applied to the intermediate plane)'},
+        {'title': 'Carrier from:', 'name': 'carrier_from', 'type': 'list', 'value': CARRIER_FROM[1],
+         'limits': list(CARRIER_FROM),
+         'tip': 'Position of the order: the center of the mask, or the center of gravity of the intensity of the '
+                'spectrum inside the mask (closer to the real peak)'},
+        {'title': 'Carrier factor:', 'name': 'carrier_factor', 'type': 'float', 'value': 1., 'step': 0.01,
+         'decimals': 6, 'tip': 'The carrier removed is this factor times the position of the order (1: all of it)'},
     ]
 
     def __init__(self, parent: 'AlgoApp' = None, *args, **kwargs):
@@ -106,9 +126,11 @@ class DmDLee(AlgoBase):
         return amplitude_dmd
 
 
-    def get_carrier(self) -> tuple[float, float] | None:
-        """ Position (rows, columns) of the center of the intermediate mask relative to the zero frequency, in pixels
+    def get_carrier(self, spectrum: np.ndarray = None) -> tuple[float, float] | None:
+        """ Position (rows, columns) of the order selected by the intermediate mask relative to the zero frequency, in
+        pixels, multiplied by the *carrier factor*
 
+        It is the center of the mask or, with the spectrum already filtered by the mask, its center of gravity.
         None if the mask is not applied to the intermediate plane
         """
         if not self.apply_mask(apply_to=ApplyMaskTo.INTERMEDIATE):
@@ -116,8 +138,13 @@ class DmDLee(AlgoBase):
         slices = self.get_mask_slices(ApplyMaskTo.INTERMEDIATE)
         if slices is None:
             return None
-        # center of the pixels covered by the slices, relative to the index of the zero frequency
-        return tuple((_slice.start + _slice.stop - 1) / 2 - size // 2 for _slice, size in zip(slices, self.shape))
+        if self.settings['carrier_from'] == CARRIER_FROM[1] and spectrum is not None:
+            carrier = spectrum_centroid(spectrum)
+        else:
+            # center of the pixels covered by the slices, relative to the index of the zero frequency
+            carrier = tuple((_slice.start + _slice.stop - 1) / 2 - size // 2
+                            for _slice, size in zip(slices, self.shape))
+        return tuple(self.settings['carrier_factor'] * value for value in carrier)
 
     def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
 
@@ -135,7 +162,7 @@ class DmDLee(AlgoBase):
 
         self._output_field = self.intermediate_field.ifft2(norm='forward')
         if self.settings['remove_carrier']:
-            carrier = self.get_carrier()
+            carrier = self.get_carrier(self.intermediate_field.field)
             if carrier is None:
                 logger.warning('The carrier cannot be removed: apply a mask to the intermediate plane')
             else:

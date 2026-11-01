@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from pymodaq_plugins_beam_shaping.algorithms.algorithms.dmd_lee import DmDLee, remove_linear_phase
+from pymodaq_plugins_beam_shaping.algorithms.algorithms.dmd_lee import DmDLee, remove_linear_phase, spectrum_centroid, CARRIER_FROM
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 
@@ -80,3 +80,54 @@ def test_the_carrier_of_the_selected_order_is_removed(qapp):
     assert phase_spread() > 1.  # a ramp of several radians
     lee.settings.child('remove_carrier').setValue(True)
     assert phase_spread() < 0.2  # flat: the target phase is null
+
+
+def test_spectrum_centroid():
+    spectrum = np.zeros((40, 50), dtype=complex)
+    spectrum[20 + 3, 25 - 7] = 2.  # relative to the zero frequency at (N // 2)
+    spectrum[20 + 4, 25 - 7] = 2.
+    assert spectrum_centroid(spectrum) == pytest.approx((3.5, -7.))
+    with pytest.raises(ValueError):
+        spectrum_centroid(np.zeros((4, 4)))
+
+
+def _lee_with_off_center_mask(qapp):
+    lee = _Lee()
+    ny, nx = lee.shape
+    period = lee.settings['super_pixel']
+    cy, cx = ny // 2 + ny / period, nx // 2 - nx / period
+    radius = 20
+    # the mask is shifted by a few pixels from the real order, but still contains it
+    lee.mask_slices = (slice(int(cy - radius + 5), int(cy + radius + 6)), slice(int(cx - radius - 4), int(cx + radius - 3)))
+    lee._target_field.phase = np.zeros((ny, nx))
+    return lee
+
+
+def _phase_spread(lee):
+    ny, nx = lee.shape
+    lee.compute_phase_and_or_amplitude()
+    center = lee.output_field.field[ny // 2 - 20:ny // 2 + 20, nx // 2 - 20:nx // 2 + 20]
+    return np.std(np.angle(center * np.conj(center[20, 20])))
+
+
+def test_the_real_peak_removes_what_the_center_of_the_mask_leaves(qapp):
+    lee = _lee_with_off_center_mask(qapp)
+    lee.settings.child('carrier_from').setValue(CARRIER_FROM[0])
+    from_mask = _phase_spread(lee)
+    lee.settings.child('carrier_from').setValue(CARRIER_FROM[1])
+    from_peak = _phase_spread(lee)
+    assert from_mask > 0.3  # a linear component remains
+    assert from_peak < 0.1 < from_mask
+
+
+def test_carrier_factor(qapp):
+    lee = _lee_with_off_center_mask(qapp)
+    lee.settings.child('carrier_factor').setValue(0.)
+    nothing_removed = _phase_spread(lee)
+    lee.settings.child('remove_carrier').setValue(False)
+    assert nothing_removed == pytest.approx(_phase_spread(lee))
+
+    lee.settings.child('carrier_factor').setValue(1.)
+    full = lee.get_carrier()
+    lee.settings.child('carrier_factor').setValue(0.5)
+    assert lee.get_carrier() == pytest.approx(tuple(value / 2 for value in full))
