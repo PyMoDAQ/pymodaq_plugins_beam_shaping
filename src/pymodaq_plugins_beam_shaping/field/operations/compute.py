@@ -143,6 +143,11 @@ def wrap(phase: np.ndarray) -> np.ndarray:
     return np.angle(np.exp(1j * np.asarray(phase)))
 
 
+def wrap_positive(phase: np.ndarray) -> np.ndarray:
+    """ The phase wrapped in [0, 2pi["""
+    return np.mod(np.asarray(phase), 2 * np.pi)
+
+
 def is_wrapped(phase: np.ndarray) -> bool:
     """ True if the values span at most 2pi (wrapped in ]-pi, pi], [0, 2pi]...), up to rounding"""
     return bool(phase.size == 0 or np.ptp(phase) <= 2 * np.pi + 1e-9)

@@ -26,7 +26,7 @@ def rms_on(values, support):
 
 
 def test_operations_are_registered():
-    assert {'Remove linear phase', 'Remove Zernike', 'Unwrap phase'} <= set(OperationFactory.operations())
+    assert {'Remove linear phase', 'Remove Zernike', 'Unwrap phase', 'Wrap phase'} <= set(OperationFactory.operations())
 
 
 @pytest.mark.parametrize('ky, kx', [(0.3, -0.5), (-0.123, 0.789), (0., 0.25)])
@@ -199,3 +199,19 @@ def test_subtract_phase_keeps_the_wrapping():
     wrapped = compute.subtract_phase(wrap(phase), to_remove)
     assert compute.is_wrapped(wrapped) and np.all(np.abs(wrapped) <= np.pi)
     assert np.allclose(np.exp(1j * wrapped), np.exp(1j * (phase - to_remove)))
+
+
+def test_unwrap_then_wrap_in_the_chain(qtbot, dockarea):
+    from pymodaq_plugins_beam_shaping.field.field_tool_app import FieldToolApp
+
+    phase = compute.linear_phase(SHAPE, 0.2, 0.1)
+    tool = FieldToolApp(dockarea, field_sources={'output': lambda: make_field(wrap(phase))})
+    tool.refresh()
+    tool.add_operation('Unwrap phase')
+    assert not compute.is_wrapped(tool.field_after.phase[tool.support])
+    wrap_op = tool.add_operation('Wrap phase')
+    assert np.all((tool.field_after.phase > -np.pi - 1e-12) & (tool.field_after.phase <= np.pi + 1e-12))
+    assert np.allclose(np.exp(1j * tool.field_after.phase), np.exp(1j * tool.field_before.phase))
+    wrap_op.settings.child('range').setValue('POSITIVE')
+    assert np.all((tool.field_after.phase >= 0) & (tool.field_after.phase < 2 * np.pi))
+    assert np.allclose(np.exp(1j * tool.field_after.phase), np.exp(1j * tool.field_before.phase))
