@@ -17,7 +17,7 @@ from pymodaq_utils.logger import set_logger, get_module_name
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -66,6 +66,8 @@ class Minimize(TorchBase):
     """
 
     ALGO_NAME = 'Minimize'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Needs pytorch-minimize; the result depends on the loss chosen'
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
     MANUAL_LOOP = False

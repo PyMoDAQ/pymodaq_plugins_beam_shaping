@@ -17,7 +17,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -75,6 +75,9 @@ class DmDLee(AlgoBase):
     """
 
     ALGO_NAME = 'DMD Lee'
+    STATUS = AlgoStatus.IN_PROGRESS
+    STATUS_NOTE = ('Carrier removal tested (tests/test_dmd_lee.py); with the default fields the intermediate plane is '
+                   'almost empty around the selected order')
     ALGOTYPE = AlgoType.PHASE
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF

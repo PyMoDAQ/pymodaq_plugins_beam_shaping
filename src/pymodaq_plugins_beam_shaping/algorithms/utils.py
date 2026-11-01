@@ -29,6 +29,20 @@ class AlgoType(StrEnum):
     AMPLITUDE_PHASE = 'AmplitudePhase'
 
 
+class AlgoStatus(StrEnum):
+    """ How far an algorithm has been validated, written by hand by its developer (class attribute STATUS)
+
+    TESTED: its results were checked (on a setup or by tests comparing them to what is expected)
+    IN_PROGRESS: under development, its results may still change
+    UNTESTED: it runs but nobody checked its results yet
+    BROKEN: it fails to run, it is not offered in the application (unless the configuration says otherwise)
+    """
+    TESTED = 'tested'
+    IN_PROGRESS = 'in progress'
+    UNTESTED = 'untested'
+    BROKEN = 'broken'
+
+
 class ApplyMaskTo(StrEnum):
     TARGET = 'target_mask'
     INTERMEDIATE = 'intermediate_mask'

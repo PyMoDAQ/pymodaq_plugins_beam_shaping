@@ -13,7 +13,7 @@ from pymodaq_utils.math_utils import gauss2D
 from pymodaq_data import Q_, DataRaw, DataToExport
 from pymodaq_gui.managers.parameter_manager import ParameterManager
 
-from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, ApplyMaskTo,
+from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, AlgoStatus, ApplyMaskTo,
                                                            LensSetup, CrossTalk, PhaseManipulation)
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping.utilities import sizing
@@ -55,6 +55,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     ITERATIVE = False
     MANUAL_LOOP = True
     RECOMPUTE_ON_CHANGE = False  # if True, the algorithm is run again when one of its settings changes
+    STATUS: AlgoStatus = AlgoStatus.UNTESTED  # written by hand by the developer, shown next to the name in the app
+    STATUS_NOTE: str = ''  # why this status: what was checked, what is known not to work
     params = []
 
 
