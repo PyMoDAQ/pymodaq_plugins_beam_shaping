@@ -63,12 +63,13 @@ pg.set_fields(algo, input_field, target_field)
 
 # %% Snap: one step of the algorithm without masks, to see the intermediate plane (4f setups) before placing its mask
 snapped_intermediate = pg.snap(algo, INITIAL_PHASE, INITIAL_PHASE_PARAMS)  # None without intermediate plane
+snap_plot = None  # the plot of the snap, updated by the masks cell
 if snapped_intermediate is not None:
-    pg.plot_field(snapped_intermediate, 'intermediate (snap, no mask)', log=True, clim=None, xlim=None, ylim=None,
-                  backend=PLOT_BACKEND)
+    snap_plot = pg.plot_field(snapped_intermediate, 'intermediate (snap, no mask)', log=True, clim=None, xlim=None,
+                              ylim=None, backend=PLOT_BACKEND)
 
 # %% Masks: slices in um as ((start, stop) along y, (start, stop) along x) around the center of the field
-# Run this cell again to adjust the intermediate mask: its outline is drawn on the snapped intermediate plane
+# Run this cell again to adjust the intermediate mask: its outline is drawn on the plot of the snap, which is updated
 APPLY_TARGET_MASK = False  # in the plane of the target
 TARGET_MASK = ((-100., 100.), (-100., 100.))
 TARGET_MASK_TYPE = 'elliptical'  # or 'square'
@@ -79,9 +80,9 @@ INTERMEDIATE_MASK_TYPE = 'elliptical'
 pg.set_mask(app, ApplyMaskTo.TARGET, TARGET_MASK if APPLY_TARGET_MASK else None, TARGET_MASK_TYPE)
 pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, INTERMEDIATE_MASK if APPLY_INTERMEDIATE_MASK else None,
             INTERMEDIATE_MASK_TYPE)
-if snapped_intermediate is not None:
+if snap_plot is not None:  # the plot of the snap is updated (figure=snap_plot), not created again
     pg.plot_field(snapped_intermediate, 'intermediate (snap) and its mask', log=True, clim=None, xlim=None, ylim=None,
-                  mask=(INTERMEDIATE_MASK, INTERMEDIATE_MASK_TYPE), backend='matplotlib')
+                  mask=(INTERMEDIATE_MASK, INTERMEDIATE_MASK_TYPE), backend=PLOT_BACKEND, figure=snap_plot)
 
 # %% Run
 pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS)

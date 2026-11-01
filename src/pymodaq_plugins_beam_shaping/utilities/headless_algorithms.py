@@ -339,18 +339,76 @@ def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'm'
     return figure
 
 
-def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True, mask=None):
-    """ Plot with matplotlib (returns the figure) or with the qt viewers of PyMoDAQ (returns the viewer, interactive
-    when the IDE runs a Qt event loop, in Spyder: graphics backend set to Qt or Automatic)"""
+def draw_mask_qt(dispatcher, slices_um, mask_type: str = 'elliptical', units: str = 'm', color: str = 'r'):
+    """ Draw the outline of a mask on the 2D viewers of a ViewerDispatcher, replacing the previous one"""
+    import pyqtgraph
+    for plotitem, roi in getattr(dispatcher, 'mask_rois', []):
+        plotitem.removeItem(roi)
+    dispatcher.mask_rois = []
+    if slices_um is None:
+        return dispatcher
+    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in limits] for limits in slices_um]
+    for viewer in dispatcher.viewers:
+        view = getattr(viewer, 'view', None)
+        if view is None or not hasattr(view, 'plotitem'):
+            continue
+        roi_class = pyqtgraph.EllipseROI if MaskType(mask_type) == MaskType.ELLIPTICAL else pyqtgraph.RectROI
+        roi = roi_class((x0, y0), (x1 - x0, y1 - y0), pen=pyqtgraph.mkPen(color, width=2), movable=False,
+                        resizable=False, rotatable=False)
+        for handle in roi.getHandles():
+            roi.removeHandle(handle)
+        view.plotitem.addItem(roi)
+        dispatcher.mask_rois.append((view.plotitem, roi))
+    return dispatcher
+
+
+def _draw_2d(figure, dte):
+    """ Draw 2D data in a matplotlib figure, one row per data object (as the matplotlib plotter of PyMoDAQ, but in a
+    given figure so that it can be updated)"""
+    figure.clear()
+    for row, dwa in enumerate(dte):
+        xaxis = dwa.get_axis_from_index(1)[0]
+        yaxis = dwa.get_axis_from_index(0)[0]
+        for column, array in enumerate(dwa):
+            ax = figure.add_subplot(len(dte), len(dwa), row * len(dwa) + column + 1)
+            ax.pcolormesh(xaxis.get_data(), yaxis.get_data(), array)
+            ax.set_title(f'{dwa.name}/{dwa.labels[column]}')
+            ax.set_xlabel(f'{xaxis.label} ({xaxis.units})')
+            ax.set_ylabel(f'{yaxis.label} ({yaxis.units})')
+    return figure
+
+
+def _is_inline() -> bool:
+    import matplotlib
+    return 'inline' in matplotlib.get_backend().lower()
+
+
+def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True, mask=None, figure=None):
+    """ Plot with matplotlib (returns the figure) or with the qt viewers of PyMoDAQ (returns the ViewerDispatcher,
+    interactive when the IDE runs a Qt event loop, in Spyder: graphics backend set to Qt or Automatic)
+
+    figure: a Figure or a ViewerDispatcher returned by a previous call, to update it instead of creating a new one
+    """
     center_axes(dte)
     units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'm'
     if backend == 'qt':
         ensure_qapp()
-        viewer = dte.plot('qt')
-        _qt_viewers.append(viewer)
-        return customize_qt(viewer, clims, xlim, ylim, units)
+        viewer = dte.plot('qt', viewer=figure)
+        if figure is None:
+            _qt_viewers.append(viewer)
+        customize_qt(viewer, clims, xlim, ylim, units)
+        if mask is not None or hasattr(viewer, 'mask_rois'):
+            draw_mask_qt(viewer, *(mask if mask is not None else (None,)), units=units)
+        return viewer
     from matplotlib import pyplot as plt
-    figure = dte.plot('matplotlib')
+    reuse = figure is not None
+    if all(dwa.dim.name == 'Data2D' for dwa in dte):
+        figure = _draw_2d(figure if reuse else plt.figure(), dte)
+    else:
+        if reuse:
+            plt.close(figure)
+        figure = dte.plot('matplotlib')
+        reuse = False
     figure.set_size_inches(*size)
     customize(figure, clims, xlim, ylim, units=units)
     if mask is not None:
@@ -358,8 +416,25 @@ def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool 
     equal_aspect(figure)
     figure.tight_layout()
     if show:
-        plt.show()
+        _display(figure, reuse)
     return figure
+
+
+def _display(figure, reuse: bool):
+    """ Show a new figure, or redraw an updated one (displayed again with the inline backend of Spyder or Jupyter,
+    whose figures are static images)"""
+    from matplotlib import pyplot as plt
+    if reuse and _is_inline():
+        try:
+            from IPython.display import display
+            display(figure)
+        except ImportError:
+            pass
+    elif reuse:
+        figure.canvas.draw_idle()
+        figure.show()
+    else:
+        plt.show()
 
 
 def snap(algo, ini_phase: Union[str, np.ndarray] = 'FlatPhase', ini_phase_params: Optional[dict] = None):
@@ -378,28 +453,29 @@ def snap(algo, ini_phase: Union[str, np.ndarray] = 'FlatPhase', ini_phase_params
 
 def plot_field(field, name: str = '', log: bool = False, decades: float = 6., clim: Optional[tuple] = None,
                phase_clim: Optional[tuple] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
-               mask: Optional[tuple] = None, backend: str = 'matplotlib', show: bool = True):
+               mask: Optional[tuple] = None, backend: str = 'matplotlib', figure=None, show: bool = True):
     """ Plot the amplitude (or with ``log`` the intensity in log10, down to ``decades`` below its maximum) and the
     phase of a field, the origin of the axes at the center of the field (as for the masks)
 
     clim / phase_clim: (min, max) of the colors of the amplitude (or log10 intensity) and of the phase
     xlim / ylim: zoom, (min, max) in um
-    mask: (slices in um, mask type) as given to :func:`set_mask`, its outline is drawn (matplotlib only)
+    mask: (slices in um, mask type) as given to :func:`set_mask`, its outline is drawn
     backend: 'matplotlib' (returns the figure, to customize further) or 'qt' (interactive viewers of PyMoDAQ, the
     options above give their starting state)
+    figure: what a previous call returned (Figure or ViewerDispatcher), updated instead of creating a new plot
     """
     from pymodaq_data.data import DataToExport
     data = field.split_as_dte(name).data  # amplitude and phase side by side
     if log:
         data[0] = log_intensity(field, decades, name=name)
     dte = DataToExport(name, data=data)
-    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False, mask=mask)
+    reuse = figure is not None
+    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False, mask=mask, figure=figure)
     if backend != 'qt':
         if name:
             figure.suptitle(name)
         if show:
-            from matplotlib import pyplot as plt
-            plt.show()
+            _display(figure, reuse)
     return figure
 
 

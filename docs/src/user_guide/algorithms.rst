@@ -279,7 +279,8 @@ cells one after the other, editing the settings on the way:
   (intensity in log scale), to see where the mask has to be placed;
 * *Masks*: set ``APPLY_TARGET_MASK`` or ``APPLY_INTERMEDIATE_MASK`` to ``True`` to apply a mask (algorithms such as
   *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field. The cell
-  draws the outline of the intermediate mask on the snapped intermediate plane: run it again until the mask is right.
+  draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
+  again until the mask is right.
 
 The last cells run the algorithm, plot an overview (output, modulator, metrics, intermediate plane), then the output
 field and the intermediate plane of 4f setups (its intensity in log scale), and give the results as ``Field`` objects.
@@ -291,7 +292,9 @@ Each field is plotted with ``pg.plot_field``, whose arguments are written in the
 * ``log``: the intensity in log10 instead of the amplitude, down to ``decades`` (6 by default) below its maximum;
 * ``clim`` and ``phase_clim``: the (min, max) of the colors of the amplitude (or log10 intensity) and of the phase;
 * ``xlim`` and ``ylim``: a zoom, (min, max) in um, the origin of the axes being the center of the field as for the masks;
-* ``mask``: (region, type) as for the masks, its outline is drawn (matplotlib only);
+* ``mask``: (region, type) as for the masks, its outline is drawn;
+* ``figure``: what a previous call returned (matplotlib ``Figure`` or qt ``ViewerDispatcher``), updated instead of
+  creating a new plot. With the inline backend (static images), the updated figure is displayed again;
 * ``backend``: with ``'matplotlib'`` the figure is returned, both axes at the same scale, to be customized further
   (``pg.customize(figure, clims, xlim, ylim)`` does the above on any figure). With ``'qt'``, the interactive viewers of
   PyMoDAQ are opened instead, amplitude and phase side by side (``field.split_as_dte().plot('qt')``): the options above

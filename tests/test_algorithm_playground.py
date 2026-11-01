@@ -70,6 +70,31 @@ def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp
     assert x[0] < 0 < x[-1]
 
 
+def test_plots_are_updated_not_created_again(qapp):
+    from matplotlib import pyplot as plt
+    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    snapped = pg.snap(algo)
+    figure = pg.plot_field(snapped, 'snap', log=True, show=False)
+    n_figures = len(plt.get_fignums())
+    for size in (100., 200.):
+        updated = pg.plot_field(snapped, 'snap', log=True, mask=(((-size, size), (-size, size)), 'square'),
+                                figure=figure, show=False)
+        assert updated is figure
+        assert len(plt.get_fignums()) == n_figures
+        assert all(len(ax.patches) == 1 for ax in pg._image_axes(figure))  # the previous outline is gone
+        assert pg._image_axes(figure)[0].patches[0].get_width() == pytest.approx(2 * size * 1e-6)
+
+    dispatcher = pg.plot_field(snapped, 'snap', log=True, backend='qt')
+    for size in (100., 200.):
+        updated = pg.plot_field(snapped, 'snap', log=True, mask=(((-size, size), (-size, size)), 'elliptical'),
+                                backend='qt', figure=dispatcher)
+        assert updated is dispatcher
+        assert len(dispatcher.mask_rois) == 2  # one per viewer, the previous ones removed
+        roi = dispatcher.mask_rois[0][1]
+        assert roi.size()[0] == pytest.approx(2 * size * 1e-6)
+        assert not roi.translatable and roi.getHandles() == []  # an outline, it cannot be moved nor resized
+
+
 def test_snap_without_intermediate_plane(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     assert pg.snap(algo) is None
