@@ -2,7 +2,7 @@ from abc import ABCMeta, abstractproperty
 from typing import Union
 import numpy as np
 
-from qtpy import QtWidgets, QtCore
+from qtpy import QtWidgets, QtCore, QtGui
 from pathlib import Path
 
 import pymodaq_gui.qt_utils
@@ -10,7 +10,7 @@ from pymodaq_data import DataCalculated
 from pymodaq_gui.plotting.items.roi import RoiInfo
 from pymodaq_utils.utils import ThreadCommand
 from pymodaq_utils.logger import set_logger, get_module_name
-from pymodaq_utils.config import GlobalConfig
+from pymodaq_utils.config import GlobalConfig, ConfigError
 
 from pymodaq_data.data import DataRaw, DataToExport, DataDim
 from pymodaq_data.h5modules.data_saving import DataToExportSaver
@@ -28,12 +28,14 @@ from pymodaq_gui.parameter import utils as putils
 from pymodaq_gui.config_saver_loader import ConfigSaverLoader
 from pymodaq_gui.h5modules.saving import H5Saver
 from pymodaq_gui.utils.widgets.spinbox import QSpinBox_ro
+from pymodaq_gui.utils.status_palette import Status, StatusPalette
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
 from pymodaq_plugins_beam_shaping.algorithms.algo_base import AlgoBase
 from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, PhaseBase
 from pymodaq_plugins_beam_shaping.algorithms.stopping import StoppingFactory, StoppingBase
-from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup, CrossTalk, PhaseManipulation
+from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoStatus, ApplyMaskTo, LensSetup, CrossTalk,
+                                                           PhaseManipulation)
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping import config as plugin_config
@@ -63,6 +65,43 @@ class Actions(StrEnum):
     RESET = 'reset_phase'
     COMPUTE_FFT = 'compute_fft'
     SHOW_DATA = 'show_data'
+
+
+# the state of the PyMoDAQ palette (colors of the active theme) used for each status of an algorithm
+STATUS_STATES = {AlgoStatus.TESTED: Status.IDLE, AlgoStatus.IN_PROGRESS: Status.RUNNING,
+                 AlgoStatus.UNTESTED: Status.OFF, AlgoStatus.BROKEN: Status.CRITICAL}
+
+
+def status_color(status: AlgoStatus) -> 'QtGui.QColor':
+    """ The color of the status of an algorithm, from the status palette of pymodaq_gui """
+    return StatusPalette.color(STATUS_STATES[AlgoStatus(status)])
+
+
+def show_broken_algorithms() -> bool:
+    """ True if the configuration asks to list the algorithms whose status is broken """
+    try:
+        return bool(plugin_config('algo', 'show_broken'))
+    except (KeyError, ConfigError):  # configuration file written before the entry existed
+        return False
+
+
+def status_icon(status: AlgoStatus) -> 'QtGui.QIcon':
+    """ A disc of the color of the status """
+    pixmap = QtGui.QPixmap(12, 12)
+    pixmap.fill(QtCore.Qt.transparent)
+    painter = QtGui.QPainter(pixmap)
+    painter.setRenderHint(QtGui.QPainter.Antialiasing)
+    painter.setBrush(status_color(status))
+    painter.setPen(QtCore.Qt.NoPen)
+    painter.drawEllipse(1, 1, 10, 10)
+    painter.end()
+    return QtGui.QIcon(pixmap)
+
+
+def status_text(algo_class: type[AlgoBase]) -> str:
+    """ The status of an algorithm and its note, as shown in the tooltips """
+    text = f'Status: {algo_class.STATUS}'
+    return f'{text}\n{algo_class.STATUS_NOTE}' if algo_class.STATUS_NOTE else text
 
 
 class AlgoApp(CustomApp):
@@ -441,9 +480,12 @@ class AlgoApp(CustomApp):
     def setup_actions(self):
         self.add_widget('algorithms', QtWidgets.QComboBox,
                         tip='select the algorithm to compute the phase')
-        self.get_action('algorithms').addItems(self.algorithms)
+        self.add_widget('algorithm_status', QtWidgets.QLabel,
+                        tip='how far the selected algorithm has been validated, see its STATUS attribute')
+        self.fill_algorithm_combo(self.algorithms)
         if len(self.algorithms) > 1:
             self.get_action('algorithms').setCurrentText(self.algorithms[0])
+        self.show_algorithm_status()
         self.add_action('ini_algo', 'Init Algo', 'start', checkable=True,
                         icon_checked_color=self.get_theme().green,
                         auto_menu=False)
@@ -478,6 +520,8 @@ class AlgoApp(CustomApp):
         self.connect_action(Actions.RESET, lambda: self.define_phase(force_reset=True))
         self.connect_action('algorithms', slot=self.set_algorithm,
                             signal_name='currentTextChanged')
+        self.connect_action('algorithms', slot=self.show_algorithm_status,
+                            signal_name='currentTextChanged')
         self.connect_action(Actions.SAVE_CONTINUOUS, self.do_save_continuous)
         self.connect_action(Actions.SHOW_SAVE_SETTINGS, self.show_saver_settings)
         self.connect_action(Actions.SHOW_SAVED_DATA, self.show_continuous_data)
@@ -504,8 +548,13 @@ class AlgoApp(CustomApp):
 
     @property
     def algorithms(self) -> list[str]:
-        """The algorithms usable with the modulation type of the shaper, in the order of the configuration"""
+        """The algorithms usable with the modulation type of the shaper, in the order of the configuration
+
+        The broken ones (STATUS) are left out, unless the configuration entry algo.show_broken is true
+        """
         usable = algo_factory.algorithms_for(self.shaper.modulator_type)
+        if not show_broken_algorithms():
+            usable = [name for name in usable if algo_factory.get_algorithm(name).STATUS != AlgoStatus.BROKEN]
         names = [name for name in plugin_config('algo', 'default_algo') if name in usable]
         return names if names else usable
 
@@ -520,10 +569,10 @@ class AlgoApp(CustomApp):
         if [combo.itemText(ind) for ind in range(combo.count())] == names:
             return
         combo.blockSignals(True)
-        combo.clear()
-        combo.addItems(names)
+        self.fill_algorithm_combo(names)
         combo.setCurrentText(current if current in names else names[0])
         combo.blockSignals(False)
+        self.show_algorithm_status()
         if combo.currentText() != current and self._algorithm is not None:
             self.set_algorithm()
 
@@ -531,6 +580,27 @@ class AlgoApp(CustomApp):
     def algorithm_name(self) -> str:
         """ get the current algorithm name """
         return self.get_action('algorithms').currentText()
+
+    def fill_algorithm_combo(self, names: list[str]):
+        """ Put the algorithm names in the combo box, with their status as icon and tooltip """
+        combo: QtWidgets.QComboBox = self.get_action('algorithms').widget
+        combo.clear()
+        for name in names:
+            algo_class = algo_factory.get_algorithm(name)
+            combo.addItem(status_icon(algo_class.STATUS), name)
+            combo.setItemData(combo.count() - 1, status_text(algo_class), QtCore.Qt.ToolTipRole)
+
+    def show_algorithm_status(self, *args):
+        """ Show the status of the selected algorithm next to the combo box """
+        label: QtWidgets.QLabel = self.get_action('algorithm_status').widget
+        name = self.algorithm_name
+        if not name:
+            label.setText('')
+            label.setToolTip('')
+            return
+        algo_class = algo_factory.get_algorithm(name)
+        label.setText(f'<span style="color:{status_color(algo_class.STATUS).name()}">&#9679;</span> {algo_class.STATUS}')
+        label.setToolTip(status_text(algo_class))
 
     def define_phase(self, force_reset=False):
         if self._algorithm is not None and force_reset:

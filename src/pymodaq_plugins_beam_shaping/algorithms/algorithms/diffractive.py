@@ -15,7 +15,7 @@ from pymodaq_data import Q_, DataToExport
 
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -208,6 +208,9 @@ class OE2016(AlgoBase):
     """
 
     ALGO_NAME = 'Diffractive'
+    STATUS = AlgoStatus.BROKEN
+    STATUS_NOTE = ('Its propagation raises a TypeError (Field * ndarray); its inverse transform is not scaled like the '
+                   'other 4f algorithms')
     ALGOTYPE = AlgoType.AMPLITUDE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
