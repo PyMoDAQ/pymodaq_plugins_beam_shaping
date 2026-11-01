@@ -54,8 +54,8 @@ class TorchOptim(TorchBase):
     """
 
     ALGO_NAME = 'TorchOptim'
-    STATUS = AlgoStatus.UNTESTED
-    STATUS_NOTE = 'Needs pytorch; not run'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Needs pytorch; the result depends on the loss chosen'
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
     MANUAL_LOOP = True

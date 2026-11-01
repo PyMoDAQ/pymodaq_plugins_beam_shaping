@@ -66,8 +66,8 @@ class Minimize(TorchBase):
     """
 
     ALGO_NAME = 'Minimize'
-    STATUS = AlgoStatus.UNTESTED
-    STATUS_NOTE = 'Needs pytorch and pytorch-minimize; not run'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Needs pytorch-minimize; the result depends on the loss chosen'
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
     MANUAL_LOOP = False

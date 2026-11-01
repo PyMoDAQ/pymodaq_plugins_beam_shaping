@@ -42,8 +42,8 @@ class SuperPixel(AlgoBase):
     """
 
     ALGO_NAME = 'SuperPixels'
-    STATUS = AlgoStatus.UNTESTED
-    STATUS_NOTE = 'Runs with the default fields; no test checks its output'
+    STATUS = AlgoStatus.IN_PROGRESS
+    STATUS_NOTE = 'Runs; the Phase NRMSE fitness is inf with a flat target phase'
     ALGOTYPE = AlgoType.PHASE
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF

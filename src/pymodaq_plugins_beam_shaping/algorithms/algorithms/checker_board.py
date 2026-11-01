@@ -40,8 +40,8 @@ class OL2014(AlgoBase):
     """
 
     ALGO_NAME = 'OL2014 - Amplitude/Phase Checkerboard'
-    STATUS = AlgoStatus.UNTESTED
-    STATUS_NOTE = 'Runs with the default fields; no test checks its output'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Checked by the developer'
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
