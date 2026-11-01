@@ -211,6 +211,7 @@ class OE2016(AlgoBase):
     ALGOTYPE = AlgoType.AMPLITUDE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
+    RECOMPUTE_ON_CHANGE = True
 
     params = [
         {'title': 'Gamma', 'name': 'gamma', 'type': 'int', 'value': 4,
@@ -243,8 +244,6 @@ class OE2016(AlgoBase):
         self.output_field.calibrate_axes(self._target_field.pixels_sizes)
         self.output_field.axes = self.output_field.get_axes()
 
-    def value_changed(self, param):
-        self.parent_app.compute_phase_and_or_amplitude()
 
 
 

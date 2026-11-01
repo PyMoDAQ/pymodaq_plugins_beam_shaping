@@ -54,6 +54,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     INI_PHASE = True  # if True, the algorithm will init an initial phase
     ITERATIVE = False
     MANUAL_LOOP = True
+    RECOMPUTE_ON_CHANGE = False  # if True, the algorithm is run again when one of its settings changes
     params = []
 
 
@@ -422,5 +423,58 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         else:
             raise ValueError('Intermediate pixel size can only be computed for 4f setups')
 
+    def compute_grid(self) -> tuple[np.ndarray, np.ndarray]:
+        """ The positions (x, y) of the pixels of the modulator in pixels, relative to the center of the array"""
+        x = np.arange(0, self.shape[1], 1)
+        y = np.arange(0, self.shape[0], 1)
+        return np.meshgrid(x - np.mean(x), y - np.mean(y))
+
+    def compute_intermediate_field(self, use_mask: bool = True) -> Field:
+        """ Propagate the modulator field to the intermediate plane of a 4f setup (Fourier plane of the first lens)
+
+        The field is stored in :attr:`intermediate_field` with its axes calibrated, and filtered by the mask of the
+        intermediate plane if it is applied and *use_mask* is True (a filter in the Fourier plane). The transform
+        conserves the energy.
+
+        Use :meth:`compute_output_from_intermediate` to get the output field from it.
+        """
+        field = self.modulator_field.fft2(norm='forward') * np.prod(self.modulator_field.shape)
+        if use_mask and self.apply_mask(apply_to=ApplyMaskTo.INTERMEDIATE):
+            aperture = self.get_mask_field(apply_to=ApplyMaskTo.INTERMEDIATE)
+            field.amplitude = field.amplitude * aperture.amplitude
+        field.calibrate_axes(self.intermediate_pixel_sizes)
+        field.axes = field.get_axes()
+        self.intermediate_field = field
+        return field
+
+    def compute_output_from_intermediate(self, intermediate_field: Field = None) -> Field:
+        """ Propagate the intermediate field of a 4f setup to the output plane (Fourier plane of the second lens)
+
+        The field (default: :attr:`intermediate_field`, possibly modified by the algorithm after
+        :meth:`compute_intermediate_field`) becomes the output field, with the calibrated axes of the target plane.
+        """
+        intermediate_field = self.intermediate_field if intermediate_field is None else intermediate_field
+        output = intermediate_field.ifft2(norm='forward')
+        output.calibrate_axes(self.get_target_pixels_size())
+        output.axes = output.get_axes()
+        self._output_field = output
+        return output
+
+    def update_phase_and_propagate(self, phase: np.ndarray):
+        """ Display a phase in the modulator plane (with crosstalk and wrapping) and compute the resulting output
+        field (2f setups: one Fourier transform)"""
+        self.set_phase_in_modulator_plane(phase)
+        self.compute_forward_fft(update_plots=False)
+
+    def back_propagate_amplitude(self, amplitude: np.ndarray):
+        """ The projection step of Gerchberg-Saxton like algorithms: keep the phase of the output field, impose the
+        given amplitude, propagate back to the modulator plane and set the phase obtained as the modulator one"""
+        corrected = Field(amplitude=amplitude, phase=self._output_field.phase,
+                          pixel_sizes=self._output_field.pixels_sizes)
+        self.set_phase_in_modulator_plane(self.compute_backward_fft(corrected).phase)
+
     def value_changed(self, param: Parameter):
-        self.parent_app.algo_settings_changed()
+        if self.RECOMPUTE_ON_CHANGE:
+            self.parent_app.compute_phase_and_or_amplitude()
+        else:
+            self.parent_app.algo_settings_changed()
