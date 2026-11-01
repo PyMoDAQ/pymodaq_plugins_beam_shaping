@@ -76,8 +76,8 @@ class DmDLee(AlgoBase):
 
     ALGO_NAME = 'DMD Lee'
     STATUS = AlgoStatus.IN_PROGRESS
-    STATUS_NOTE = ('Carrier removal tested (tests/test_dmd_lee.py); with the default fields the intermediate plane is '
-                   'almost empty around the selected order')
+    STATUS_NOTE = ('Code tested but not tested on real hardware'
+                   )
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF
