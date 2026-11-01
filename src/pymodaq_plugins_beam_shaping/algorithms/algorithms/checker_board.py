@@ -16,7 +16,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -40,6 +40,8 @@ class OL2014(AlgoBase):
     """
 
     ALGO_NAME = 'OL2014 - Amplitude/Phase Checkerboard'
+    STATUS = AlgoStatus.UNTESTED
+    STATUS_NOTE = 'Runs with the default fields; no test checks its output'
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False

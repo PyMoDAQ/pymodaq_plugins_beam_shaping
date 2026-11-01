@@ -17,7 +17,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -42,6 +42,8 @@ class SuperPixel(AlgoBase):
     """
 
     ALGO_NAME = 'SuperPixels'
+    STATUS = AlgoStatus.UNTESTED
+    STATUS_NOTE = 'Runs with the default fields; no test checks its output'
     ALGOTYPE = AlgoType.PHASE
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF

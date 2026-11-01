@@ -94,6 +94,13 @@ The class attributes
        by itself (see the minimizer ones) and should refresh the plots during the course of its run.
    * - ``RECOMPUTE_ON_CHANGE``
      - False by default. True to compute again each time a setting changes (non iterative algorithms).
+   * - ``STATUS``
+     - How far the algorithm has been validated, written by hand by its developer: ``AlgoStatus.TESTED``,
+       ``AlgoStatus.IN_PROGRESS``, ``AlgoStatus.UNTESTED`` (default) or ``AlgoStatus.BROKEN`` (module
+       ``algorithms.utils``). It is shown next to the name in the extension (a colored disc and the word). A broken
+       algorithm is not listed, unless ``show_broken = true`` in the ``[algo]`` section of the plugin configuration.
+   * - ``STATUS_NOTE``
+     - One sentence on what was checked or what is known not to work, shown in the tooltip of the status.
    * - ``params``
      - List of dictionaries defining the settings of the algorithm, see below.
 

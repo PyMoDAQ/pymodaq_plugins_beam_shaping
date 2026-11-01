@@ -16,7 +16,7 @@ from pymodaq_data import Q_
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -39,6 +39,8 @@ class GbSax(AlgoBase):
     """
 
     ALGO_NAME = 'Gerchberg-Saxton'
+    STATUS = AlgoStatus.UNTESTED
+    STATUS_NOTE = 'Runs with the default fields; no test checks its output'
     ALGOTYPE = AlgoType.AMPLITUDE
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
@@ -91,6 +93,8 @@ class Projections(GbSax):
     """
 
     ALGO_NAME = 'Projections'
+    STATUS = AlgoStatus.UNTESTED
+    STATUS_NOTE = 'Runs with the default fields; no test checks its output'
     ITERATIVE = True
 
 

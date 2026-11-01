@@ -20,7 +20,7 @@ from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.algorithms.loss import LossFactory
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.algorithms.algorithms.torch_base import TorchBase
@@ -54,6 +54,8 @@ class TorchOptim(TorchBase):
     """
 
     ALGO_NAME = 'TorchOptim'
+    STATUS = AlgoStatus.UNTESTED
+    STATUS_NOTE = 'Needs pytorch; not run'
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
     MANUAL_LOOP = True
