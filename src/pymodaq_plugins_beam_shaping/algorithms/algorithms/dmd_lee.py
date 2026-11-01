@@ -101,8 +101,8 @@ class DmDLee(AlgoBase):
     def threshold_amplitude(self, amplitude: np.ndarray):
         threshold = self.settings['threshold']
 
-        # amplitude[amplitude > threshold] = 1
-        # amplitude[amplitude <= threshold] = 0
+        amplitude[amplitude > threshold] = 1
+        amplitude[amplitude <= threshold] = 0
 
         return amplitude
 
