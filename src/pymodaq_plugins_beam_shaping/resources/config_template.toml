@@ -30,6 +30,7 @@ height = 1080
 pixel_size = 8.0  # in micrometer
 has_internal_calibration = false
 modulator_type = ['phase', 'amplitude', 'both']  #first elet in the list used as default
+show_broken = false  # list in the application the algorithms whose STATUS is broken
 
 [calibration]
 # Imposed to the Shaper actuator (setting "Use internal calibration") when it has an internal calibration: the phase

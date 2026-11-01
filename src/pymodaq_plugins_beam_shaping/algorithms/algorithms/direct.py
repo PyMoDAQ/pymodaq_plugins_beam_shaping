@@ -16,7 +16,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -36,6 +36,8 @@ class Direct(AlgoBase):
     """
 
     ALGO_NAME = 'Direct'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Sends the target as is; covered by the tests of the application'
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.NoLens
     ITERATIVE = False
@@ -57,7 +59,7 @@ class Direct(AlgoBase):
         """
         return self._input_field.pixels_sizes
 
-    def compute_phase(self, do_step=True, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
         self.set_field_in_modulator_plane(self.normalize_wrt(self._target_field, self._input_field))
 
 

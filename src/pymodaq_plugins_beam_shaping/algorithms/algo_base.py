@@ -3,6 +3,8 @@ from typing import Optional, Union, Tuple, TYPE_CHECKING
 
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
+
+from pymodaq_utils.warnings import deprecation_msg
 from pyqtgraph.parametertree import Parameter
 from qtpy import QtWidgets
 
@@ -11,7 +13,7 @@ from pymodaq_utils.math_utils import gauss2D
 from pymodaq_data import Q_, DataRaw, DataToExport
 from pymodaq_gui.managers.parameter_manager import ParameterManager
 
-from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, ApplyMaskTo,
+from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, AlgoStatus, ApplyMaskTo,
                                                            LensSetup, CrossTalk, PhaseManipulation)
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping.utilities import sizing
@@ -52,6 +54,9 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     INI_PHASE = True  # if True, the algorithm will init an initial phase
     ITERATIVE = False
     MANUAL_LOOP = True
+    RECOMPUTE_ON_CHANGE = False  # if True, the algorithm is run again when one of its settings changes
+    STATUS: AlgoStatus = AlgoStatus.UNTESTED  # written by hand by the developer, shown next to the name in the app
+    STATUS_NOTE: str = ''  # why this status: what was checked, what is known not to work
     params = []
 
 
@@ -254,14 +259,15 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
 
         To be subclassed if the given implementation below is not correct for your algorithm"""
         if self.ALGOTYPE == AlgoType.AMPLITUDE:
-            self.fitness_name = 'NRMSE'
+            self.fitness_name = 'Intensity NRMSE'
             return self.nrmse
 
         elif self.ALGOTYPE == AlgoType.AMPLITUDE_PHASE:
             self.fitness_name = 'Fidelity Error'
             return 1 - self.fidelity_error
         else:
-            raise TypeError('Algorithm type not supported')
+            self.fitness_name = 'Phase NRMSE'
+            return self.phase_nrmse
 
     @property
     def fidelity_error(self) -> float:
@@ -284,6 +290,20 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
                 np.sum(
                     (self._target_field.intensity[tuple(slices)] - self._output_field.intensity[tuple(slices)]) ** 2) /
                 np.sum(self._target_field.intensity[tuple(slices)] ** 2)))
+
+    @property
+    def phase_nrmse(self) -> float:
+        """Compute the NRMSE using the phase array as if a field amplitude"""
+        if self.apply_mask(ApplyMaskTo.TARGET):
+            slices = self.get_mask_slices(ApplyMaskTo.TARGET)
+        else:
+            slices = (...,)
+        norm = 1
+
+        return np.sqrt(1 / norm * (
+                np.sum(
+                    (self._target_field.phase[tuple(slices)]**2 - self._output_field.phase[tuple(slices)]**2) ** 2) /
+                np.sum(self._target_field.phase[tuple(slices)] ** 4)))
 
     @property
     def efficiency(self) -> float:
@@ -310,12 +330,24 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
                                         np.array([self.efficiency])],
                        labels=[self.fitness_name, 'efficiency'])
 
-    def compute_phase(self, do_step=True, ini_phase: np.ndarray = None, **kwargs):
-        """ Compute the phase to apply to SLM given the target Field
+    def compute_phase_and_or_amplitude(self, do_step=True, ini_phase: np.ndarray = None, **kwargs):
+        """ Compute the phase or the amplitude to apply to SLM given the target Field
 
         To be subclassed in real implementation
         """
+        # if not reimplemented this method will be called and will test for backcompatibility self.compute_phase
+        try:
+            return self.compute_phase(do_step=do_step, ini_phase=ini_phase, **kwargs)
+        except NotImplementedError:
+            raise NotImplementedError
 
+    def compute_phase(self, do_step=True, ini_phase: np.ndarray = None, **kwargs):
+        """ Compute the phase to apply to SLM given the target Field
+
+        Deprecated, use :meth:`compute_phase_and_or_amplitude`
+
+        """
+        deprecation_msg('compute_phase is deprecated, use compute_phase_and_or_amplitude')
         raise NotImplementedError
 
     def get_fields_to_plot(self) -> DataToExport:
@@ -393,5 +425,58 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         else:
             raise ValueError('Intermediate pixel size can only be computed for 4f setups')
 
+    def compute_grid(self) -> tuple[np.ndarray, np.ndarray]:
+        """ The positions (x, y) of the pixels of the modulator in pixels, relative to the center of the array"""
+        x = np.arange(0, self.shape[1], 1)
+        y = np.arange(0, self.shape[0], 1)
+        return np.meshgrid(x - np.mean(x), y - np.mean(y))
+
+    def compute_intermediate_field(self, use_mask: bool = True) -> Field:
+        """ Propagate the modulator field to the intermediate plane of a 4f setup (Fourier plane of the first lens)
+
+        The field is stored in :attr:`intermediate_field` with its axes calibrated, and filtered by the mask of the
+        intermediate plane if it is applied and *use_mask* is True (a filter in the Fourier plane). The transform
+        conserves the energy.
+
+        Use :meth:`compute_output_from_intermediate` to get the output field from it.
+        """
+        field = self.modulator_field.fft2(norm='forward') * np.prod(self.modulator_field.shape)
+        if use_mask and self.apply_mask(apply_to=ApplyMaskTo.INTERMEDIATE):
+            aperture = self.get_mask_field(apply_to=ApplyMaskTo.INTERMEDIATE)
+            field.amplitude = field.amplitude * aperture.amplitude
+        field.calibrate_axes(self.intermediate_pixel_sizes)
+        field.axes = field.get_axes()
+        self.intermediate_field = field
+        return field
+
+    def compute_output_from_intermediate(self, intermediate_field: Field = None) -> Field:
+        """ Propagate the intermediate field of a 4f setup to the output plane (Fourier plane of the second lens)
+
+        The field (default: :attr:`intermediate_field`, possibly modified by the algorithm after
+        :meth:`compute_intermediate_field`) becomes the output field, with the calibrated axes of the target plane.
+        """
+        intermediate_field = self.intermediate_field if intermediate_field is None else intermediate_field
+        output = intermediate_field.ifft2(norm='forward')
+        output.calibrate_axes(self.get_target_pixels_size())
+        output.axes = output.get_axes()
+        self._output_field = output
+        return output
+
+    def update_phase_and_propagate(self, phase: np.ndarray):
+        """ Display a phase in the modulator plane (with crosstalk and wrapping) and compute the resulting output
+        field (2f setups: one Fourier transform)"""
+        self.set_phase_in_modulator_plane(phase)
+        self.compute_forward_fft(update_plots=False)
+
+    def back_propagate_amplitude(self, amplitude: np.ndarray):
+        """ The projection step of Gerchberg-Saxton like algorithms: keep the phase of the output field, impose the
+        given amplitude, propagate back to the modulator plane and set the phase obtained as the modulator one"""
+        corrected = Field(amplitude=amplitude, phase=self._output_field.phase,
+                          pixel_sizes=self._output_field.pixels_sizes)
+        self.set_phase_in_modulator_plane(self.compute_backward_fft(corrected).phase)
+
     def value_changed(self, param: Parameter):
-        self.parent_app.algo_settings_changed()
+        if self.RECOMPUTE_ON_CHANGE:
+            self.parent_app.compute_phase_and_or_amplitude()
+        else:
+            self.parent_app.algo_settings_changed()

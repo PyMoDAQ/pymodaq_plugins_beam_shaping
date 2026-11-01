@@ -17,7 +17,7 @@ from pymodaq_utils.logger import set_logger, get_module_name
 from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -66,6 +66,8 @@ class Minimize(TorchBase):
     """
 
     ALGO_NAME = 'Minimize'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Needs pytorch-minimize; the result depends on the loss chosen'
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
     MANUAL_LOOP = False
@@ -86,8 +88,7 @@ class Minimize(TorchBase):
     def update_data(self, phase):
         phase = phase.detach().numpy().reshape(self.modulator_field.shape)
         # phase = (phase + np.pi) % (2 * np.pi) - np.pi
-        self.set_phase_in_modulator_plane(phase)
-        self.compute_forward_fft(update_plots=False)
+        self.update_phase_and_propagate(phase)
         print(f'{self.iter}')
         self.parent_app.fields_to_plot.emit(self.get_fields_to_plot())
         QtWidgets.QApplication.processEvents()
@@ -97,7 +98,7 @@ class Minimize(TorchBase):
         pass
 
 
-    def compute_phase(self, do_step=True, ini_phase=None, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, ini_phase=None, **kwargs):
         self.iter = 0
 
         if ini_phase is not None:
@@ -115,8 +116,7 @@ class Minimize(TorchBase):
                           callback=self.callback,
                           tol=self.settings['tolerance'])
 
-        self.set_phase_in_modulator_plane(result.x.detach().numpy())
-        self.compute_forward_fft(update_plots=False)
+        self.update_phase_and_propagate(result.x.detach().numpy())
 
 
 

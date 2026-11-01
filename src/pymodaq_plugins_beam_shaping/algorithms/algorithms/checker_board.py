@@ -16,7 +16,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -40,9 +40,12 @@ class OL2014(AlgoBase):
     """
 
     ALGO_NAME = 'OL2014 - Amplitude/Phase Checkerboard'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Checked by the developer: code and real setup'
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
+    RECOMPUTE_ON_CHANGE = True
 
     params = [
         {'title': 'Mask block size (pxls)', 'name': 'block_size', 'type': 'int', 'value': 5, 'min': 1},
@@ -53,7 +56,7 @@ class OL2014(AlgoBase):
     def __init__(self, parent: 'AlgoApp' = None, *args, **kwargs):
         super().__init__(parent)
 
-    def compute_phase(self, do_step=True, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
 
 
         odd_mask = self.create_checker_board()
@@ -71,22 +74,8 @@ class OL2014(AlgoBase):
         alpha_field.phase *= even_mask
 
         self.set_phase_in_modulator_plane(theta_field.phase + alpha_field.phase)
-        self.intermediate_field = self.modulator_field.fft2(norm='forward') * np.prod(self.modulator_field.shape)
-        if self.apply_mask(apply_to=ApplyMaskTo.INTERMEDIATE):
-            circ_aperture = self.get_mask_field(apply_to=ApplyMaskTo.INTERMEDIATE)
-            self.intermediate_field.amplitude = self.intermediate_field.amplitude * circ_aperture.amplitude
-
-        self.intermediate_field.calibrate_axes(self.intermediate_pixel_sizes)
-        self.intermediate_field.axes = self.intermediate_field.get_axes()
-
-        self._output_field = self.intermediate_field.ifft2(norm='forward')
-
-        target_pixel_sizes = [((Q_(plugin_config('setup', 'wavelength_nm',), 'nm') *
-                               Q_(plugin_config('setup', str(self.SETUP_TYPE), 'focals')[1], 'mm')) /
-                               (self.intermediate_pixel_sizes[ind] * theta_field.shape[ind])
-                              ).to('um') for ind in range(2)]
-        self.output_field.calibrate_axes(target_pixel_sizes)
-        self.output_field.axes = self.output_field.get_axes()
+        self.compute_intermediate_field()
+        self.compute_output_from_intermediate()
 
     def create_checker_board(self) -> np.ndarray:
 
@@ -95,8 +84,6 @@ class OL2014(AlgoBase):
         mask = ((x // block_size) + (y // block_size)) % 2
         return mask
 
-    def value_changed(self, param):
-        self.parent_app.compute_phase()
 
 
 

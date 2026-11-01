@@ -20,7 +20,7 @@ from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_beam_shaping.algorithms.loss import LossFactory
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.algorithms.algorithms.torch_base import TorchBase
@@ -54,6 +54,8 @@ class TorchOptim(TorchBase):
     """
 
     ALGO_NAME = 'TorchOptim'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = 'Needs pytorch; the result depends on the loss chosen'
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
     MANUAL_LOOP = True
@@ -82,7 +84,7 @@ class TorchOptim(TorchBase):
         loss.backward()
         return loss
 
-    def compute_phase(self, do_step=True, ini_phase=None, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, ini_phase=None, **kwargs):
         if ini_phase is not None or self.mask is None:
             self.phase_distribution = ini_phase
             self.ini_optimizer()
@@ -92,8 +94,7 @@ class TorchOptim(TorchBase):
 
         self.optimizer.step(self.closure)
 
-        self.set_phase_in_modulator_plane(self._phase_tensor.detach().numpy())
-        self.compute_forward_fft(update_plots=False)
+        self.update_phase_and_propagate(self._phase_tensor.detach().numpy())
         QtWidgets.QApplication.processEvents()
 
 
