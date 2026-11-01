@@ -92,6 +92,8 @@ The class attributes
    * - ``MANUAL_LOOP``
      - True (default): the extension calls ``compute_phase_and_or_amplitude`` in a loop. False if the algorithm loops
        by itself (see the minimizer ones) and should refresh the plots during the course of its run.
+   * - ``RECOMPUTE_ON_CHANGE``
+     - False by default. True to compute again each time a setting changes (non iterative algorithms).
    * - ``params``
      - List of dictionaries defining the settings of the algorithm, see below.
 
@@ -109,8 +111,7 @@ The settings
 
 They are displayed in the *Algorithm* settings and read in the code with ``self.settings['super_pixel']``. When the
 user changes one, ``value_changed(param)`` is called: the default one calls ``parent_app.algo_settings_changed()``;
-reimplement it to recompute at once (see *DMD Lee*, which calls
-``self.parent_app.compute_phase_and_or_amplitude()``). The values are saved in the configuration of the extension
+set ``RECOMPUTE_ON_CHANGE = True`` to run the algorithm again at once (as *DMD Lee* does) or reimplement the method. The values are saved in the configuration of the extension
 with the other settings.
 
 The methods to write
@@ -166,6 +167,14 @@ forward propagation uses the 2f setup of the configuration):
 Useful helpers of ``AlgoBase``:
 
 * ``compute_forward_fft`` / ``compute_backward_fft`` and ``normalize_wrt``;
+* for a ``4f`` setup, ``compute_intermediate_field()`` (Fourier transform of the modulator field, filtered by the
+  mask of the intermediate plane, axes calibrated) then ``compute_output_from_intermediate()`` (back transform,
+  output field with the calibrated axes of the target plane). Modify ``intermediate_field`` in between if your
+  algorithm needs it (see *DMD Lee*, which removes the carrier afterwards);
+* for a ``2f`` setup, ``update_phase_and_propagate(phase)`` (set the phase on the modulator and compute the output
+  field) and ``back_propagate_amplitude(amplitude)`` (the projection step of Gerchberg-Saxton: keep the output phase,
+  impose an amplitude, go back to the modulator and set the phase obtained);
+* ``compute_grid()``: the centered positions of the pixels;
 * ``apply_mask(ApplyMaskTo.TARGET or INTERMEDIATE)``, ``get_mask_slices`` and ``get_mask_field`` to use the masks
   chosen in the interface (region of interest in the target plane, filter in the intermediate plane of a ``4f``);
 * ``intermediate_pixel_sizes`` for a ``4f`` setup;
