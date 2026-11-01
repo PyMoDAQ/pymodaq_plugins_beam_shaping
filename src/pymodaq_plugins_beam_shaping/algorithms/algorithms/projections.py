@@ -40,7 +40,7 @@ class GbSax(AlgoBase):
 
     ALGO_NAME = 'Gerchberg-Saxton'
     STATUS = AlgoStatus.TESTED
-    STATUS_NOTE = 'Checked by the developer'
+    STATUS_NOTE = 'Checked by the developer. Tested on real setup'
     ALGOTYPE = AlgoType.AMPLITUDE
     SETUP_TYPE = LensSetup.TwoF
     ITERATIVE = True
@@ -94,7 +94,7 @@ class Projections(GbSax):
 
     ALGO_NAME = 'Projections'
     STATUS = AlgoStatus.TESTED
-    STATUS_NOTE = 'Checked by the developer'
+    STATUS_NOTE = 'Checked by the developer. Tested on real setup'
     ITERATIVE = True
 
 
