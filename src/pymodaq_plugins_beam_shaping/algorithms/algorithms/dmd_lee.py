@@ -75,7 +75,7 @@ class DmDLee(AlgoBase):
     """
 
     ALGO_NAME = 'DMD Lee'
-    ALGOTYPE = AlgoType.PHASE
+    ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
