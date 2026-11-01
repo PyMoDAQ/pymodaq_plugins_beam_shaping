@@ -20,7 +20,10 @@ SHAPER_PARAMS = dict()  # e.g. dict(width=512, height=512, pixel_size=8., modula
 ALGORITHM = 'Gerchberg-Saxton'
 ALGORITHM_PARAMS = dict()  # e.g. for 'DMD Lee': dict(carrier_factor=1., remove_carrier=True)
 N_ITERATIONS = 1
-INITIAL_PHASE = 'zero'  # 'zero', 'random' or a 2D array of the shape of the fields
+# The initial phase (algorithms using one): a phase of the factory as in the extension ('FlatPhase', 'RandomPhase',
+# 'QuadraticPhase'...) with its parameters, or a 2D array of the shape of the fields
+INITIAL_PHASE = 'FlatPhase'
+INITIAL_PHASE_PARAMS = dict()  # e.g. for 'QuadraticPhase': {'quadratic.auto': False, 'quadratic.x_quad': 0.5}
 
 # The field entering the shaper: loader name and its parameters
 INPUT_LOADER = 'GaussianIntensity'
@@ -49,17 +52,24 @@ app = pg.HeadlessApp(shaper)
 algo_class = pg.reload_algorithm(ALGORITHM)
 algo = pg.create_algorithm(algo_class, app, ALGORITHM_PARAMS)
 
+# %% Input field
 input_field = pg.load_field(INPUT_LOADER, INPUT_PARAMS, app)
+pg.plot_field(input_field, 'input')
+
+# %% Target field
+# Given to the algorithm with the input field: the plotted target is the one the algorithm uses, scaled to the target
+# plane (the axes are the ones of this plane) and normalized to the intensity of the input field
 target_field = pg.load_field(TARGET_LOADER, TARGET_PARAMS, app)
 pg.set_fields(algo, input_field, target_field)
+pg.plot_field(pg.get_target_field(algo), 'target')
 
-# %% Masks (the algorithm is created above, from here on the cells are the ones to run again after a change)
+# %% Masks
 pg.set_mask(app, ApplyMaskTo.TARGET, TARGET_MASK if APPLY_TARGET_MASK else None, TARGET_MASK_TYPE)
 pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, INTERMEDIATE_MASK if APPLY_INTERMEDIATE_MASK else None,
             INTERMEDIATE_MASK_TYPE)
 
 # %% Run
-pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE)
+pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS)
 print(f'fitness = {algo.fitness:.4g}, efficiency = {algo.efficiency:.4g}')
 
 # %% Plots

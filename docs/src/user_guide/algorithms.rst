@@ -267,15 +267,19 @@ the other:
   ``modulator_type``...);
 * ``ALGORITHM`` and ``ALGORITHM_PARAMS``: the name of the algorithm as shown in the extension and the values of its
   parameters, given by name (``'carrier_factor'``), with dots for parameters in a group (``'phase.load'``). An unknown
-  name raises an error listing the possible ones. ``N_ITERATIONS`` and ``INITIAL_PHASE`` ('zero', 'random' or an array)
-  complete the run;
+  name raises an error listing the possible ones. ``N_ITERATIONS`` completes the run;
+* ``INITIAL_PHASE`` and ``INITIAL_PHASE_PARAMS``: the initial phase, as chosen in the extension, from the initial phases
+  factory (``'FlatPhase'``, ``'RandomPhase'``, ``'QuadraticPhase'``...) with its parameters given as for the algorithm,
+  or a 2D array of the shape of the fields;
 * ``INPUT_LOADER`` / ``INPUT_PARAMS`` and ``TARGET_LOADER`` / ``TARGET_PARAMS``: the loaders of the
   :doc:`field loader <fields>` and their parameters, a Gaussian beam for the input and an image for the target by default;
 * ``APPLY_TARGET_MASK`` and ``APPLY_INTERMEDIATE_MASK``: set them to ``True`` to apply a mask (algorithms such as
   *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field.
 
-The next cells create the algorithm and the fields, apply the masks, run the algorithm and plot the output, the
-modulator and the metrics with matplotlib, through the ``plot`` method of the data objects. The last cell gives the
+The next cells create the algorithm, load the input field and plot it, load the target field, give both fields to the
+algorithm and plot the target as the algorithm uses it (scaled to the target plane, so with the axes of this plane), then
+apply the masks, run the algorithm and plot the output, the modulator and the metrics with matplotlib, through the
+``plot`` method of the data objects. ``pg.plot_field(field, name)`` plots the amplitude and the phase of any field. The last cell gives the
 results as ``Field`` objects. ``list_available()`` of the helper module
 ``pymodaq_plugins_beam_shaping.utilities.headless_algorithms`` prints the algorithms and the loaders with the names of
 their parameters.

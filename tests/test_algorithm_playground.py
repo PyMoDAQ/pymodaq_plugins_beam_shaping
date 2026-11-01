@@ -29,6 +29,31 @@ def test_run_and_plot_an_algorithm(qapp):
     assert pg.plot(algo, show=False) is not None
 
 
+def test_plot_input_and_target_fields(qapp):
+    app, algo = prepare('Gerchberg-Saxton')
+    target = pg.get_target_field(algo)
+    assert pg.plot_field(algo._input_field, 'input', show=False) is not None
+    assert pg.plot_field(target, 'target', show=False) is not None
+
+
+@pytest.mark.parametrize('phase, params', [('FlatPhase', {'phase_value': 0.5}), ('RandomPhase', None),
+                                           ('QuadraticPhase', {'quadratic.auto': False, 'shift.auto': False})])
+def test_initial_phase_from_the_factory(qapp, phase, params):
+    app, algo = prepare('Gerchberg-Saxton')
+    ini = pg.initial_phase(algo, phase, params)
+    assert ini.shape == tuple(algo.shape)
+    if phase == 'FlatPhase':
+        assert np.allclose(ini, np.pi / 2)
+    pg.run_algorithm(algo, 2, phase, params)
+    assert np.all(np.isfinite(algo.output_field.amplitude))
+
+
+def test_unknown_initial_phase_parameter_lists_the_possible_ones(qapp):
+    app, algo = prepare('Gerchberg-Saxton')
+    with pytest.raises(KeyError, match='phase_value'):
+        pg.initial_phase(algo, 'FlatPhase', {'wrong': 1.})
+
+
 def test_parameters_are_set_without_widgets_and_masks_applied(qapp):
     app, algo = prepare('DMD Lee', dict(carrier_factor=0.5), modulator_type='amplitude')
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))

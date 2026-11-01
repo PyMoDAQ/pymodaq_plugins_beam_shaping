@@ -15,6 +15,7 @@ import numpy as np
 
 from pymodaq_plugins_beam_shaping.field.factory import LoaderFactory, register_loaders
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory, register_algorithms
+from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, register_phases
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
@@ -59,14 +60,18 @@ def parameter_names(manager) -> list[str]:
 
 
 def list_available():
-    """ Print the algorithms and the loaders with their parameters"""
+    """ Print the algorithms, the initial phases and the loaders with their parameters"""
     ensure_qapp()
     register_loaders()
     register_algorithms()
+    register_phases()
     print('Algorithms (name: parameters)')
     for name in AlgorithmFactory.algorithms_registry:
         algo = AlgorithmFactory.get_algorithm(name)(parent=None)
         print(f'  {name}: {parameter_names(algo)}')
+    print('Initial phases (name: parameters)')
+    for name, phase_class in PhaseFactory._registry.items():
+        print(f'  {name}: {parameter_names(_phase_settings(phase_class))}')
     print('Loaders (name: parameters)')
     for name, loader_class in LoaderFactory.loader_registry.items():
         loader = loader_class(parent=HeadlessApp(get_default_shaper()))
@@ -199,24 +204,45 @@ def set_fields(algo, input_field, target_field):
     algo.set_target_field(algo.scale_target_with_geometry(target_field))
 
 
+def get_target_field(algo):
+    """ The target as the algorithm uses it, after :func:`set_fields`: scaled to the target plane (its axes are the
+    ones of the target plane) and normalized to the intensity of the input field"""
+    return algo._target_field
+
+
 def set_mask(app: HeadlessApp, apply_to: ApplyMaskTo, slices_um: Optional[tuple], mask_type: str = 'elliptical'):
     """ Apply a mask given as ((start, stop) along y, (start, stop) along x) in um around the center of the field,
     None to remove it"""
     app.masks[str(apply_to)] = None if slices_um is None else (tuple(slice(*s) for s in slices_um), mask_type)
 
 
-def initial_phase(algo, kind: Union[str, np.ndarray] = 'zero') -> np.ndarray:
-    """ 'zero', 'random' or the given array"""
+def _phase_settings(phase_class):
+    """ The parameters of an initial phase, as the group the app gives it"""
+    from pyqtgraph.parametertree import Parameter
+    holder = type('PhaseSettings', (), {})()
+    holder.settings = Parameter.create(name=phase_class.__name__, type='group',
+                                       children=[dict(child) for child in phase_class.params])
+    return holder
+
+
+def initial_phase(algo, kind: Union[str, np.ndarray] = 'FlatPhase', params: Optional[dict] = None) -> np.ndarray:
+    """ The initial phase computed by one of the phases of the factory, as in the app (see :func:`list_available`
+    for the names and their parameters), or the given array"""
     if isinstance(kind, np.ndarray):
         return kind
-    if kind == 'random':
-        return np.random.default_rng(0).uniform(-np.pi, np.pi, algo.shape)
-    return np.zeros(algo.shape)
+    register_phases()
+    phase_class = PhaseFactory.get_phase(kind)
+    holder = _phase_settings(phase_class)
+    set_parameters(holder, params or {})
+    return phase_class(holder.settings, algo).compute_phase()
 
 
-def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'zero'):
-    """ Run the algorithm (iterations only for the iterative ones), the results are in its fields"""
-    phase = initial_phase(algo, ini_phase)
+def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
+                  ini_phase_params: Optional[dict] = None):
+    """ Run the algorithm (iterations only for the iterative ones), the results are in its fields
+
+    The initial phase is the name of a phase of the factory with its parameters, or an array"""
+    phase = initial_phase(algo, ini_phase, ini_phase_params) if algo.INI_PHASE else np.zeros(algo.shape)
     algo.do_things_after_init()
     if algo.INI_PHASE:
         algo.define_input_phase(phase)
@@ -226,6 +252,20 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
         algo.compute_phase_and_or_amplitude(do_step=True, ini_phase=phase if index == 0 else None)
         algo.stop()
     return algo
+
+
+def plot_field(field, name: str = '', show: bool = True):
+    """ Plot the amplitude and the phase of a field (input, target...) with matplotlib"""
+    from matplotlib import pyplot as plt
+    from pymodaq_data.data import DataToExport
+    figure = DataToExport(name, data=[field.amplitude_as_dwa(name), field.phase_as_dwa(name)]).plot('matplotlib')
+    figure.set_size_inches(9, 7)
+    if name:
+        figure.suptitle(name)
+    figure.tight_layout()
+    if show:
+        plt.show()
+    return figure
 
 
 def plot(algo, show: bool = True):
