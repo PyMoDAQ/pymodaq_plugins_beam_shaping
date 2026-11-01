@@ -86,8 +86,7 @@ class Minimize(TorchBase):
     def update_data(self, phase):
         phase = phase.detach().numpy().reshape(self.modulator_field.shape)
         # phase = (phase + np.pi) % (2 * np.pi) - np.pi
-        self.set_phase_in_modulator_plane(phase)
-        self.compute_forward_fft(update_plots=False)
+        self.update_phase_and_propagate(phase)
         print(f'{self.iter}')
         self.parent_app.fields_to_plot.emit(self.get_fields_to_plot())
         QtWidgets.QApplication.processEvents()
@@ -115,8 +114,7 @@ class Minimize(TorchBase):
                           callback=self.callback,
                           tol=self.settings['tolerance'])
 
-        self.set_phase_in_modulator_plane(result.x.detach().numpy())
-        self.compute_forward_fft(update_plots=False)
+        self.update_phase_and_propagate(result.x.detach().numpy())
 
 
 

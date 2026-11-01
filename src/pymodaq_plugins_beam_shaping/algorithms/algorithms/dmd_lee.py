@@ -79,6 +79,7 @@ class DmDLee(AlgoBase):
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
+    RECOMPUTE_ON_CHANGE = True
 
     params = [
         {'title': 'Super Pixel size (pxls)', 'name': 'super_pixel', 'type': 'int', 'value': 5, 'min': 1},
@@ -96,15 +97,6 @@ class DmDLee(AlgoBase):
 
     def __init__(self, parent: 'AlgoApp' = None, *args, **kwargs):
         super().__init__(parent)
-
-    def compute_grid(self) -> tuple[np.ndarray, np.ndarray]:
-        """ Compute the centered positions on the grid in pixels"""
-        x = np.arange(0, self.shape[1], 1)
-        x = x-np.mean(x)
-        y = np.arange(0, self.shape[0], 1)
-        y = y - np.mean(y)
-        xx, yy = np.meshgrid(x, y)
-        return xx, yy
 
     def threshold_amplitude(self, amplitude: np.ndarray):
         threshold = self.settings['threshold']
@@ -152,15 +144,8 @@ class DmDLee(AlgoBase):
 
         self.set_amplitude_in_modulator_plane(amplitude_pattern)
 
-        self.intermediate_field = self.modulator_field.fft2(norm='forward') * np.prod(self.modulator_field.shape)
-        if self.apply_mask(apply_to=ApplyMaskTo.INTERMEDIATE):
-            circ_aperture = self.get_mask_field(apply_to=ApplyMaskTo.INTERMEDIATE)
-            self.intermediate_field.amplitude = self.intermediate_field.amplitude * circ_aperture.amplitude
-
-        self.intermediate_field.calibrate_axes(self.intermediate_pixel_sizes)
-        self.intermediate_field.axes = self.intermediate_field.get_axes()
-
-        self._output_field = self.intermediate_field.ifft2(norm='forward')
+        self.compute_intermediate_field()
+        self.compute_output_from_intermediate()
         if self.settings['remove_carrier']:
             carrier = self.get_carrier(self.intermediate_field.field)
             if carrier is None:
@@ -168,16 +153,6 @@ class DmDLee(AlgoBase):
             else:
                 self._output_field.field = remove_linear_phase(self._output_field.field, *carrier)
 
-        target_pixel_sizes = [((Q_(plugin_config('setup', 'wavelength_nm',), 'nm') *
-                               Q_(plugin_config('setup', str(self.SETUP_TYPE), 'focals')[1], 'mm')) /
-                               (self.intermediate_pixel_sizes[ind] * self.shape[ind])
-                              ).to('um') for ind in range(2)]
-        self.output_field.calibrate_axes(target_pixel_sizes)
-        self.output_field.axes = self.output_field.get_axes()
-
-
-    def value_changed(self, param):
-        self.parent_app.compute_phase_and_or_amplitude()
 
 
 

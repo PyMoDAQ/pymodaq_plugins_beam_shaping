@@ -92,8 +92,7 @@ class TorchOptim(TorchBase):
 
         self.optimizer.step(self.closure)
 
-        self.set_phase_in_modulator_plane(self._phase_tensor.detach().numpy())
-        self.compute_forward_fft(update_plots=False)
+        self.update_phase_and_propagate(self._phase_tensor.detach().numpy())
         QtWidgets.QApplication.processEvents()
 
 
