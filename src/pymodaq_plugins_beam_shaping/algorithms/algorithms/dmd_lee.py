@@ -109,16 +109,19 @@ class DmDLee(AlgoBase):
     def threshold_amplitude(self, amplitude: np.ndarray):
         threshold = self.settings['threshold']
 
-        # amplitude[amplitude > threshold] = 1
-        # amplitude[amplitude <= threshold] = 0
+        amplitude[amplitude > threshold] = 1
+        amplitude[amplitude <= threshold] = 0
 
         return amplitude
+
+
 
     def compute_amplitude_pattern(self) -> np.ndarray:
         xx, yy = self.compute_grid()
 
+        modulation_depth = self._target_field.normalise_to_intensity(self._target_field).amplitude
 
-        amplitude_dmd = 1/2 * (1 + np.cos(2 * np.pi * (xx - yy) / self.settings['super_pixel'] -
+        amplitude_dmd = 1/2 * (1 + modulation_depth  * np.cos(2 * np.pi * (xx - yy) / self.settings['super_pixel'] -
                                           self._target_field.phase))
 
         amplitude_dmd = self.threshold_amplitude(amplitude_dmd)
