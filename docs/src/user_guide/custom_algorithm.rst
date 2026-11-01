@@ -164,22 +164,119 @@ forward propagation uses the 2f setup of the configuration):
        back = self.compute_backward_fft(corrected)                # output -> modulator plane
        self.set_phase_in_modulator_plane(back.phase)
 
-Useful helpers of ``AlgoBase``:
+Helpers of ``AlgoBase``
+-----------------------
 
-* ``compute_forward_fft`` / ``compute_backward_fft`` and ``normalize_wrt``;
-* for a ``4f`` setup, ``compute_intermediate_field()`` (Fourier transform of the modulator field, filtered by the
-  mask of the intermediate plane, axes calibrated) then ``compute_output_from_intermediate()`` (back transform,
-  output field with the calibrated axes of the target plane). Modify ``intermediate_field`` in between if your
-  algorithm needs it (see *DMD Lee*, which removes the carrier afterwards);
-* for a ``2f`` setup, ``update_phase_and_propagate(phase)`` (set the phase on the modulator and compute the output
-  field) and ``back_propagate_amplitude(amplitude)`` (the projection step of Gerchberg-Saxton: keep the output phase,
-  impose an amplitude, go back to the modulator and set the phase obtained);
-* ``compute_grid()``: the centered positions of the pixels;
-* ``apply_mask(ApplyMaskTo.TARGET or INTERMEDIATE)``, ``get_mask_slices`` and ``get_mask_field`` to use the masks
-  chosen in the interface (region of interest in the target plane, filter in the intermediate plane of a ``4f``);
-* ``intermediate_pixel_sizes`` for a ``4f`` setup;
-* ``self.shaper`` (size and pixel size of the modulator, its type) and ``self.shape`` (the shape of the arrays);
-* ``plugin_config('setup', 'wavelength_nm')`` and the focal lengths of the configuration for anything physical.
+The code every algorithm of the same family needs is in ``AlgoBase``: use these helpers rather than copying it, so
+that the normalisation of the transforms, the calibration of the axes and the options of the extension (crosstalk,
+phase wrap, masks) behave the same for all algorithms.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 12 54
+
+   * - Helper
+     - Setup
+     - What it does
+   * - ``set_phase_in_modulator_plane(phase)``
+     - all
+     - Writes a phase in the modulator field (input amplitude kept), applying the crosstalk and phase wrap options.
+   * - ``set_amplitude_in_modulator_plane(amplitude)``
+     - all
+     - Writes an amplitude in the modulator field.
+   * - ``set_field_in_modulator_plane(field)``
+     - all
+     - Writes the phase, the amplitude or both depending on the type of the shaper.
+   * - ``compute_forward_fft(update_plots)``
+     - 2f
+     - Output field = Fourier transform of the modulator field, with the axes of the target plane.
+   * - ``compute_backward_fft(field)``
+     - 2f
+     - Inverse transform of a field of the output plane (returns a ``Field``).
+   * - ``update_phase_and_propagate(phase)``
+     - 2f
+     - ``set_phase_in_modulator_plane`` then ``compute_forward_fft``: what a minimizer does at each step.
+   * - ``back_propagate_amplitude(amplitude)``
+     - 2f
+     - The projection step of Gerchberg-Saxton like algorithms: keeps the phase of the output field, imposes the
+       given amplitude, goes back to the modulator plane and sets the phase obtained.
+   * - ``compute_intermediate_field(use_mask=True)``
+     - 4f
+     - Fourier transform of the modulator field into ``intermediate_field``, filtered by the mask of the
+       intermediate plane (if applied) and with calibrated axes. The transform conserves the energy.
+   * - ``compute_output_from_intermediate(field=None)``
+     - 4f
+     - Back transform of the intermediate field (or of the one given, if you modified it) into the output field,
+       with the calibrated axes of the target plane.
+   * - ``intermediate_pixel_sizes``
+     - 4f
+     - Pixel sizes of the intermediate plane (wavelength, first focal length, modulator pixels).
+   * - ``compute_grid()``
+     - all
+     - The positions ``(x, y)`` of the pixels, in pixels, relative to the center of the array.
+   * - ``normalize_wrt(field, ref_field)``
+     - all
+     - Scales a field to the energy of a reference one (the target is normalized to the input this way).
+   * - ``apply_mask(plane)``, ``get_mask_slices(plane)``, ``get_mask_field(plane)``
+     - all
+     - The masks chosen in the interface (``ApplyMaskTo.TARGET`` or ``ApplyMaskTo.INTERMEDIATE``): whether it is
+       applied, its slices and a ``Field`` of 1 inside and 0 outside to multiply with.
+   * - ``scale_target_with_geometry(field)``, ``get_target_pixels_size()``
+     - all
+     - Calibrate the axes of a field of the target plane from the setup of the configuration.
+   * - ``self.shaper``, ``self.shape``
+     - all
+     - The modulator (size, pixel size, type) and the shape of the arrays.
+
+For anything physical, read the configuration (``plugin_config('setup', 'wavelength_nm')`` and the focal lengths)
+and never use values of your own.
+
+Two examples
+------------
+
+A 4f setup with a DMD (amplitude modulator): the grating is built from the phase of the target, the helpers do the
+transform to the Fourier plane, the filtering by the mask and the transform back, with the right axes.
+
+.. code-block:: python
+
+   @AlgorithmFactory.register_algorithm()
+   class GratingLee(AlgoBase):
+       ALGO_NAME = 'Grating Lee'
+       ALGOTYPE = AlgoType.PHASE
+       MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
+       SETUP_TYPE = LensSetup.FourF
+       RECOMPUTE_ON_CHANGE = True
+
+       params = [{'title': 'Period (pxls):', 'name': 'period', 'type': 'int', 'value': 5, 'min': 2}]
+
+       def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
+           xx, yy = self.compute_grid()
+           pattern = 0.5 * (1 + np.cos(2 * np.pi * xx / self.settings['period'] - self._target_field.phase))
+           self.set_amplitude_in_modulator_plane(pattern)
+           self.compute_intermediate_field()
+           self.compute_output_from_intermediate()
+
+If the algorithm has to act on the field of the Fourier plane (as *DMD Lee* does to remove the carrier), do it between
+the two last calls, on ``self.intermediate_field``, or pass the modified field to ``compute_output_from_intermediate``.
+
+A 2f setup with a phase only modulator, iterative: Gerchberg-Saxton is two calls.
+
+.. code-block:: python
+
+   @AlgorithmFactory.register_algorithm()
+   class MyGerchbergSaxton(AlgoBase):
+       ALGO_NAME = 'My Gerchberg-Saxton'
+       ALGOTYPE = AlgoType.AMPLITUDE
+       SETUP_TYPE = LensSetup.TwoF
+       ITERATIVE = True
+
+       def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
+           self.compute_forward_fft(update_plots=False)
+           self.back_propagate_amplitude(self._target_field.amplitude)
+
+Both classes were run with the script of :ref:`sec-algorithms-playground` (they need the imports of ``direct.py``:
+``AlgoBase``, ``AlgorithmFactory``, ``AlgoType``, ``LensSetup``, ``ModulatorType`` and ``numpy``). The first one needs
+a mask applied to the intermediate plane to select an order of the grating.
 
 What the user sees
 ------------------
