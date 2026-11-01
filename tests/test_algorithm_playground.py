@@ -6,7 +6,7 @@ matplotlib = pytest.importorskip('matplotlib')
 matplotlib.use('Agg')
 
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo  # noqa: E402
-from pymodaq_plugins_beam_shaping.utilities import algorithm_playground as pg  # noqa: E402
+from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg  # noqa: E402
 
 
 def prepare(algorithm: str, algo_params=None, **shaper_params):

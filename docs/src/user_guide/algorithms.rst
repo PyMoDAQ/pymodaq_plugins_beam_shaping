@@ -251,3 +251,37 @@ containing it in the entry point group ``pymodaq_plugins_beam_shaping.algorithms
 
 BeamShaping imports these modules when it starts, after its own algorithms. A package that cannot be imported is
 reported in the log and ignored.
+
+
+.. _sec-algorithms-playground:
+
+Trying an algorithm outside of the extension
+--------------------------------------------
+
+The script ``scripts/algorithm_playground.py`` runs an algorithm without opening the extension: it is meant to be
+executed in an IDE (Spyder, VS Code...) or turned into a notebook (``jupytext --to ipynb algorithm_playground.py``).
+The file is made of cells delimited by ``# %%``. Copy it somewhere, edit the first cell, then run the cells one after
+the other:
+
+* ``SHAPER_PARAMS``: values overriding the default shaper of the configuration (``width``, ``height``, ``pixel_size``,
+  ``modulator_type``...);
+* ``ALGORITHM`` and ``ALGORITHM_PARAMS``: the name of the algorithm as shown in the extension and the values of its
+  parameters, given by name (``'carrier_factor'``), with dots for parameters in a group (``'phase.load'``). An unknown
+  name raises an error listing the possible ones. ``N_ITERATIONS`` and ``INITIAL_PHASE`` ('zero', 'random' or an array)
+  complete the run;
+* ``INPUT_LOADER`` / ``INPUT_PARAMS`` and ``TARGET_LOADER`` / ``TARGET_PARAMS``: the loaders of the
+  :doc:`field loader <fields>` and their parameters, an image then a Laguerre-Gauss beam by default;
+* ``APPLY_TARGET_MASK`` and ``APPLY_INTERMEDIATE_MASK``: set them to ``True`` to apply a mask (algorithms such as
+  *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field.
+
+The next cells create the algorithm and the fields, apply the masks, run the algorithm and plot the output, the
+modulator and the metrics with matplotlib, through the ``plot`` method of the data objects. The last cell gives the
+results as ``Field`` objects. ``list_available()`` of the helper module
+``pymodaq_plugins_beam_shaping.utilities.headless_algorithms`` prints the algorithms and the loaders with the names of
+their parameters.
+
+.. note::
+
+   The parameters of the algorithms are widgets, so a ``QApplication`` is needed. The helpers create it if there is none,
+   no event loop is required. Matplotlib must be installed. The algorithm receives the same calls as in the extension
+   through a minimal stand-in for it, but the script has not been tested on hardware.

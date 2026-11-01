@@ -2,13 +2,13 @@
 
 Meant to be executed in an IDE (Spyder, VS Code, PyCharm...) or in Jupyter: edit the values of the first cell then run
 the cells one after the other. The cells are delimited by ``# %%``, so ``jupytext --to ipynb`` turns it into a
-notebook. The helpers are in ``pymodaq_plugins_beam_shaping.utilities.algorithm_playground``.
+notebook. The helpers are in ``pymodaq_plugins_beam_shaping.utilities.headless_algorithms``.
 
 Not tested on hardware, nor in the extension: the algorithm gets the same calls as in the AlgoApp through a minimal
 stand-in for the application. A QApplication is needed (the parameters are widgets), it is created if missing.
 """
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
-from pymodaq_plugins_beam_shaping.utilities import algorithm_playground as pg
+from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg
 
 # %% Settings: edit them
 # Run pg.list_available() to see the available names and their parameters.
