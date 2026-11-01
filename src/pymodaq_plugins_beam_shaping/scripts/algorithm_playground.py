@@ -42,13 +42,18 @@ INTERMEDIATE_MASK_TYPE = 'elliptical'
 # %% Shaper, algorithm and fields
 shaper = pg.make_shaper(**SHAPER_PARAMS)
 app = pg.HeadlessApp(shaper)
-algo = pg.create_algorithm(ALGORITHM, app, ALGORITHM_PARAMS)
+
+# Reload the module of the algorithm to use its current code: always do it, even the first time, so that after editing
+# the algorithm one only has to run this cell and the following ones (not the settings cell, nor the whole script).
+# A base class defined in another module is not reloaded: reload it in the Python console if you change it.
+algo_class = pg.reload_algorithm(ALGORITHM)
+algo = pg.create_algorithm(algo_class, app, ALGORITHM_PARAMS)
 
 input_field = pg.load_field(INPUT_LOADER, INPUT_PARAMS, app)
 target_field = pg.load_field(TARGET_LOADER, TARGET_PARAMS, app)
 pg.set_fields(algo, input_field, target_field)
 
-# %% Masks
+# %% Masks (the algorithm is created above, from here on the cells are the ones to run again after a change)
 pg.set_mask(app, ApplyMaskTo.TARGET, TARGET_MASK if APPLY_TARGET_MASK else None, TARGET_MASK_TYPE)
 pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, INTERMEDIATE_MASK if APPLY_INTERMEDIATE_MASK else None,
             INTERMEDIATE_MASK_TYPE)

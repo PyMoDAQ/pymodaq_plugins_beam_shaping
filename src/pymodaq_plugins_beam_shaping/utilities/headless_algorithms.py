@@ -7,6 +7,8 @@ the application (:class:`HeadlessApp`).
 Qt: the parameters of algorithms and loaders are widgets, so a QApplication is needed (:func:`ensure_qapp`). No event
 loop is needed.
 """
+import importlib
+import sys
 from typing import Optional, Union
 
 import numpy as np
@@ -130,17 +132,37 @@ def make_shaper(shaper: Optional[Shaper] = None, **overrides) -> Shaper:
     return Shaper(**values)
 
 
-def create_algorithm(name: str, app: HeadlessApp, params: Optional[dict] = None):
-    """ Create the algorithm for the shaper of the app, with its parameters set"""
+def reload_algorithm(name: str) -> type:
+    """ Reload the module of an algorithm, to take into account the changes made in its code, and return its class
+
+    The factory keeps the first class registered under a name, so the entry is removed before the module is reloaded
+    and registers the new class again. Only the module defining the algorithm is reloaded, not the modules it imports
+    (a base class defined elsewhere, for instance).
+
+    Also use it for the first run: it makes sure that the algorithms are registered.
+    """
     ensure_qapp()
     register_algorithms()
-    algo = AlgorithmFactory.get_algorithm(name)(parent=None)
+    algo_class = AlgorithmFactory.get_algorithm(name)
+    del AlgorithmFactory.algorithms_registry[name]
+    try:
+        importlib.reload(sys.modules[algo_class.__module__])
+    except Exception:
+        AlgorithmFactory.algorithms_registry[name] = algo_class  # keep the previous version usable
+        raise
+    return AlgorithmFactory.get_algorithm(name)
+
+
+def create_algorithm(algo_class: type, app: HeadlessApp, params: Optional[dict] = None):
+    """ Create the algorithm (the class given by :func:`reload_algorithm`) for the shaper of the app, with its
+    parameters set"""
+    algo = algo_class(parent=None)
     algo.shaper = app.shaper
     algo.parent_app = app
     app.algorithm = algo
     set_parameters(algo, params or {})
     if not algo.supports(app.shaper.modulator_type):
-        print(f'Warning: {name} does not support {app.shaper.modulator_type} shapers')
+        print(f'Warning: {algo_class.ALGO_NAME} does not support {app.shaper.modulator_type} shapers')
     return algo
 
 
