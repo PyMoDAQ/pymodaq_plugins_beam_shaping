@@ -5,7 +5,7 @@ Algorithms for Beam Shaping
 
 Overview
 --------
-PyMoDAQ-BeamShaping provides **8 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
+PyMoDAQ-BeamShaping provides **9 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
 by its name in the *Algorithm* settings of the extension. The list is built when the extension starts: the algorithms of
 BeamShaping itself, then the ones provided by other installed packages (see :ref:`sec-algorithms-external`).
 
@@ -42,6 +42,14 @@ BeamShaping itself, then the ones provided by other installed packages (see :ref
      - ✅
      - ✅
      - Encodes phase and amplitude with a checkerboard (:cite:t:`mendoza-yero_encoding_2014`).
+   * - Direct diffractive modulation
+     - DMD Lee
+     - 4f
+     - ❌
+     - ✅
+     - ✅
+     - Lee hologram for binary amplitude modulators (DMD): amplitude and phase are encoded in a binary grating and one
+       diffraction order is filtered in the Fourier plane.
    * - Iterative alternating projections
      - Gerchberg-Saxton
      - 2f
