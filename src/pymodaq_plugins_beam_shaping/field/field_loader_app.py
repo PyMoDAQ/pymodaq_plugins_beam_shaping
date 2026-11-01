@@ -27,6 +27,7 @@ from pymodaq_gui.utils.widget_sync import DictSync, SyncMode
 from pymodaq_gui.parameter.ioxml import parameter_to_xml_string
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.field import Field, Q_, LoaderFactory, FieldLoader
+from pymodaq_plugins_beam_shaping.field.h5 import save_field_to_h5
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
@@ -260,31 +261,8 @@ class FieldLoaderApp(CustomApp):
                                 save=True, ext='h5field',
                                 force_save_extension=True)  # see daq_utils
         if fname != '':
-            new_file = not fname.exists()
-
-            dwa = DataCalculated('Field',
-                                 data=[
-                                     self.field.amplitude,
-                                     self.field.phase
-                                 ],
-                                 labels=['Amplitude', 'Phase'],
-                                 axes = self.field.get_axes())
-
-            settings_all = [parameter_to_xml_string(self.settings),
-                            parameter_to_xml_string(self._field_loader.settings)]
-            settings_str = b'<All_settings title="All Settings" type="group">'
-            for set in settings_all:
-                if len(settings_str + set) < 60000:
-                    # size limit for any object header (including all the other attributes) is 64kb
-                    settings_str += set
-                else:
-                    break
-            settings_str += b'</All_settings>'
-
-            with DataSaverLoader(fname, new_file=new_file) as saver:
-                group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_str,
-                                             group_name=group_name)
-                saver.add_data(group, dwa)
+            save_field_to_h5(self.field, fname, settings=(self.settings, self._field_loader.settings),
+                             where=where, group_name=group_name, title=title)
 
     def update_apply_mask(self, size: tuple[int, int],
                           center: tuple[int, int] = None,

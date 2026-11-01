@@ -26,6 +26,7 @@ from pymodaq.utils.data import DataToExport, DataCalculated, DataDim
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
 from pymodaq_plugins_beam_shaping.field.field_loader_app import FieldLoaderApp, FieldLoader, Field, Q_
+from pymodaq_plugins_beam_shaping.field.field_tool_app import FieldToolApp
 from pymodaq_plugins_beam_shaping.utilities.corrections import Correction
 from pymodaq_plugins_beam_shaping.algorithms import AlgorithmFactory, AlgoBase
 from pymodaq_plugins_beam_shaping.utilities import sizing
@@ -400,6 +401,10 @@ class BeamShaping(CustomExt):
             plugin_config('input', 'default_loader')[0])
         self._input_field_loader.update_apply_mask(size=self.slm_shape, apply=True)
 
+        self._field_tool_dockarea = gutils.DockArea()
+        self._field_tool = FieldToolApp(self._field_tool_dockarea, field_sources=self.get_algo_field_sources(),
+                                        title='Field Tool')
+
         self._corrections_dockarea = gutils.DockArea()
         self._corrections = Correction(self._corrections_dockarea,
                                        title='Phase Corrections',
@@ -465,6 +470,10 @@ class BeamShaping(CustomExt):
                         icon_checked_color=self.get_theme().green, menu='shaping_tools')
         self.add_action('input', 'Input Beam Selection', 'input',
                         'Open the InputBeam FieldLoader window', checkable=True,
+                        icon_checked_color=self.get_theme().green, menu='shaping_tools')
+        self.add_action('field_tool', 'Field Tool', 'tune',
+                        'Open the Field Tool window: apply operations (linear phase, Zernike, unwrap...) to one of '
+                        'the fields and show it before and after', checkable=True,
                         icon_checked_color=self.get_theme().green, menu='shaping_tools')
         self.add_action('show_other_plots', 'Show Other Plots', 'visibility', checkable=True,
                         icon_checked='visibility_off', auto_toolbar=False)
@@ -541,6 +550,10 @@ class BeamShaping(CustomExt):
         self._algorithm.algo_changed.connect(self.update_target_loader_from_algo)
         self._algorithm.algo_changed.connect(self.update_ui_from_algo)
         self._algorithm.fields_to_plot.connect(self.plot_fields)
+        self._algorithm.fields_to_plot.connect(self._field_tool.update_from_source)
+        self._algorithm.algo_changed.connect(self._field_tool.update_from_source)
+        self._input_field_loader.field_signal.connect(self._field_tool.update_from_source)
+        self._target_field_loader.field_signal.connect(self._field_tool.update_from_source)
 
         self._algorithm.modulator_field_signal.connect(self.update_modulator_field)
         self._input_field_loader.field_signal.connect(self._algorithm.set_input_field)
@@ -583,6 +596,7 @@ class BeamShaping(CustomExt):
 
         self.connect_action('target', self.show_target)
         self.connect_action('input', self.show_input)
+        self.connect_action('field_tool', self.show_field_tool)
 
         self._target_field_loader.field_signal.connect(self.plot_target)
 
@@ -736,6 +750,27 @@ class BeamShaping(CustomExt):
             self._input_field_dockarea.showMaximized()
         self._input_field_dockarea.closeEvent = lambda event: self.get_action('input').trigger()
 
+    def get_algo_field_sources(self) -> dict:
+        """ The fields of the algorithm the Field Tool can work on, as callables (the algorithm may change)"""
+        def source(attribute: str):
+            def get_field():
+                if getattr(self, '_algorithm', None) is None:
+                    return None
+                return getattr(self._algorithm.algorithm, attribute, None)
+            return get_field
+        return {name: source(attribute) for name, attribute in (('output', 'output_field'),
+                                                                ('modulator', 'modulator_field'),
+                                                                ('intermediate', 'intermediate_field'),
+                                                                ('target', '_target_field'),
+                                                                ('input', '_input_field'))}
+
+    def show_field_tool(self, show=True):
+        self._field_tool_dockarea.setVisible(show)
+        if show:
+            self._field_tool_dockarea.resize(1200, 900)
+            self._field_tool.refresh()
+        self._field_tool_dockarea.closeEvent = lambda event: self.get_action('field_tool').trigger()
+
     def show_other_plots(self, show=True):
         self.other_plots_widget.setVisible(show)
         self.other_plots_widget.closeEvent = lambda event: self.get_action('show_other_plots').trigger()
@@ -752,6 +787,7 @@ class BeamShaping(CustomExt):
 
         self._input_field_dockarea.close()
         self._target_dockarea.close()
+        self._field_tool_dockarea.close()
         self.intermediate_widget.close()
         self.other_plots_widget.close()
         QtWidgets.QApplication.processEvents()  # allows the dashboard modules to close properly
