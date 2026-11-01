@@ -296,19 +296,38 @@ def customize(figure, clims: Optional[list] = None, xlim: Optional[tuple] = None
     return figure
 
 
+def customize_qt(dispatcher, clims: Optional[list] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
+                 units: str = 'm'):
+    """ Starting state of the qt viewers of a field (one per data, in the plotting order): color levels (a list, one
+    (min, max) or None per viewer) and zoom along x and y given in um (the axes are in ``units``). Both can then be
+    changed interactively"""
+    x_range = None if xlim is None else [Q_(value, 'um').m_as(units) for value in xlim]
+    y_range = None if ylim is None else [Q_(value, 'um').m_as(units) for value in ylim]
+    for index, viewer in enumerate(dispatcher.viewers):
+        view = getattr(viewer, 'view', None)
+        if view is None or not hasattr(view, 'histogrammer'):  # not a 2D viewer
+            continue
+        clim = (clims or [])[index] if index < len(clims or []) else None
+        if clim is not None:
+            view.histogrammer.get_histogram('red').setLevels(*clim)
+        if x_range is not None or y_range is not None:
+            view.plotitem.vb.setRange(xRange=x_range, yRange=y_range, padding=0)
+    return dispatcher
+
+
 def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True):
     """ Plot with matplotlib (returns the figure) or with the qt viewers of PyMoDAQ (returns the viewer, interactive
     when the IDE runs a Qt event loop, in Spyder: graphics backend set to Qt or Automatic)"""
+    units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'm'
     if backend == 'qt':
         ensure_qapp()
         viewer = dte.plot('qt')
         _qt_viewers.append(viewer)
-        return viewer
+        return customize_qt(viewer, clims, xlim, ylim, units)
     from matplotlib import pyplot as plt
     figure = dte.plot('matplotlib')
     figure.set_size_inches(*size)
-    units = str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else 'm'
-    customize(figure, clims, xlim, ylim, units=units or 'm')
+    customize(figure, clims, xlim, ylim, units=units)
     equal_aspect(figure)
     figure.tight_layout()
     if show:
@@ -324,11 +343,14 @@ def plot_field(field, name: str = '', log: bool = False, decades: float = 6., cl
 
     clim / phase_clim: (min, max) of the colors of the amplitude (or log10 intensity) and of the phase
     xlim / ylim: zoom, (min, max) in um
-    backend: 'matplotlib' (returns the figure, to customize further) or 'qt' (interactive viewers of PyMoDAQ)
+    backend: 'matplotlib' (returns the figure, to customize further) or 'qt' (interactive viewers of PyMoDAQ, the
+    options above give their starting state)
     """
     from pymodaq_data.data import DataToExport
-    first = log_intensity(field, decades, name=name) if log else field.amplitude_as_dwa(name)
-    dte = DataToExport(name, data=[first, field.phase_as_dwa(name)])
+    data = field.split_as_dte(name).data  # amplitude and phase side by side
+    if log:
+        data[0] = log_intensity(field, decades, name=name)
+    dte = DataToExport(name, data=data)
     figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False)
     if backend != 'qt':
         if name:

@@ -24,7 +24,7 @@ app = pg.HeadlessApp(shaper)
 # The plots: 'matplotlib' (figures returned, to customize further) or 'qt' (the interactive viewers of PyMoDAQ: zoom,
 # levels, ROI..., in Spyder set Preferences > IPython console > Graphics > Backend to Qt or Automatic)
 # Each plot_field below takes: log (intensity in log10 instead of the amplitude), clim and phase_clim (min, max of the
-# colors), xlim and ylim (zoom, (min, max) in um), used by the matplotlib backend only
+# colors), xlim and ylim (zoom, (min, max) in um). With 'qt' they give the starting state of the viewers.
 PLOT_BACKEND = 'matplotlib'
 
 # %% Input field: the field entering the shaper, loader name and its parameters

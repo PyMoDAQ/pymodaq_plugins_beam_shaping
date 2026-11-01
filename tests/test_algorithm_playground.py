@@ -55,7 +55,15 @@ def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
 def test_plot_with_the_qt_viewers(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     pg.run_algorithm(algo)
-    assert pg.plot_field(algo.output_field, 'output', backend='qt') is not None
+    dispatcher = pg.plot_field(algo.output_field, 'output', clim=(0., 0.5), xlim=(-50, 50), ylim=(-20, 30),
+                               backend='qt')
+    amplitude_view = dispatcher.viewers[0].view
+    assert amplitude_view.histogrammer.get_histogram('red').getLevels() == pytest.approx((0., 0.5))
+    x_range, y_range = amplitude_view.get_view_range()
+    # the aspect ratio is locked, so one of the ranges is enlarged around the requested one
+    assert x_range[0] <= -50e-6 + 1e-12 and x_range[1] >= 50e-6 - 1e-12
+    assert y_range[0] <= -20e-6 + 1e-12 and y_range[1] >= 30e-6 - 1e-12
+    assert min(x_range[1] - x_range[0] - 100e-6, y_range[1] - y_range[0] - 50e-6) == pytest.approx(0., abs=1e-12)
     assert pg.plot(algo, backend='qt') is not None
 
 

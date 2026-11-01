@@ -4,7 +4,7 @@ from numbers import Number
 from collections.abc import Iterable
 
 from pymodaq_utils.logger import set_logger, get_module_name
-from pymodaq_data.data import DataRaw, Axis
+from pymodaq_data.data import DataRaw, Axis, DataToExport
 from pymodaq.utils.data import DataActuator
 
 from pymodaq_data import Q_
@@ -108,6 +108,14 @@ class Field(DataRaw):
         field_new = Field(field.name, amplitude=field.amplitude)
         field_new.amplitude = np.ones_like(field.amplitude)
         return field_new
+
+    def split_as_dte(self, name: str = 'mydte') -> DataToExport:
+        """ The amplitude and the phase as two data objects, e.g. to plot them side by side: field.split_as_dte().plot('qt')
+
+        Reimplemented because the parent method creates objects of the same type with a single array, which a Field
+        cannot be (it always holds an amplitude and a phase, and its axes come from its pixel sizes)
+        """
+        return DataToExport(name, data=[self.amplitude_as_dwa(self.name), self.phase_as_dwa(self.name)])
 
     def _slicer(self, slices, is_navigation=True, is_index=True):
         dwa = super()._slicer(slices, is_navigation, is_index)

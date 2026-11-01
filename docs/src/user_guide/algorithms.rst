@@ -290,7 +290,8 @@ Each field is plotted with ``pg.plot_field``, whose arguments are written in the
 * ``xlim`` and ``ylim``: a zoom, (min, max) in um;
 * ``backend``: with ``'matplotlib'`` the figure is returned, both axes at the same scale, to be customized further
   (``pg.customize(figure, clims, xlim, ylim)`` does the above on any figure). With ``'qt'``, the interactive viewers of
-  PyMoDAQ are opened instead (zoom, color levels, ROI...) and the four options above are not used. They need a Qt event
+  PyMoDAQ are opened instead, amplitude and phase side by side (``field.split_as_dte().plot('qt')``): the options above
+  give their starting state (``pg.customize_qt``), then zoom, color levels, ROI... are changed with the mouse. They need a Qt event
   loop in the console: in Spyder, set *Preferences > IPython console > Graphics > Backend* to *Qt* or *Automatic*.
 
 After editing the code of an algorithm, do not run the whole script again: run again the *Algorithm* cell
