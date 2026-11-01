@@ -3,13 +3,12 @@ from pathlib import Path
 
 
 from pymodaq_utils.logger import set_logger, get_module_name
-from pymodaq_data.h5modules.data_saving import DataLoader
 from pymodaq_gui.parameter import Parameter
-from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.field.utils import (FieldLoader, LoadTypeEnum,
                                                       Field)
 from pymodaq_plugins_beam_shaping.field.factory import LoaderFactory
+from pymodaq_plugins_beam_shaping.field.h5 import load_field_from_h5
 
 resources_path = Path(__file__).parent.parent.parent.joinpath('resources')
 #ferris_wheel = resources_path.joinpath('ferris_wheel_3_11_pluto_setup_4f.h5')
@@ -34,18 +33,7 @@ class SavedFieldLoader(FieldLoader):
     def load(self, *args, **kwargs) -> Field:
         """ Mandatory reimplemented method. Used to load a target to populate the field attribute"""
 
-        with DataLoader(self.settings['file']) as loader:
-            dwa = loader.load_data('/RawData/Field/Data00', load_all=True)
-            xaxis = dwa.get_axis_from_index(1)[0]
-            yaxis = dwa.get_axis_from_index(0)[0]
-            self.field = Field(
-                'Image',
-                amplitude=dwa[0],
-                phase=dwa[1],
-                pixel_sizes=(Q_(yaxis.scaling, yaxis.units),
-                             Q_(xaxis.scaling, xaxis.units))
-            )
-
+        self.field = load_field_from_h5(self.settings['file'])
         return self.field
 
 
