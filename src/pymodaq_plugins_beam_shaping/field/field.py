@@ -264,6 +264,17 @@ class Field(DataRaw):
                             axes=self.get_axes(), origin=origin_name,
                             labels=['Intensity'])
 
+    def normalise_to_one(self) -> 'Field':
+        """ A copy of the field normalised on itself: its maximum amplitude, hence its maximum intensity, is 1
+
+        The phase is kept. A null field is returned unchanged (there is nothing to normalise)
+        """
+        peak = float(np.max(self.amplitude))
+        if peak == 0.:
+            return Field(self.name, amplitude=self.amplitude.copy(), phase=self.phase.copy(),
+                         pixel_sizes=self.pixels_sizes)
+        return self * (1. / peak)
+
     def normalise_to_intensity(self, field: 'Field'):
         """ Normalise a Field object to this input total intensity
 
