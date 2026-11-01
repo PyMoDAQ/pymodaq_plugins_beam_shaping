@@ -7,7 +7,7 @@ Overview
 --------
 PyMoDAQ-BeamShaping provides **9 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
 by its name in the *Algorithm* settings of the extension. The list is built when the extension starts: the algorithms of
-BeamShaping itself, then the ones provided by other installed packages (see :ref:`sec-algorithms-external`).
+BeamShaping itself, then the ones provided by other installed packages (see :doc:`custom_algorithm`).
 
 .. list-table:: **Algorithms, as named in the interface**
    :header-rows: 1
@@ -243,22 +243,11 @@ shaping for the MRAF algorithm using different initial phase type and mixing par
    The metrics (NRMSE, Fidelity, Efficiency) are **automatically saved** in the ``.h5beam`` file under
    ``/RawData/Algorithm/``. See :ref:`h5beam-structure` for details.
 
-.. _sec-algorithms-external:
-
 Algorithms provided by other packages
 -------------------------------------
 
-Another Python package can add algorithms to the list of BeamShaping. It writes an algorithm class derived from
-``AlgoBase``, registers it with the decorator ``AlgorithmFactory.register_algorithm()`` and declares the module
-containing it in the entry point group ``pymodaq_plugins_beam_shaping.algorithms`` of its ``pyproject.toml``:
-
-.. code-block:: toml
-
-   [project.entry-points."pymodaq_plugins_beam_shaping.algorithms"]
-   my_algorithms = "my_package.algorithms"
-
-BeamShaping imports these modules when it starts, after its own algorithms. A package that cannot be imported is
-reported in the log and ignored.
+Another Python package can add algorithms to the list of BeamShaping, see :doc:`custom_algorithm` for how to write one
+and how to declare it.
 
 
 .. _sec-algorithms-playground:

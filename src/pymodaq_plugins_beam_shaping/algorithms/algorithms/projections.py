@@ -49,9 +49,6 @@ class GbSax(AlgoBase):
         super().__init__(parent)
         self._algo_init = False
 
-    def value_changed(self, param: Parameter):
-        self.parent_app.algo_settings_changed()
-
     def do_things_after_set_target(self):
         if self._algo_init:  #make sure target and object have same shape
 
@@ -73,14 +70,7 @@ class GbSax(AlgoBase):
 
     def evolve_field(self):
 
-        amplitude = self._target_field.amplitude
-
-        field_output_corrected = Field(amplitude=amplitude,
-                                      phase=self._output_field.phase,
-                                      pixel_sizes=self._output_field.pixels_sizes)
-
-        field_modulator_corrected = self.compute_backward_fft(field_output_corrected)
-        self.set_phase_in_modulator_plane(field_modulator_corrected.phase)
+        self.back_propagate_amplitude(self._target_field.amplitude)
 
     def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
         self.propagate_field()
@@ -136,12 +126,7 @@ class Projections(GbSax):
         amplitude = (self.settings['mixing_ratio'] * weight * self._target_field.amplitude * mask_target +
                      (1-self.settings['mixing_ratio']) * self._output_field.amplitude * mask_noise)
 
-        field_output_corrected = Field(amplitude=amplitude,
-                                      phase=self._output_field.phase,
-                                      pixel_sizes=self._output_field.pixels_sizes)
-
-        field_modulator_corrected = self.compute_backward_fft(field_output_corrected)
-        self.set_phase_in_modulator_plane(field_modulator_corrected.phase)
+        self.back_propagate_amplitude(amplitude)
 
 
 
