@@ -81,6 +81,7 @@ def test_plots_are_updated_not_created_again(qapp):
                                 figure=figure, show=False)
         assert updated is figure
         assert len(plt.get_fignums()) == n_figures
+        assert [text.get_text() for text in figure.texts] == ['snap']  # the title is replaced, not duplicated
         assert all(len(ax.patches) == 1 for ax in pg._image_axes(figure))  # the previous outline is gone
         assert pg._image_axes(figure)[0].patches[0].get_width() == pytest.approx(2 * size)
 
@@ -110,6 +111,36 @@ def test_default_masks_cover_two_thirds_of_the_effective_area_around_the_center(
     assert np.all(np.isfinite(algo.output_field.amplitude))
 
 
+def test_overview_is_made_of_subplots_and_updated(qapp):
+    from matplotlib import pyplot as plt
+    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
+    pg.run_algorithm(algo)
+    figure = pg.plot(algo, show=False)
+    assert len(figure.axes) == 8  # output, modulator, intermediate (amplitude | phase) and the metrics + an empty one
+    titles = [ax.get_title() for ax in figure.axes]
+    assert 'Output Plane: Amplitude' in titles and 'Intermediate Plane: log10(Intensity)' in titles
+    assert 'Metrics' in titles
+    n_figures = len(plt.get_fignums())
+    assert pg.plot(algo, figure=figure, show=False) is figure
+    assert len(plt.get_fignums()) == n_figures and len(figure.axes) == 8
+
+
+def test_overview_in_the_qt_backend_has_a_dock_per_field(qapp):
+    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
+    pg.run_algorithm(algo)
+    overview = pg.plot(algo, backend='qt')
+    assert list(overview.docks) == ['Metrics', 'Modulator Plane', 'Output Plane', 'Intermediate Plane']
+    for title in ('Modulator Plane', 'Output Plane', 'Intermediate Plane'):
+        assert len(overview.dispatchers[title].viewers) == 2  # amplitude and phase
+    assert pg.plot(algo, backend='qt', figure=overview) is overview
+
+    app, algo = prepare('Gerchberg-Saxton')
+    pg.run_algorithm(algo)
+    assert 'Intermediate Plane' not in pg.plot(algo, backend='qt').docks
+
+
 def test_snap_without_intermediate_plane(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     assert pg.snap(algo) is None
@@ -127,7 +158,6 @@ def test_plot_with_the_qt_viewers(qapp):
     assert x_range[0] <= -50 + 1e-6 and x_range[1] >= 50 - 1e-6  # in um
     assert y_range[0] <= -20 + 1e-6 and y_range[1] >= 30 - 1e-6
     assert min(x_range[1] - x_range[0] - 100, y_range[1] - y_range[0] - 50) == pytest.approx(0., abs=1e-6)
-    assert pg.plot(algo, backend='qt') is not None
 
 
 @pytest.mark.parametrize('phase, params', [('FlatPhase', {'phase_value': 0.5}), ('RandomPhase', None),

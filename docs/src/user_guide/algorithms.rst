@@ -283,8 +283,11 @@ cells one after the other, editing the settings on the way:
   draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
   again until the mask is right.
 
-The last cells run the algorithm, plot an overview (output, modulator, metrics, intermediate plane), then the output
-field and the intermediate plane of 4f setups (its intensity in log scale), and give the results as ``Field`` objects.
+The last cells run the algorithm, plot an overview as in the extension, then the output field and the intermediate
+plane of 4f setups (its intensity in log scale), and give the results as ``Field`` objects. The overview shows the
+output, modulator and intermediate planes with their amplitude and phase, and the metrics: with ``'qt'`` a dock per field
+titled with its name, each holding the viewers of the amplitude and of the phase, with ``'matplotlib'`` one figure made
+of subplots, a row per field. Running the cell again updates the overview instead of creating a new one.
 ``list_available()`` of the helper module ``pymodaq_plugins_beam_shaping.utilities.headless_algorithms`` prints the
 algorithms, the initial phases and the loaders with the names of their parameters.
 

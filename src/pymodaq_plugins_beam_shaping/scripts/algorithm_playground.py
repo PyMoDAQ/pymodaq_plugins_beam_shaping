@@ -27,6 +27,7 @@ app = pg.HeadlessApp(shaper)
 # Each plot_field below takes: log (intensity in log10 instead of the amplitude), clim and phase_clim (min, max of the
 # colors), xlim and ylim (zoom, (min, max) in um). With 'qt' they give the starting state of the viewers.
 PLOT_BACKEND = 'matplotlib'
+overview = None  # the overview plot, updated (not created again) each time the overview cell is run
 
 # %% Input field: the field entering the shaper, loader name and its parameters
 INPUT_LOADER = 'GaussianIntensity'
@@ -97,8 +98,9 @@ if snap_plot is not None and intermediate_mask is not None:  # the plot of the s
 pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS)
 print(f'fitness = {algo.fitness:.4g}, efficiency = {algo.efficiency:.4g}')
 
-# %% Plots: overview (output, modulator, metrics, intermediate plane)
-pg.plot(algo, backend=PLOT_BACKEND)
+# %% Overview, as in the extension: the output, modulator and intermediate planes (a dock each with qt, the rows of
+# subplots with matplotlib, with their amplitude and phase) and the metrics. Run it again to update the plot
+overview = pg.plot(algo, backend=PLOT_BACKEND, figure=overview)
 
 # %% Plot of the output field, to customize
 pg.plot_field(algo.output_field, 'output', log=False, clim=None, xlim=None, ylim=None, backend=PLOT_BACKEND)

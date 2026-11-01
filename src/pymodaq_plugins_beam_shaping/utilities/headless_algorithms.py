@@ -379,10 +379,18 @@ def draw_mask_qt(dispatcher, slices_um, mask_type: str = 'elliptical', units: st
     return dispatcher
 
 
+def _clear(figure):
+    """ Empty a figure to draw it again, its title included (Figure.clear keeps the previous one)"""
+    for text in list(figure.texts):
+        text.remove()
+    figure._suptitle = None
+    figure.clear()
+
+
 def _draw_2d(figure, dte):
     """ Draw 2D data in a matplotlib figure, one row per data object (as the matplotlib plotter of PyMoDAQ, but in a
     given figure so that it can be updated)"""
-    figure.clear()
+    _clear(figure)
     for row, dwa in enumerate(dte):
         xaxis = dwa.get_axis_from_index(1)[0]
         yaxis = dwa.get_axis_from_index(0)[0]
@@ -400,7 +408,8 @@ def _is_inline() -> bool:
     return 'inline' in matplotlib.get_backend().lower()
 
 
-def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True, mask=None, figure=None):
+def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True, mask=None, figure=None,
+          title: str = ''):
     """ Plot with matplotlib (returns the figure) or with the qt viewers of PyMoDAQ (returns the ViewerDispatcher,
     interactive when the IDE runs a Qt event loop, in Spyder: graphics backend set to Qt or Automatic)
 
@@ -431,7 +440,9 @@ def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool 
     if mask is not None:
         draw_mask(figure, *mask, units=units)
     equal_aspect(figure)
-    figure.tight_layout()
+    if title:
+        figure.suptitle(title)
+    figure.tight_layout(rect=(0, 0, 1, 0.96 if title else 1))  # room for the title
     if show:
         _display(figure, reuse)
     return figure
@@ -487,16 +498,102 @@ def plot_field(field, name: str = '', log: bool = False, decades: float = 6., cl
         data[0] = log_intensity(field, decades, name=name)
     dte = DataToExport(name, data=data)
     reuse = figure is not None
-    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False, mask=mask, figure=figure)
-    if backend != 'qt':
-        if name:
-            figure.suptitle(name)
-        if show:
-            _display(figure, reuse)
+    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False, mask=mask, figure=figure,
+                   title=name)
+    if backend != 'qt' and show:
+        _display(figure, reuse)
     return figure
 
 
-def plot(algo, backend: str = 'matplotlib', show: bool = True):
-    """ Overview of the data of the algorithm (output, modulator, metrics, intermediate plane), in different planes so
-    without zoom: use :func:`plot_field` on one field to customize its plot"""
-    return _show(algo.get_fields_to_plot(), backend, (9, 14), show=show)
+def _overview_rows(algo) -> list:
+    """ The fields of the overview: (title, data object with the amplitude and the phase), in um around the center.
+    The intermediate plane (4f setups) is shown with its intensity in log scale"""
+    from pymodaq_data.data import DataToExport
+    rows = []
+    for title, field, log in (('Output Plane', algo.output_field, False),
+                              ('Modulator Plane', algo.modulator_field, False),
+                              ('Intermediate Plane', algo.intermediate_field, True)):
+        if field is None:
+            continue
+        data = field.split_as_dte(title).data
+        if log:
+            data[0] = log_intensity(field, name=title)
+        rows.append((title, center_axes(DataToExport(title, data=data))))
+    return rows
+
+
+def _plot_overview_matplotlib(algo, figure=None):
+    """ One figure with subplots: a row per field (amplitude | phase, titled with the field), then the metrics"""
+    from matplotlib import pyplot as plt
+    rows = _overview_rows(algo)
+    figure = plt.figure(figsize=(9, 3.5 * (len(rows) + 1))) if figure is None else figure
+    _clear(figure)
+    axes = figure.subplots(len(rows) + 1, 2, squeeze=False)
+    for (title, dte), row_axes in zip(rows, axes):
+        for ax, dwa in zip(row_axes, dte):
+            xaxis, yaxis = dwa.get_axis_from_index(1)[0], dwa.get_axis_from_index(0)[0]
+            ax.pcolormesh(xaxis.get_data(), yaxis.get_data(), dwa.data[0])
+            ax.set_title(f'{title}: {dwa.labels[0]}')
+            ax.set_xlabel(f'{xaxis.label} ({xaxis.units})')
+            ax.set_ylabel(f'{yaxis.label} ({yaxis.units})')
+            ax.set_aspect('equal')
+    metrics = algo.metrics_as_dwa()
+    ax = axes[-1][0]
+    ax.bar(metrics.labels, [float(array[0]) for array in metrics.data])
+    ax.set_title('Metrics')
+    axes[-1][1].axis('off')
+    figure.tight_layout()
+    return figure
+
+
+class QtOverview:
+    """ The overview in the qt backend, built as in the extension: a dock per field, titled with the field, holding a
+    ViewerDispatcher for its amplitude and phase (the intermediate plane shows its intensity in log scale), and a dock
+    for the metrics"""
+
+    def __init__(self, algo):
+        from pymodaq_gui.utils.dock import Dock, DockArea
+        from pymodaq_gui.plotting.data_viewers.viewer import ViewerDispatcher
+        ensure_qapp()
+        self.dockarea = DockArea()
+        self.dockarea.setWindowTitle('Algorithm overview')
+        self.docks, self.dispatchers = {}, {}
+        titles = ['Metrics', 'Modulator Plane', 'Output Plane'] + (
+            ['Intermediate Plane'] if algo.intermediate_field is not None else [])
+        placement = {'Metrics': ('left', None), 'Modulator Plane': ('right', None),
+                     'Output Plane': ('bottom', 'Modulator Plane'), 'Intermediate Plane': ('bottom', 'Metrics')}
+        for title in titles:
+            self.docks[title] = Dock(title)
+            position, relative_to = placement[title]
+            self.dockarea.addDock(self.docks[title], position, None if relative_to is None else self.docks[relative_to])
+            area = DockArea()
+            self.dispatchers[title] = ViewerDispatcher(area, title=title)
+            self.docks[title].addWidget(area)
+        self.dockarea.resize(1100, 800)
+        self.dockarea.show()
+        _qt_viewers.append(self)
+
+    def update(self, algo):
+        for title, dte in _overview_rows(algo):
+            if title in self.dispatchers:
+                self.dispatchers[title].show_data(dte)
+        self.dispatchers['Metrics'].show_data(algo.metrics_as_dwa().split_as_dte('Metrics'))  # as in the extension
+        return self
+
+
+def plot(algo, backend: str = 'matplotlib', figure=None, show: bool = True):
+    """ Overview of the algorithm: a plot per field (output, modulator and, in 4f setups, intermediate planes, each
+    with its amplitude and phase) and the metrics, as in the extension. In different planes, so without zoom: use
+    :func:`plot_field` on one field to customize its plot.
+
+    backend: 'matplotlib' (one figure made of subplots, returned) or 'qt' (a dock per field, each with its viewers)
+    figure: what a previous call returned, updated instead of creating a new plot
+    """
+    if backend == 'qt':
+        overview = figure if figure is not None else QtOverview(algo)
+        return overview.update(algo)
+    reuse = figure is not None
+    figure = _plot_overview_matplotlib(algo, figure)
+    if show:
+        _display(figure, reuse)
+    return figure
