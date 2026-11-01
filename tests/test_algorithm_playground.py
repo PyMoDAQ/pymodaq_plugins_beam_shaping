@@ -36,6 +36,29 @@ def test_plot_input_and_target_fields(qapp):
     assert pg.plot_field(target, 'target', show=False) is not None
 
 
+def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
+    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))
+    pg.run_algorithm(algo)
+    log = pg.log_intensity(algo.intermediate_field, decades=4)
+    assert log.data[0].max() - log.data[0].min() <= 4 + 1e-9
+    figure = pg.plot_field(algo.intermediate_field, 'intermediate', log=True, clim=(-3, 0), xlim=(-50, 50),
+                           ylim=(-20, 30), show=False)
+    image_axes = pg._image_axes(figure)
+    assert len(image_axes) == 2
+    assert all(ax.get_aspect() == 1. for ax in image_axes)
+    assert image_axes[0].collections[0].get_clim() == (-3, 0)
+    assert np.allclose(image_axes[0].get_xlim(), (-50e-6, 50e-6))  # the axes are in m
+    assert np.allclose(image_axes[1].get_ylim(), (-20e-6, 30e-6))
+
+
+def test_plot_with_the_qt_viewers(qapp):
+    app, algo = prepare('Gerchberg-Saxton')
+    pg.run_algorithm(algo)
+    assert pg.plot_field(algo.output_field, 'output', backend='qt') is not None
+    assert pg.plot(algo, backend='qt') is not None
+
+
 @pytest.mark.parametrize('phase, params', [('FlatPhase', {'phase_value': 0.5}), ('RandomPhase', None),
                                            ('QuadraticPhase', {'quadratic.auto': False, 'shift.auto': False})])
 def test_initial_phase_from_the_factory(qapp, phase, params):

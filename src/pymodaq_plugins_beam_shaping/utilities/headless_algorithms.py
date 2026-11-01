@@ -254,26 +254,92 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
     return algo
 
 
-def plot_field(field, name: str = '', show: bool = True):
-    """ Plot the amplitude and the phase of a field (input, target...) with matplotlib"""
+_qt_viewers = []  # keep the qt viewers alive (they would be garbage collected otherwise)
+
+
+def _image_axes(figure):
+    """ The axes of a figure showing 2D data (pcolormesh), not the 1D plots"""
+    from matplotlib.collections import QuadMesh
+    return [ax for ax in figure.axes if any(isinstance(c, QuadMesh) for c in ax.collections)]
+
+
+def equal_aspect(figure):
+    """ Same scale along both axes for the 2D data of a figure"""
+    for ax in _image_axes(figure):
+        ax.set_aspect('equal')
+    return figure
+
+
+def log_intensity(field, decades: float = 6., name: str = ''):
+    """ The intensity of a field in log10, clipped ``decades`` below its maximum, as a data object to plot"""
+    intensity = field.intensity
+    floor = intensity.max() * 10 ** -decades if intensity.max() > 0 else 1.
+    dwa = field.intensity_as_dwa(name, name='log10_intensity')
+    dwa.data = [np.log10(np.maximum(intensity, floor))]
+    dwa.labels = ['log10(Intensity)']
+    return dwa
+
+
+def customize(figure, clims: Optional[list] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
+              units: str = 'm'):
+    """ Customize a matplotlib figure of fields: color limits of each image (a list, one (min, max) or None per image,
+    in the plotting order), zoom along x and y given in um (the axes are in ``units``)"""
+    for ax, clim in zip(_image_axes(figure), clims or []):
+        if clim is not None:
+            for mesh in ax.collections:
+                mesh.set_clim(*clim)
+    for lim, setter in ((xlim, 'set_xlim'), (ylim, 'set_ylim')):
+        if lim is not None:
+            values = [Q_(value, 'um').m_as(units) for value in lim]
+            for ax in _image_axes(figure):
+                getattr(ax, setter)(*values)
+    return figure
+
+
+def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True):
+    """ Plot with matplotlib (returns the figure) or with the qt viewers of PyMoDAQ (returns the viewer, interactive
+    when the IDE runs a Qt event loop, in Spyder: graphics backend set to Qt or Automatic)"""
+    if backend == 'qt':
+        ensure_qapp()
+        viewer = dte.plot('qt')
+        _qt_viewers.append(viewer)
+        return viewer
     from matplotlib import pyplot as plt
+    figure = dte.plot('matplotlib')
+    figure.set_size_inches(*size)
+    units = str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else 'm'
+    customize(figure, clims, xlim, ylim, units=units or 'm')
+    equal_aspect(figure)
+    figure.tight_layout()
+    if show:
+        plt.show()
+    return figure
+
+
+def plot_field(field, name: str = '', log: bool = False, decades: float = 6., clim: Optional[tuple] = None,
+               phase_clim: Optional[tuple] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
+               backend: str = 'matplotlib', show: bool = True):
+    """ Plot the amplitude (or with ``log`` the intensity in log10, down to ``decades`` below its maximum) and the
+    phase of a field
+
+    clim / phase_clim: (min, max) of the colors of the amplitude (or log10 intensity) and of the phase
+    xlim / ylim: zoom, (min, max) in um
+    backend: 'matplotlib' (returns the figure, to customize further) or 'qt' (interactive viewers of PyMoDAQ)
+    """
     from pymodaq_data.data import DataToExport
-    figure = DataToExport(name, data=[field.amplitude_as_dwa(name), field.phase_as_dwa(name)]).plot('matplotlib')
-    figure.set_size_inches(9, 7)
-    if name:
-        figure.suptitle(name)
-    figure.tight_layout()
-    if show:
-        plt.show()
+    first = log_intensity(field, decades, name=name) if log else field.amplitude_as_dwa(name)
+    dte = DataToExport(name, data=[first, field.phase_as_dwa(name)])
+    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False)
+    if backend != 'qt':
+        if name:
+            figure.suptitle(name)
+        if show:
+            from matplotlib import pyplot as plt
+            plt.show()
     return figure
 
 
-def plot(algo, show: bool = True):
-    """ Plot all the data of the algorithm (output, modulator, metrics, intermediate plane) with matplotlib"""
-    from matplotlib import pyplot as plt
-    figure = algo.get_fields_to_plot().plot('matplotlib')
-    figure.set_size_inches(9, 14)  # one row per data, make room for the titles
-    figure.tight_layout()
-    if show:
-        plt.show()
-    return figure
+def plot(algo, backend: str = 'matplotlib', show: bool = True):
+    """ Overview of the data of the algorithm (output, modulator, metrics, intermediate plane), in different planes so
+    without zoom: use :func:`plot_field` on one field to customize its plot"""
+    return _show(algo.get_fields_to_plot(), backend, (9, 14), show=show)
