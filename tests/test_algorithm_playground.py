@@ -52,6 +52,29 @@ def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
     assert np.allclose(image_axes[1].get_ylim(), (-20e-6, 30e-6))
 
 
+def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp):
+    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    mask = ((-100., 100.), (-100., 100.))
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, mask)
+    snapped = pg.snap(algo)
+    assert app.apply_mask(ApplyMaskTo.INTERMEDIATE)  # restored for the next runs
+    pg.run_algorithm(algo)
+    masked = algo.intermediate_field
+    assert np.count_nonzero(snapped.amplitude) > np.count_nonzero(masked.amplitude)
+    figure = pg.plot_field(snapped, 'snap', log=True, mask=(mask, 'elliptical'), show=False)
+    axes = pg._image_axes(figure)
+    assert all(len(ax.patches) == 1 for ax in axes)
+    # the axes are centered, as the masks: the outline is around the origin
+    assert axes[0].patches[0].center == pytest.approx((0., 0.))
+    x = axes[0].collections[0].get_coordinates()[0, :, 0]
+    assert x[0] < 0 < x[-1]
+
+
+def test_snap_without_intermediate_plane(qapp):
+    app, algo = prepare('Gerchberg-Saxton')
+    assert pg.snap(algo) is None
+
+
 def test_plot_with_the_qt_viewers(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     pg.run_algorithm(algo)

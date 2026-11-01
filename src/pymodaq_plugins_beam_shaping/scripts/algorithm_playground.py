@@ -24,7 +24,8 @@ app = pg.HeadlessApp(shaper)
 # The plots: 'matplotlib' (figures returned, to customize further) or 'qt' (the interactive viewers of PyMoDAQ: zoom,
 # levels, ROI..., in Spyder set Preferences > IPython console > Graphics > Backend to Qt or Automatic)
 # Each plot_field below takes: log (intensity in log10 instead of the amplitude), clim and phase_clim (min, max of the
-# colors), xlim and ylim (zoom, (min, max) in um). With 'qt' they give the starting state of the viewers.
+# colors), xlim and ylim (zoom, (min, max) in um, the origin being the center of the field as for the masks). With
+# 'qt' they give the starting state of the viewers.
 PLOT_BACKEND = 'matplotlib'
 
 # %% Input field: the field entering the shaper, loader name and its parameters
@@ -60,7 +61,14 @@ algo = pg.create_algorithm(algo_class, app, ALGORITHM_PARAMS)
 # the target is scaled by the algorithm to the target plane: pg.plot_field(pg.get_target_field(algo)) shows it
 pg.set_fields(algo, input_field, target_field)
 
+# %% Snap: one step of the algorithm without masks, to see the intermediate plane (4f setups) before placing its mask
+snapped_intermediate = pg.snap(algo, INITIAL_PHASE, INITIAL_PHASE_PARAMS)  # None without intermediate plane
+if snapped_intermediate is not None:
+    pg.plot_field(snapped_intermediate, 'intermediate (snap, no mask)', log=True, clim=None, xlim=None, ylim=None,
+                  backend=PLOT_BACKEND)
+
 # %% Masks: slices in um as ((start, stop) along y, (start, stop) along x) around the center of the field
+# Run this cell again to adjust the intermediate mask: its outline is drawn on the snapped intermediate plane
 APPLY_TARGET_MASK = False  # in the plane of the target
 TARGET_MASK = ((-100., 100.), (-100., 100.))
 TARGET_MASK_TYPE = 'elliptical'  # or 'square'
@@ -71,6 +79,9 @@ INTERMEDIATE_MASK_TYPE = 'elliptical'
 pg.set_mask(app, ApplyMaskTo.TARGET, TARGET_MASK if APPLY_TARGET_MASK else None, TARGET_MASK_TYPE)
 pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, INTERMEDIATE_MASK if APPLY_INTERMEDIATE_MASK else None,
             INTERMEDIATE_MASK_TYPE)
+if snapped_intermediate is not None:
+    pg.plot_field(snapped_intermediate, 'intermediate (snap) and its mask', log=True, clim=None, xlim=None, ylim=None,
+                  mask=(INTERMEDIATE_MASK, INTERMEDIATE_MASK_TYPE), backend='matplotlib')
 
 # %% Run
 pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS)

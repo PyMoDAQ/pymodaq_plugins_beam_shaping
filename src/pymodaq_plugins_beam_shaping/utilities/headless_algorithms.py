@@ -315,9 +315,34 @@ def customize_qt(dispatcher, clims: Optional[list] = None, xlim: Optional[tuple]
     return dispatcher
 
 
-def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True):
+def center_axes(dte):
+    """ Put the origin of the axes of the 2D data at the center of the field, as for the masks and the zoom"""
+    for dwa in dte:
+        if dwa.dim.name == 'Data2D':
+            for axis in dwa.axes:
+                axis.offset = -axis.scaling * axis.size / 2
+    return dte
+
+
+def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'm', color: str = 'red'):
+    """ Draw the outline of a mask (((start, stop) along y, (start, stop) along x) in um around the center of the
+    field) on the 2D data of a matplotlib figure"""
+    from matplotlib.patches import Ellipse, Rectangle
+    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in limits] for limits in slices_um]
+    for ax in _image_axes(figure):
+        if MaskType(mask_type) == MaskType.ELLIPTICAL:
+            patch = Ellipse(((x0 + x1) / 2, (y0 + y1) / 2), x1 - x0, y1 - y0)
+        else:
+            patch = Rectangle((x0, y0), x1 - x0, y1 - y0)
+        patch.set(fill=False, edgecolor=color, linewidth=1.5)
+        ax.add_patch(patch)
+    return figure
+
+
+def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool = True, mask=None):
     """ Plot with matplotlib (returns the figure) or with the qt viewers of PyMoDAQ (returns the viewer, interactive
     when the IDE runs a Qt event loop, in Spyder: graphics backend set to Qt or Automatic)"""
+    center_axes(dte)
     units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'm'
     if backend == 'qt':
         ensure_qapp()
@@ -328,6 +353,8 @@ def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool 
     figure = dte.plot('matplotlib')
     figure.set_size_inches(*size)
     customize(figure, clims, xlim, ylim, units=units)
+    if mask is not None:
+        draw_mask(figure, *mask, units=units)
     equal_aspect(figure)
     figure.tight_layout()
     if show:
@@ -335,14 +362,29 @@ def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool 
     return figure
 
 
+def snap(algo, ini_phase: Union[str, np.ndarray] = 'FlatPhase', ini_phase_params: Optional[dict] = None):
+    """ One step of the algorithm without any mask, to look at the intermediate plane (4f setups) before placing its
+    mask: returns a copy of the intermediate field, None for algorithms without intermediate plane. The masks set in
+    the app are kept for the next runs"""
+    masks = dict(algo.parent_app.masks)
+    try:
+        for key in algo.parent_app.masks:
+            algo.parent_app.masks[key] = None
+        run_algorithm(algo, 1, ini_phase, ini_phase_params)
+    finally:
+        algo.parent_app.masks.update(masks)
+    return None if algo.intermediate_field is None else algo.intermediate_field.deepcopy()
+
+
 def plot_field(field, name: str = '', log: bool = False, decades: float = 6., clim: Optional[tuple] = None,
                phase_clim: Optional[tuple] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
-               backend: str = 'matplotlib', show: bool = True):
+               mask: Optional[tuple] = None, backend: str = 'matplotlib', show: bool = True):
     """ Plot the amplitude (or with ``log`` the intensity in log10, down to ``decades`` below its maximum) and the
-    phase of a field
+    phase of a field, the origin of the axes at the center of the field (as for the masks)
 
     clim / phase_clim: (min, max) of the colors of the amplitude (or log10 intensity) and of the phase
     xlim / ylim: zoom, (min, max) in um
+    mask: (slices in um, mask type) as given to :func:`set_mask`, its outline is drawn (matplotlib only)
     backend: 'matplotlib' (returns the figure, to customize further) or 'qt' (interactive viewers of PyMoDAQ, the
     options above give their starting state)
     """
@@ -351,7 +393,7 @@ def plot_field(field, name: str = '', log: bool = False, decades: float = 6., cl
     if log:
         data[0] = log_intensity(field, decades, name=name)
     dte = DataToExport(name, data=data)
-    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False)
+    figure = _show(dte, backend, (9, 7), [clim, phase_clim], xlim, ylim, show=False, mask=mask)
     if backend != 'qt':
         if name:
             figure.suptitle(name)
