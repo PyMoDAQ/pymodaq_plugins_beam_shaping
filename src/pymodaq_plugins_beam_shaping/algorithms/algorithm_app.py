@@ -442,7 +442,8 @@ class AlgoApp(CustomApp):
         self.add_widget('algorithms', QtWidgets.QComboBox,
                         tip='select the algorithm to compute the phase')
         self.get_action('algorithms').addItems(self.algorithms)
-        self.get_action('algorithms').setCurrentText(self.algorithms[0])
+        if len(self.algorithms) > 1:
+            self.get_action('algorithms').setCurrentText(self.algorithms[0])
         self.add_action('ini_algo', 'Init Algo', 'start', checkable=True,
                         icon_checked_color=self.get_theme().green,
                         auto_menu=False)
