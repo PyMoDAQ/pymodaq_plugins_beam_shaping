@@ -7,6 +7,7 @@ User Guide
 
    interface
    fields
+   field_tool
    algorithms
    algorithm_reference
    shapers

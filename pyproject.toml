@@ -57,6 +57,7 @@ classifiers = [
 
 [project.scripts]
 beam_shaping = "pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping:main"
+field_tool = "pymodaq_plugins_beam_shaping.field.field_tool_app:main"
 
 [project.optional-dependencies]
 pytorch = [
