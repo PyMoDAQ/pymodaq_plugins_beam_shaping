@@ -168,7 +168,7 @@ class TorchBase(AlgoBase):
         return loss
 
 
-    def compute_phase(self, do_step=True, ini_phase=None, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, ini_phase=None, **kwargs):
         """ To be reimplemented """
         raise NotImplementedError
 

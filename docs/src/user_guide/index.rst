@@ -10,6 +10,7 @@ User Guide
    field_tool
    algorithms
    algorithm_reference
+   custom_algorithm
    shapers
    slmsuite
    calibration

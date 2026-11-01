@@ -60,7 +60,8 @@ def test_algo_app_follows_the_shaper(qtbot, dockarea, amplitude_algorithm):
     assert phase_algorithms
 
     app.shaper = _shaper('amplitude')  # the current algorithm cannot be used anymore: another one is selected
-    assert items() == [amplitude_algorithm.ALGO_NAME]  # the only one for an amplitude shaper
+    assert items()  # the algorithms of the configuration for an amplitude shaper (DMD Lee...), the one registered by
+    # the test is not in the configuration
     assert all(AlgorithmFactory.get_algorithm(name).supports(ModulatorType.AMPLITUDE) for name in items())
     assert combo.currentText() in items()
 

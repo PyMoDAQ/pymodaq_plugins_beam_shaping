@@ -15,7 +15,7 @@ from pymodaq_data import Q_, DataToExport
 
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
-from pymodaq_plugins_beam_shaping.algorithms.utils import LensSetup, ApplyMaskTo, AlgoType
+from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
@@ -208,9 +208,13 @@ class OE2016(AlgoBase):
     """
 
     ALGO_NAME = 'Diffractive'
+    STATUS = AlgoStatus.BROKEN
+    STATUS_NOTE = ('Its propagation raises a TypeError (Field * ndarray); its inverse transform is not scaled like the '
+                   'other 4f algorithms')
     ALGOTYPE = AlgoType.AMPLITUDE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
+    RECOMPUTE_ON_CHANGE = True
 
     params = [
         {'title': 'Gamma', 'name': 'gamma', 'type': 'int', 'value': 4,
@@ -223,7 +227,7 @@ class OE2016(AlgoBase):
     def __init__(self, parent: 'AlgoApp' = None, *args, **kwargs):
         super().__init__(parent)
 
-    def compute_phase(self, do_step=True, **kwargs):
+    def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
 
         diff_phase = diff_factory.get_phase(self.settings['diff_model'],
                                             input_field=self._input_field,
@@ -243,8 +247,6 @@ class OE2016(AlgoBase):
         self.output_field.calibrate_axes(self._target_field.pixels_sizes)
         self.output_field.axes = self.output_field.get_axes()
 
-    def value_changed(self, param):
-        self.parent_app.compute_phase()
 
 
 

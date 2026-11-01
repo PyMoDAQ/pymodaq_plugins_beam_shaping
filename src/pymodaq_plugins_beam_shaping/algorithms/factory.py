@@ -48,7 +48,7 @@ def register_algorithms(parent_module_name: str = 'pymodaq_plugins_beam_shaping'
                     algorithms.append(import_module(f'.{file.stem}', algorithm_module.__name__))
                 except (ModuleNotFoundError, NotImplementedError) as e:
                     logger.warning(str(e))
-    except ModuleNotFoundError as e:
+    except Exception as e:
         logger.warning(str(e))
     finally:
         algorithms.extend(register_external_algorithms())

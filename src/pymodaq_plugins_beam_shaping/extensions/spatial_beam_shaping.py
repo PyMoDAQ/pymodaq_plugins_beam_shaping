@@ -197,16 +197,18 @@ class BeamShaping(CustomExt):
                 self.send_phase_to_shaper(field, send_to_shaper, with_corrections)
                 self.send_amplitude_to_shaper(field, send_to_shaper, with_corrections)
 
-    def send_amplitude_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
+    def send_amplitude_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=False):
         """ Send the modulator amplitude to the shaper
 
         Parameters
         ----------
         field: the field to send
         send_to_shaper: should we send it?
-        with_corrections: should we add corrections, mostly for the field's phase
+        with_corrections: should we add corrections, mostly for the field's phase so probably unused here
         """
-        raise NotImplementedError
+        if self._shaper_actuator is not None and send_to_shaper:
+            amplitude_dwa = DataShaper('amplitude', data=[field.amplitude])
+            self._shaper_actuator.move_abs(amplitude_dwa)
 
     def send_phase_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
         """ Send the modulator phase to the shaper
@@ -482,6 +484,11 @@ class BeamShaping(CustomExt):
                         menu='shaping_tools')
 
         self.toolbar.addSeparator()
+        self.add_action('wrap_phase', 'Wrap Phase', 'format_text_wrap',
+                        tip='Wrap (green) / unwrap (red) the displayed phase', checkable=True, checked=True,
+                        icon_checked_color=self.get_theme().green, icon_color=self.get_theme().red)
+
+        self.toolbar.addSeparator()
         self.add_action('calibration', 'Calibration', 'equalizer',
                         tip='Perform a calibration of the SLM phase wrt the grey levels applied to it.',
                         checkable=True, menu='calibration',
@@ -624,6 +631,14 @@ class BeamShaping(CustomExt):
             self.intermediate_viewer.show_data(dwa_intermediate)
         except ValueError:  # means no intermediate data to plot
             pass
+
+        if not self.is_action_checked('wrap_phase'):  # phase is wrapped by default!
+            dte_modulator.get_data_from_full_name('modulator/phase')[0] = \
+            np.unwrap(dte_modulator.get_data_from_full_name('modulator/phase')[0])
+
+            dte_output.get_data_from_full_name('output/phase')[0] = \
+            np.unwrap(dte_output.get_data_from_full_name('output/phase')[0])
+
         self.modulator_viewers.show_data(dte_modulator)
         self.output_viewers.show_data(dte_output)
         self.metrics_viewer.show_data(metrics.split_as_dte('Metrics'))
