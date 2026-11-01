@@ -216,6 +216,20 @@ def set_mask(app: HeadlessApp, apply_to: ApplyMaskTo, slices_um: Optional[tuple]
     app.masks[str(apply_to)] = None if slices_um is None else (tuple(slice(*s) for s in slices_um), mask_type)
 
 
+def default_mask(algo, apply_to: ApplyMaskTo, fraction: float = 2 / 3) -> tuple:
+    """ The default region of a mask, as in the extension: centered and covering 2/3 of the effective area of the SLM
+    in the plane (target or intermediate), given as ((start, stop) along y, (start, stop) along x) in um around the
+    center of the field, rounded to the um"""
+    if str(apply_to) == str(ApplyMaskTo.INTERMEDIATE):
+        pixel_sizes = algo.intermediate_pixel_sizes
+    else:
+        pixel_sizes = algo._target_field.pixels_sizes
+    shape = sizing.get_effective_needed_field_size(algo.shaper)
+    half_field = np.array(shape) * regions.pixel_sizes_in_um(pixel_sizes) / 2
+    slices = regions.default_slices(algo.shaper, pixel_sizes, fraction)
+    return tuple((round(_slice.start - half), round(_slice.stop - half)) for _slice, half in zip(slices, half_field))
+
+
 def _phase_settings(phase_class):
     """ The parameters of an initial phase, as the group the app gives it"""
     from pyqtgraph.parametertree import Parameter
@@ -281,7 +295,7 @@ def log_intensity(field, decades: float = 6., name: str = ''):
 
 
 def customize(figure, clims: Optional[list] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
-              units: str = 'm'):
+              units: str = 'um'):
     """ Customize a matplotlib figure of fields: color limits of each image (a list, one (min, max) or None per image,
     in the plotting order), zoom along x and y given in um (the axes are in ``units``)"""
     for ax, clim in zip(_image_axes(figure), clims or []):
@@ -297,7 +311,7 @@ def customize(figure, clims: Optional[list] = None, xlim: Optional[tuple] = None
 
 
 def customize_qt(dispatcher, clims: Optional[list] = None, xlim: Optional[tuple] = None, ylim: Optional[tuple] = None,
-                 units: str = 'm'):
+                 units: str = 'um'):
     """ Starting state of the qt viewers of a field (one per data, in the plotting order): color levels (a list, one
     (min, max) or None per viewer) and zoom along x and y given in um (the axes are in ``units``). Both can then be
     changed interactively"""
@@ -316,17 +330,20 @@ def customize_qt(dispatcher, clims: Optional[list] = None, xlim: Optional[tuple]
 
 
 def center_axes(dte):
-    """ Put the origin of the axes of the 2D data at the center of the field, as for the masks and the zoom"""
+    """ Axes of the 2D data in um with their origin at the center of the field, as the masks and the zoom"""
     for dwa in dte:
         if dwa.dim.name == 'Data2D':
             for axis in dwa.axes:
+                if axis.units:
+                    axis.scaling = Q_(axis.scaling, axis.units).m_as('um')
+                    axis.units = 'um'
                 axis.offset = -axis.scaling * axis.size / 2
     return dte
 
 
-def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'm', color: str = 'red'):
+def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'um', color: str = 'red'):
     """ Draw the outline of a mask (((start, stop) along y, (start, stop) along x) in um around the center of the
-    field) on the 2D data of a matplotlib figure"""
+    field) on the 2D data of a matplotlib figure (axes in ``units``, um for the plots of this module)"""
     from matplotlib.patches import Ellipse, Rectangle
     (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in limits] for limits in slices_um]
     for ax in _image_axes(figure):
@@ -339,7 +356,7 @@ def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'm'
     return figure
 
 
-def draw_mask_qt(dispatcher, slices_um, mask_type: str = 'elliptical', units: str = 'm', color: str = 'r'):
+def draw_mask_qt(dispatcher, slices_um, mask_type: str = 'elliptical', units: str = 'um', color: str = 'r'):
     """ Draw the outline of a mask on the 2D viewers of a ViewerDispatcher, replacing the previous one"""
     import pyqtgraph
     for plotitem, roi in getattr(dispatcher, 'mask_rois', []):
@@ -390,7 +407,7 @@ def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool 
     figure: a Figure or a ViewerDispatcher returned by a previous call, to update it instead of creating a new one
     """
     center_axes(dte)
-    units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'm'
+    units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'um'
     if backend == 'qt':
         ensure_qapp()
         viewer = dte.plot('qt', viewer=figure)

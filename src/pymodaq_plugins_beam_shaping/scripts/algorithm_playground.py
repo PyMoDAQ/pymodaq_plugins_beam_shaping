@@ -23,9 +23,9 @@ app = pg.HeadlessApp(shaper)
 
 # The plots: 'matplotlib' (figures returned, to customize further) or 'qt' (the interactive viewers of PyMoDAQ: zoom,
 # levels, ROI..., in Spyder set Preferences > IPython console > Graphics > Backend to Qt or Automatic)
+# The axes of the plots are in um, their origin at the center of the field, as for the masks.
 # Each plot_field below takes: log (intensity in log10 instead of the amplitude), clim and phase_clim (min, max of the
-# colors), xlim and ylim (zoom, (min, max) in um, the origin being the center of the field as for the masks). With
-# 'qt' they give the starting state of the viewers.
+# colors), xlim and ylim (zoom, (min, max) in um). With 'qt' they give the starting state of the viewers.
 PLOT_BACKEND = 'matplotlib'
 
 # %% Input field: the field entering the shaper, loader name and its parameters
@@ -69,20 +69,29 @@ if snapped_intermediate is not None:
                               ylim=None, backend=PLOT_BACKEND)
 
 # %% Masks: slices in um as ((start, stop) along y, (start, stop) along x) around the center of the field
-# Run this cell again to adjust the intermediate mask: its outline is drawn on the plot of the snap, which is updated
+# None: the default region of the extension, centered and covering 2/3 of the effective area of the SLM in the plane
+# (printed below, copy and edit it). Run this cell again to adjust the intermediate mask: its outline is drawn on the
+# plot of the snap, which is updated
 APPLY_TARGET_MASK = False  # in the plane of the target
-TARGET_MASK = ((-100., 100.), (-100., 100.))
-TARGET_MASK_TYPE = 'elliptical'  # or 'square'
+TARGET_MASK = None
+TARGET_MASK_TYPE = 'square'  # or 'elliptical'
 APPLY_INTERMEDIATE_MASK = False  # in the intermediate plane (4f setups)
-INTERMEDIATE_MASK = ((-100., 100.), (-100., 100.))
+INTERMEDIATE_MASK = None
 INTERMEDIATE_MASK_TYPE = 'elliptical'
 
-pg.set_mask(app, ApplyMaskTo.TARGET, TARGET_MASK if APPLY_TARGET_MASK else None, TARGET_MASK_TYPE)
-pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, INTERMEDIATE_MASK if APPLY_INTERMEDIATE_MASK else None,
-            INTERMEDIATE_MASK_TYPE)
-if snap_plot is not None:  # the plot of the snap is updated (figure=snap_plot), not created again
+target_mask = intermediate_mask = None
+if APPLY_TARGET_MASK:
+    target_mask = TARGET_MASK if TARGET_MASK is not None else pg.default_mask(algo, ApplyMaskTo.TARGET)
+    print(f'TARGET_MASK = {target_mask}')
+if APPLY_INTERMEDIATE_MASK:
+    intermediate_mask = (INTERMEDIATE_MASK if INTERMEDIATE_MASK is not None
+                         else pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
+    print(f'INTERMEDIATE_MASK = {intermediate_mask}')
+pg.set_mask(app, ApplyMaskTo.TARGET, target_mask, TARGET_MASK_TYPE)
+pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, intermediate_mask, INTERMEDIATE_MASK_TYPE)
+if snap_plot is not None and intermediate_mask is not None:  # the plot of the snap is updated, not created again
     pg.plot_field(snapped_intermediate, 'intermediate (snap) and its mask', log=True, clim=None, xlim=None, ylim=None,
-                  mask=(INTERMEDIATE_MASK, INTERMEDIATE_MASK_TYPE), backend=PLOT_BACKEND, figure=snap_plot)
+                  mask=(intermediate_mask, INTERMEDIATE_MASK_TYPE), backend=PLOT_BACKEND, figure=snap_plot)
 
 # %% Run
 pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS)

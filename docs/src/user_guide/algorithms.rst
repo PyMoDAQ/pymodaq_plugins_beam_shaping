@@ -278,7 +278,8 @@ cells one after the other, editing the settings on the way:
 * *Snap*: ``pg.snap`` runs one step of the algorithm without any mask and plots the intermediate plane of 4f setups
   (intensity in log scale), to see where the mask has to be placed;
 * *Masks*: set ``APPLY_TARGET_MASK`` or ``APPLY_INTERMEDIATE_MASK`` to ``True`` to apply a mask (algorithms such as
-  *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field. The cell
+  *DMD Lee* need the one of the intermediate plane), its region being given in um around the center of the field (``None``: the default region
+  of the extension, centered and covering 2/3 of the effective area of the SLM in the plane, printed to be edited). The cell
   draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
   again until the mask is right.
 
@@ -291,7 +292,8 @@ Each field is plotted with ``pg.plot_field``, whose arguments are written in the
 
 * ``log``: the intensity in log10 instead of the amplitude, down to ``decades`` (6 by default) below its maximum;
 * ``clim`` and ``phase_clim``: the (min, max) of the colors of the amplitude (or log10 intensity) and of the phase;
-* ``xlim`` and ``ylim``: a zoom, (min, max) in um, the origin of the axes being the center of the field as for the masks;
+* ``xlim`` and ``ylim``: a zoom, (min, max) in um, the axes of the plots being in um with their origin at the center of the
+  field, as for the masks;
 * ``mask``: (region, type) as for the masks, its outline is drawn;
 * ``figure``: what a previous call returned (matplotlib ``Figure`` or qt ``ViewerDispatcher``), updated instead of
   creating a new plot. With the inline backend (static images), the updated figure is displayed again;

@@ -48,8 +48,8 @@ def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
     assert len(image_axes) == 2
     assert all(ax.get_aspect() == 1. for ax in image_axes)
     assert image_axes[0].collections[0].get_clim() == (-3, 0)
-    assert np.allclose(image_axes[0].get_xlim(), (-50e-6, 50e-6))  # the axes are in m
-    assert np.allclose(image_axes[1].get_ylim(), (-20e-6, 30e-6))
+    assert np.allclose(image_axes[0].get_xlim(), (-50, 50))  # the axes are in um
+    assert np.allclose(image_axes[1].get_ylim(), (-20, 30))
 
 
 def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp):
@@ -82,7 +82,7 @@ def test_plots_are_updated_not_created_again(qapp):
         assert updated is figure
         assert len(plt.get_fignums()) == n_figures
         assert all(len(ax.patches) == 1 for ax in pg._image_axes(figure))  # the previous outline is gone
-        assert pg._image_axes(figure)[0].patches[0].get_width() == pytest.approx(2 * size * 1e-6)
+        assert pg._image_axes(figure)[0].patches[0].get_width() == pytest.approx(2 * size)
 
     dispatcher = pg.plot_field(snapped, 'snap', log=True, backend='qt')
     for size in (100., 200.):
@@ -91,8 +91,23 @@ def test_plots_are_updated_not_created_again(qapp):
         assert updated is dispatcher
         assert len(dispatcher.mask_rois) == 2  # one per viewer, the previous ones removed
         roi = dispatcher.mask_rois[0][1]
-        assert roi.size()[0] == pytest.approx(2 * size * 1e-6)
+        assert roi.size()[0] == pytest.approx(2 * size)
         assert not roi.translatable and roi.getHandles() == []  # an outline, it cannot be moved nor resized
+
+
+def test_default_masks_cover_two_thirds_of_the_effective_area_around_the_center(qapp):
+    from pymodaq_plugins_beam_shaping.utilities import regions
+    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    for apply_to, pixel_sizes in ((ApplyMaskTo.INTERMEDIATE, algo.intermediate_pixel_sizes),
+                                  (ApplyMaskTo.TARGET, algo._target_field.pixels_sizes)):
+        region = pg.default_mask(algo, apply_to)
+        _, size = regions.get_effective_area(algo.shaper, pixel_sizes)
+        for (start, stop), full in zip(region, size):
+            assert start == pytest.approx(-stop, abs=1)
+            assert stop - start == pytest.approx(full * 2 / 3, abs=2)
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
+    pg.run_algorithm(algo)
+    assert np.all(np.isfinite(algo.output_field.amplitude))
 
 
 def test_snap_without_intermediate_plane(qapp):
@@ -109,9 +124,9 @@ def test_plot_with_the_qt_viewers(qapp):
     assert amplitude_view.histogrammer.get_histogram('red').getLevels() == pytest.approx((0., 0.5))
     x_range, y_range = amplitude_view.get_view_range()
     # the aspect ratio is locked, so one of the ranges is enlarged around the requested one
-    assert x_range[0] <= -50e-6 + 1e-12 and x_range[1] >= 50e-6 - 1e-12
-    assert y_range[0] <= -20e-6 + 1e-12 and y_range[1] >= 30e-6 - 1e-12
-    assert min(x_range[1] - x_range[0] - 100e-6, y_range[1] - y_range[0] - 50e-6) == pytest.approx(0., abs=1e-12)
+    assert x_range[0] <= -50 + 1e-6 and x_range[1] >= 50 - 1e-6  # in um
+    assert y_range[0] <= -20 + 1e-6 and y_range[1] >= 30 - 1e-6
+    assert min(x_range[1] - x_range[0] - 100, y_range[1] - y_range[0] - 50) == pytest.approx(0., abs=1e-6)
     assert pg.plot(algo, backend='qt') is not None
 
 
