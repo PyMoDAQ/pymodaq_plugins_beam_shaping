@@ -28,6 +28,7 @@ from pymodaq_gui.parameter import utils as putils
 from pymodaq_gui.config_saver_loader import ConfigSaverLoader
 from pymodaq_gui.h5modules.saving import H5Saver
 from pymodaq_gui.utils.widgets.spinbox import QSpinBox_ro
+from pymodaq_gui.utils.status_palette import Status, StatusPalette
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
 from pymodaq_plugins_beam_shaping.algorithms.algo_base import AlgoBase
@@ -66,8 +67,14 @@ class Actions(StrEnum):
     SHOW_DATA = 'show_data'
 
 
-STATUS_COLORS = {AlgoStatus.TESTED: '#2e9e44', AlgoStatus.IN_PROGRESS: '#e69500',
-                 AlgoStatus.UNTESTED: '#8a8a8a', AlgoStatus.BROKEN: '#d0312d'}
+# the state of the PyMoDAQ palette (colors of the active theme) used for each status of an algorithm
+STATUS_STATES = {AlgoStatus.TESTED: Status.IDLE, AlgoStatus.IN_PROGRESS: Status.RUNNING,
+                 AlgoStatus.UNTESTED: Status.OFF, AlgoStatus.BROKEN: Status.CRITICAL}
+
+
+def status_color(status: AlgoStatus) -> 'QtGui.QColor':
+    """ The color of the status of an algorithm, from the status palette of pymodaq_gui """
+    return StatusPalette.color(STATUS_STATES[AlgoStatus(status)])
 
 
 def show_broken_algorithms() -> bool:
@@ -84,7 +91,7 @@ def status_icon(status: AlgoStatus) -> 'QtGui.QIcon':
     pixmap.fill(QtCore.Qt.transparent)
     painter = QtGui.QPainter(pixmap)
     painter.setRenderHint(QtGui.QPainter.Antialiasing)
-    painter.setBrush(QtGui.QColor(STATUS_COLORS[AlgoStatus(status)]))
+    painter.setBrush(status_color(status))
     painter.setPen(QtCore.Qt.NoPen)
     painter.drawEllipse(1, 1, 10, 10)
     painter.end()
@@ -592,7 +599,7 @@ class AlgoApp(CustomApp):
             label.setToolTip('')
             return
         algo_class = algo_factory.get_algorithm(name)
-        label.setText(f'<span style="color:{STATUS_COLORS[algo_class.STATUS]}">&#9679;</span> {algo_class.STATUS}')
+        label.setText(f'<span style="color:{status_color(algo_class.STATUS).name()}">&#9679;</span> {algo_class.STATUS}')
         label.setToolTip(status_text(algo_class))
 
     def define_phase(self, force_reset=False):
