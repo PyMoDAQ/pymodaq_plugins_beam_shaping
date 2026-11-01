@@ -23,12 +23,12 @@ N_ITERATIONS = 1
 INITIAL_PHASE = 'zero'  # 'zero', 'random' or a 2D array of the shape of the fields
 
 # The field entering the shaper: loader name and its parameters
-INPUT_LOADER = 'ImageFiles'
-INPUT_PARAMS = {'phase.load': False}  # only the amplitude of the default image
+INPUT_LOADER = 'GaussianIntensity'
+INPUT_PARAMS = dict()  # e.g. dict(beam_size_x=..., beam_size_y=...), see pg.list_available()
 
 # The field to obtain after the shaper
-TARGET_LOADER = 'LaguerreGaussian'
-TARGET_PARAMS = dict()
+TARGET_LOADER = 'ImageFiles'
+TARGET_PARAMS = {'phase.load': False}  # only the amplitude of the default image (set 'amplitude.file' to use yours)
 
 # Masks: slices in um as ((start, stop) along y, (start, stop) along x) around the center of the field, in the plane
 # of the target or the intermediate plane (4f setups)
