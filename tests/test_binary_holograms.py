@@ -293,6 +293,7 @@ def test_an_initial_phase_on_the_modulator_does_not_wash_the_orders_out(qapp, le
     background = np.median(spectrum)
     assert order > 1e3 * background
 
+
 @pytest.mark.parametrize('n, distinct', [(3, 343), (4, 6561)])
 def test_the_superpixel_table_has_the_values_of_the_reference(n, distinct):
     # Goorden et al., Opt. Express 22, 17999 (2014): 343 distinct fields for n = 3, 6561 for n = 4
