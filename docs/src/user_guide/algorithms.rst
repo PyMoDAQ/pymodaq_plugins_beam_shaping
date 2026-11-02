@@ -5,7 +5,7 @@ Algorithms for Beam Shaping
 
 Overview
 --------
-PyMoDAQ-BeamShaping provides **10 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
+PyMoDAQ-BeamShaping provides **11 algorithms** for beam shaping, categorized into **4 families**. The algorithm is chosen
 by its name in the *Algorithm* settings of the extension. The list is built when the extension starts: the algorithms of
 BeamShaping itself, then the ones provided by other installed packages (see :doc:`custom_algorithm`).
 
@@ -58,6 +58,14 @@ BeamShaping itself, then the ones provided by other installed packages (see :doc
      - ✅
      - Lee hologram for amplitude modulators (DMD): amplitude and phase are encoded in the width and the position of the
        fringes of a binary grating (:cite:t:`lee_binary_1974`).
+   * - Direct diffractive modulation
+     - Superpixel
+     - 4f
+     - ❌
+     - ✅
+     - ✅
+     - Superpixel hologram for amplitude modulators (DMD): blocks of mirrors whose on / off pattern gives a complex
+       value (:cite:t:`goorden_superpixel-based_2014`).
    * - Iterative alternating projections
      - Gerchberg-Saxton
      - 2f
@@ -283,7 +291,7 @@ cells one after the other, editing the settings on the way:
 * *Snap*: ``pg.snap`` runs one step of the algorithm without any mask and plots the intermediate plane of 4f setups
   (intensity in log scale), to see where the mask has to be placed;
 * *Masks*: set ``APPLY_TARGET_MASK`` or ``APPLY_INTERMEDIATE_MASK`` to ``True`` to apply a mask (algorithms such as
-  *Binary Threshold* and *Parallel Lee* need the one of the intermediate plane), its region being given in um around the center of the field (``None``: the default region
+  *Binary Threshold*, *Parallel Lee* and *Superpixel* need the one of the intermediate plane), its region being given in um around the center of the field (``None``: the default region
   of the extension, centered and covering 2/3 of the effective area of the SLM in the plane, printed to be edited). The cell
   draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
   again until the mask is right.

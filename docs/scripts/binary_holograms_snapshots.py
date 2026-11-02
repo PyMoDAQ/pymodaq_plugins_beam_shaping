@@ -1,7 +1,7 @@
 """Makes the figure of the binary holograms of the documentation (docs/src/_images/binary_holograms.png)
 
 The same target (the default *ImageFiles* loader: its image as amplitude and its associated phase) is computed with
-each algorithm of the family (Binary Threshold, Parallel Lee), with the helpers of the script
+each algorithm of the family (Binary Threshold, Parallel Lee, Superpixel), with the helpers of the script
 ``scripts/algorithm_playground.py``, and the part of the pattern sent to the modulator is shown. Run it with
 ``python binary_holograms_snapshots.py`` (the figure is written next to the other images of the documentation).
 """
@@ -16,8 +16,9 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg, regions
 
 OUTPUT = Path(__file__).parent.parent / 'src' / '_images' / 'binary_holograms.png'
-ALGORITHMS = ('Binary Threshold', 'Parallel Lee')
-PARAMS = {'px': 8, 'py': 64}  # the periods of the grating, in pixels: wide for the amplitude levels of Parallel Lee
+ALGORITHMS = ('Binary Threshold', 'Parallel Lee', 'Superpixel')
+# the periods of the grating, in pixels: wide for the amplitude levels of Parallel Lee, the superpixels are 4 x 4
+PARAMS = {'Binary Threshold': {'px': 8, 'py': 64}, 'Parallel Lee': {'px': 8, 'py': 64}, 'Superpixel': {'px': 4}}
 MASK_HALF_SIZE = 150.  # um, half size of the elliptical mask of the intermediate plane around the selected order
 
 pg.ensure_qapp()
@@ -27,7 +28,7 @@ target_field = pg.load_field('ImageFiles', None, app)  # the default image and i
 
 results = {}
 for name in ALGORITHMS:
-    algo = pg.create_algorithm(pg.reload_algorithm(name), app, PARAMS)
+    algo = pg.create_algorithm(pg.reload_algorithm(name), app, PARAMS[name])
     pg.set_fields(algo, input_field, target_field)
     # the order to filter, as given by the algorithm, in um from the center of the intermediate plane
     y, x = np.array(algo.order_frequency()) * regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)

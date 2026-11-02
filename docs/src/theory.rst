@@ -203,7 +203,7 @@ the fringes on the pixel lattice, and gives more phase values for the same perio
 
 **Superpixels.** In the Haskell and superpixel holograms the modulator is cut into blocks of :math:`p \times p`
 pixels, each block being given the on/off pattern whose Fourier coefficient is the closest to the complex value of the
-target (:cite:t:`goorden_superpixel-based_2014`). They reach more amplitude and phase values than the Lee holograms.
-They are not available yet in the toolbox.
+target (:cite:t:`goorden_superpixel-based_2014`). They reach more amplitude and phase values than the Lee holograms: with :math:`p = 4` and the tilted lattice
+:math:`\boldsymbol{\nu} = (1/p, -1/p^2)`, 6561 distinct complex values are available.
 
 The algorithms of the toolbox that use these holograms are described in :ref:`sec-algo-amplitude-modulation`.
