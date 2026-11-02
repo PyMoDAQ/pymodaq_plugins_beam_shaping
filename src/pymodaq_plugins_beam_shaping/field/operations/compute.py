@@ -188,6 +188,14 @@ def subtract_phase(phase: np.ndarray, to_remove: np.ndarray) -> np.ndarray:
     return wrap(result) if is_wrapped(phase) else result
 
 
+def log10_amplitude(amplitude: np.ndarray, floor: float = 1e-4) -> np.ndarray:
+    """ log10 of the amplitude relative to its maximum, clipped at floor (relative, > 0): values in [log10(floor), 0]"""
+    amplitude = np.abs(np.asarray(amplitude, dtype=float))
+    amax = np.max(amplitude) if amplitude.size else 0.
+    relative = amplitude / amax if amax > 0 else np.zeros(amplitude.shape)
+    return np.log10(np.maximum(relative, floor))
+
+
 def phase_difference(phase_after: np.ndarray, phase_before: np.ndarray) -> np.ndarray:
     """ angle(E_after * conj(E_before)): the difference wrapped in ]-pi, pi]"""
     return np.angle(np.exp(1j * (phase_after - phase_before)))
