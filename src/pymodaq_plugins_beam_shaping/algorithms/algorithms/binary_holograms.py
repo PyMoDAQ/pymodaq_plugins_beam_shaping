@@ -136,6 +136,14 @@ class BinaryHologram(AlgoBase):
             return True
         return False
 
+    def compute_grid(self) -> tuple[np.ndarray, np.ndarray]:
+        """ The positions (x, y) of the pixels in pixels, with the origin at the index N // 2, the one of the fields
+        transformed by Field.fft2 / ifft2: the phase of the grating is then zero at the origin of the carrier removal,
+        and the output field has the phase of the target (not shifted by half a pixel of carrier)"""
+        x = np.arange(self.shape[1]) - self.shape[1] // 2
+        y = np.arange(self.shape[0]) - self.shape[0] // 2
+        return np.meshgrid(x, y)
+
     def carrier_phase(self) -> np.ndarray:
         """ The phase 2 pi nu . r of the grating at each pixel"""
         xx, yy = self.compute_grid()

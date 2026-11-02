@@ -257,3 +257,21 @@ def test_the_selected_order_carries_the_phase_of_the_target(qapp, phase):
     difference = np.angle(np.exp(1j * (centre_phase(phase) - centre_phase(0.))))
     # the phase of the target (not its opposite), with the quantization of the position of the fringes on the pixels
     assert np.angle(np.exp(1j * (difference - phase))) == pytest.approx(0., abs=0.4)
+
+
+@pytest.mark.parametrize('phase', [0.7, -1.2])
+def test_the_output_field_has_the_phase_of_the_target_without_offset(qapp, phase):
+    lee = _Lee()
+    lee.settings.child('carrier_from').setValue(CARRIER_FROM[0])
+    lee.settings.child('px').setValue(4)
+    lee.settings.child('py').setValue(16)
+    ny, nx = lee.shape
+    ry, rx = lee.order_frequency()
+    cy, cx = ny // 2 + ry, nx // 2 + rx
+    lee.mask_slices = (slice(int(cy - 5), int(cy + 6)), slice(int(cx - 5), int(cx + 6)))
+    lee._target_field.phase = np.full((ny, nx), phase)
+    lee.compute_phase_and_or_amplitude()
+    centre = lee.output_field.field[ny // 2 - 50:ny // 2 + 50, nx // 2 - 50:nx // 2 + 50].mean()
+    # the origin of the carrier is the one of the removal: no constant phase of the carrier is left, up to the
+    # quantization of the position of the fringes on the pixels
+    assert np.angle(np.exp(1j * (np.angle(centre) - phase))) == pytest.approx(0., abs=0.4)
