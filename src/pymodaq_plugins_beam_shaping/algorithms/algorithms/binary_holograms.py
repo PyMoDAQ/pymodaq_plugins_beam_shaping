@@ -63,6 +63,7 @@ class BinaryHologram(AlgoBase):
     MODULATOR_TYPES = (ModulatorType.AMPLITUDE, )
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
+    INI_PHASE = False  # an amplitude modulator has no phase to initialize
     RECOMPUTE_ON_CHANGE = True
 
     _params_carrier = [
@@ -178,6 +179,9 @@ class BinaryHologram(AlgoBase):
         amplitude_pattern = self.compute_amplitude_pattern()
 
         self.set_amplitude_in_modulator_plane(amplitude_pattern)
+        # an amplitude modulator does not modulate the phase: whatever phase was set on the modulator field (an
+        # initial phase for instance) would be multiplied to the pattern and wash the diffraction orders out
+        self._modulator_field.phase = np.zeros(self.shape)
 
         self.compute_intermediate_field()
         self.compute_output_from_intermediate()

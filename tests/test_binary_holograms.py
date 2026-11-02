@@ -278,6 +278,22 @@ def test_the_output_field_has_the_phase_of_the_target_without_offset(qapp, phase
     assert np.angle(np.exp(1j * (np.angle(centre) - phase))) == pytest.approx(0., abs=0.4)
 
 
+@pytest.mark.parametrize('lee_class', [_Lee, _Threshold])
+def test_an_initial_phase_on_the_modulator_does_not_wash_the_orders_out(qapp, lee_class):
+    algo = lee_class()
+    assert not algo.INI_PHASE  # the application does not define an initial phase
+    algo.settings.child('px').setValue(4)
+    algo.settings.child('py').setValue(16)
+    algo.define_input_phase(np.random.default_rng(0).uniform(-np.pi, np.pi, algo.shape))  # as a random initial phase
+    algo.compute_phase_and_or_amplitude()
+    spectrum = np.abs(algo.modulator_field.fft2().field) ** 2
+    ny, nx = algo.shape
+    ry, rx = algo.order_frequency()
+    order = spectrum[int(ny // 2 + ry) - 3:int(ny // 2 + ry) + 4, int(nx // 2 + rx) - 3:int(nx // 2 + rx) + 4].max()
+    background = np.median(spectrum)
+    assert order > 1e3 * background
+
+
 @pytest.mark.parametrize('n, distinct', [(3, 343), (4, 6561)])
 def test_the_superpixel_table_has_the_values_of_the_reference(n, distinct):
     # Goorden et al., Opt. Express 22, 17999 (2014): 343 distinct fields for n = 3, 6561 for n = 4
