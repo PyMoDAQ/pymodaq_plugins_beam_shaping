@@ -1,8 +1,11 @@
-"""The carrier of the order selected in the Fourier plane is removed from the field computed by DMD Lee"""
+"""The carrier of the order selected in the Fourier plane is removed from the field computed by the binary holograms"""
+import types
+
 import numpy as np
 import pytest
 
-from pymodaq_plugins_beam_shaping.algorithms.algorithms.dmd_lee import DmDLee, remove_linear_phase, spectrum_centroid, CARRIER_FROM
+from pymodaq_plugins_beam_shaping.algorithms.algorithms.binary_holograms import (
+    BinaryThreshold, ParallelLee, remove_linear_phase, spectrum_centroid, CARRIER_FROM)
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 
@@ -32,13 +35,15 @@ def test_it_is_a_shift_of_the_spectrum():
     assert np.allclose(field, to_field(shifted) * (field[0, 0] / to_field(shifted)[0, 0]))
 
 
-class _Lee(DmDLee):
-    """DMD Lee without the application: a circular mask around the first order of the pattern"""
+class _Stub:
+    """A binary hologram without the application: the mask of the intermediate plane is set by ``mask_slices``"""
     mask_slices = None
 
     def __init__(self):
         super().__init__(parent=None)
         self._target_field.amplitude = np.ones(self.shape)  # modulation depth of 1 everywhere
+        self.settings.child('px').setValue(5)  # a period of 5 pixels along x and y
+        self.settings.child('py').setValue(5)
 
     def apply_mask(self, apply_to):
         return apply_to == ApplyMaskTo.INTERMEDIATE and self.mask_slices is not None
@@ -53,6 +58,14 @@ class _Lee(DmDLee):
         pass  # asks the application to compute again
 
 
+class _Lee(_Stub, ParallelLee):
+    pass
+
+
+class _Threshold(_Stub, BinaryThreshold):
+    pass
+
+
 def test_carrier_is_the_center_of_the_mask(qapp):
     lee = _Lee()
     ny, nx = lee.shape
@@ -65,7 +78,7 @@ def test_carrier_is_the_center_of_the_mask(qapp):
 def test_the_carrier_of_the_selected_order_is_removed(qapp):
     lee = _Lee()
     ny, nx = lee.shape
-    period = lee.settings['super_pixel']
+    period = lee.settings['px']
     # the pattern cos(2 pi (x - y) / period) puts its orders at +- (ny / period, -nx / period) cycles
     cy, cx = ny // 2 + ny / period, nx // 2 - nx / period
     radius = 6
@@ -95,7 +108,7 @@ def test_spectrum_centroid():
 def _lee_with_off_center_mask(qapp):
     lee = _Lee()
     ny, nx = lee.shape
-    period = lee.settings['super_pixel']
+    period = lee.settings['px']
     cy, cx = ny // 2 + ny / period, nx // 2 - nx / period
     radius = 20
     # the mask is shifted by a few pixels from the real order, but still contains it
@@ -152,7 +165,8 @@ def test_the_pattern_is_binarized_or_not_and_follows_the_target_amplitude(qapp):
 @pytest.mark.parametrize('depth', [0.5, 0.75, 1.])
 def test_binary_width_modulation_gives_a_first_order_of_the_amplitude_of_the_target(qapp, depth):
     lee = _Lee()
-    lee.settings.child('super_pixel').setValue(20)  # the width of the stripes is a whole number of pixels: wide period
+    lee.settings.child('px').setValue(20)
+    lee.settings.child('py').setValue(20)  # the width of the stripes is a whole number of pixels: wide period
     ny, nx = lee.shape
     amplitude = np.full((ny, nx), 1.)
     amplitude[:, nx // 2:] = depth  # normalised to the maximum: the right half has a depth of `depth`
@@ -163,7 +177,7 @@ def test_binary_width_modulation_gives_a_first_order_of_the_amplitude_of_the_tar
     assert set(np.unique(pattern)) <= {0., 1.}
 
     xx, yy = lee.compute_grid()
-    first_order = np.exp(-2j * np.pi * (xx - yy) / lee.settings['super_pixel'])  # the carrier of the order +1
+    first_order = np.exp(-1j * lee.carrier_phase())  # the carrier of the order +1
     halves = (slice(0, nx // 2), slice(nx // 2, nx))
     amplitudes = [2 * abs(np.mean(pattern[:, half] * first_order[:, half])) for half in halves]
     # the first order of a binary grating of relative width w has the amplitude 2 sin(pi w) / pi, at most 2 / pi
@@ -171,13 +185,75 @@ def test_binary_width_modulation_gives_a_first_order_of_the_amplitude_of_the_tar
     assert amplitudes[1] / amplitudes[0] == pytest.approx(depth, abs=0.1)
 
 
-def test_the_binarization_by_threshold_loses_the_amplitude_of_the_target(qapp):
-    lee = _Lee()
-    ny, nx = lee.shape
+def test_the_binary_threshold_loses_the_amplitude_of_the_target(qapp):
+    threshold = _Threshold()
+    ny, nx = threshold.shape
     amplitude = np.full((ny, nx), 1.)
     amplitude[:, nx // 2:] = 0.25
-    lee._target_field.amplitude = amplitude
-    lee.settings.child('binarize_method').setValue('Threshold')  # at 0.5, whatever the depth: on where cos(phase) > 0
-    pattern = lee.compute_amplitude_pattern()
+    threshold._target_field.amplitude = amplitude
+    pattern = threshold.compute_amplitude_pattern()  # at 0.5, whatever the depth: on where cos(phase) > 0
+    assert set(np.unique(pattern)) <= {0., 1.}
     assert pattern[:, :nx // 2].mean() == pytest.approx(pattern[:, nx // 2:].mean(), abs=0.02)
+    assert BinaryThreshold.ALGOTYPE != ParallelLee.ALGOTYPE  # phase only against amplitude and phase
 
+
+def test_the_binary_threshold_unbinarized_is_the_grey_off_axis_hologram(qapp):
+    threshold = _Threshold()
+    threshold.settings.child('binarize').setValue(False)
+    threshold._target_field.phase = np.full(threshold.shape, 0.4)
+    pattern = threshold.compute_amplitude_pattern()
+    assert np.allclose(pattern, 0.5 * (1 + np.cos(threshold.carrier_phase() - 0.4)))
+
+
+def test_the_period_py_is_a_multiple_of_px(qapp):
+    lee = ParallelLee()
+    lee.parent_app = types.SimpleNamespace(compute_phase_and_or_amplitude=lambda: None)  # the real value_changed
+    assert (lee.settings['px'], lee.settings['py']) == (4, 16)  # the default of the review, py = px ** 2
+    lee.settings.child('py').setValue(18)  # not a multiple: corrected
+    assert lee.settings['py'] == 16
+    lee.settings.child('px').setValue(5)  # py = 16 is not a multiple of 5 any more
+    assert lee.settings['py'] % 5 == 0
+    lee.settings.child('py').setValue(0)  # aligned grating: allowed
+    assert lee.settings['py'] == 0 and lee.order_frequency()[0] == 0.
+
+
+def test_the_carrier_follows_px_and_py(qapp):
+    lee = _Lee()
+    lee.settings.child('px').setValue(4)
+    lee.settings.child('py').setValue(16)
+    xx, yy = lee.compute_grid()
+    assert np.allclose(lee.carrier_phase(), 2 * np.pi * (xx / 4 - yy / 16))
+    lee.settings.child('py').setValue(0)
+    assert np.allclose(lee.carrier_phase(), 2 * np.pi * xx / 4)
+    lee.settings.child('px').setValue(4)
+    lee.settings.child('py').setValue(8)
+    ny, nx = lee.shape
+    assert lee.order_frequency() == pytest.approx((ny / 8, -nx / 4))
+
+
+def test_the_order_position_text_tells_where_to_put_the_mask(qapp):
+    lee = _Lee()
+    lee.update_order_position()
+    text = lee.settings['order_position']
+    ny, nx = lee.shape
+    assert f'{ny / lee.settings["py"]:.1f}' in text and f'{-nx / lee.settings["px"]:.1f}' in text
+
+
+@pytest.mark.parametrize('phase', [0.7, -1.2, 2.5])
+def test_the_selected_order_carries_the_phase_of_the_target(qapp, phase):
+    lee = _Lee()
+    lee.settings.child('px').setValue(4)
+    lee.settings.child('py').setValue(16)
+    ny, nx = lee.shape
+    ry, rx = lee.order_frequency()
+    cy, cx = ny // 2 + ry, nx // 2 + rx
+    lee.mask_slices = (slice(int(cy - 5), int(cy + 6)), slice(int(cx - 5), int(cx + 6)))
+
+    def centre_phase(target_phase):
+        lee._target_field.phase = np.full((ny, nx), target_phase)
+        lee.compute_phase_and_or_amplitude()
+        return np.angle(lee.output_field.field[ny // 2 - 5:ny // 2 + 5, nx // 2 - 5:nx // 2 + 5].mean())
+
+    difference = np.angle(np.exp(1j * (centre_phase(phase) - centre_phase(0.))))
+    # the phase of the target (not its opposite), with the quantization of the position of the fringes on the pixels
+    assert np.angle(np.exp(1j * (difference - phase))) == pytest.approx(0., abs=0.4)

@@ -51,36 +51,66 @@ by encoding the complex field on a checkerboard (:cite:t:`mendoza-yero_encoding_
 * ``Mask block size (pxls)`` (default 5): size of the blocks of the checkerboard.
 * ``amplitude divider`` (default 1).
 
-DMD Lee
--------
+.. _sec-algo-amplitude-modulation:
 
-Creates **amplitude and phase** images with a binary **amplitude** modulator such as a DMD (Lee hologram, W.H. Lee,
-Progress in Optics, 1978), in a **4f** line with a filter in the Fourier plane that selects one diffraction order. Not
-iterative. The pattern sent to the modulator is ``½ (1 + A cos(2π (x - y) / period - φ))``: a grating whose phase
-shift is the phase ``φ`` of the target and whose modulation depth ``A`` is its amplitude, normalised so that its
-maximum is 1. The first order of the grating, selected by the mask of the intermediate plane (*Intermediate Masking*
-settings, which this algorithm needs), is the target field.
+Amplitude modulation: binary holograms
+--------------------------------------
 
-*Settings*:
+A family of algorithms for **binary amplitude modulators** such as the DMDs, in a **4f** line with a filter in the
+Fourier plane that selects one diffraction order (the theory is in :ref:`sec-theory-amplitude-modulation`, after the
+review :cite:t:`gutierrez-cuevas_binary_2024`). They are not iterative. The pattern sent to the modulator is a grating
+of carrier ``ν = (1/px, -1/py)`` whose fringes are shifted by the phase ``φ`` of the target; the order selected by the
+mask of the intermediate plane (*Intermediate Masking* settings, which these algorithms need) is the target field.
 
-* ``Super Pixel size (pxls)`` (default 5): period of the grating, in pixels. The binary pattern can only render as many
-  amplitude levels as the period has pixels, so a wider period gives a more faithful amplitude (8 pixels or more is
-  advisable, the figure below uses 10), at the cost of a smaller field (the orders are further apart in the spectrum).
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
+
+   * - Algorithm
+     - Modulation
+     - Principle
+   * - Binary Threshold
+     - phase only
+     - the grey grating is cut at its mean (:cite:t:`bryngdahl_interferograms_1968`)
+   * - Parallel Lee
+     - amplitude and phase
+     - the width of the fringes follows the amplitude (:cite:t:`lee_binary_1974`)
+
+The orthogonal Lee hologram, that codes the amplitude along a direction orthogonal to the one of the phase, and the
+superpixel holograms (:cite:t:`goorden_superpixel-based_2014`) are described in the review but not available yet.
+
+*Settings common to the algorithms*:
+
+* ``Period px (pxls)`` (default 4) and ``Period py (pxls)`` (default 16): periods of the grating along x and y, in
+  pixels. ``py`` is 0 (aligned grating, ``ν = (1/px, 0)``) or a multiple of ``px`` (the tilted lattice of the review,
+  its default ``py = px²`` being the compromise it proposes); another value is corrected to a multiple.
 * ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
-  the grey levels of the pattern are kept (an ideal modulation, not feasible on a DMD, to see what the binarization
-  costs).
-* ``Binarization`` (default *Width modulation*): *Width modulation* is the binary Lee hologram: the pixel is on where
-  ``cos(θ) > sqrt(1 - A²)``, so the stripes are wider where the amplitude is higher, and the first order has the
-  amplitude ``A`` (up to the factor 2/π lost to the binarization). *Threshold* compares the grey pattern to
-  ``threshold``: with the default 0.5 this is equivalent to ``cos(θ) > 0`` whatever ``A``, the amplitude of the target
-  is lost and only its phase is kept.
-* ``threshold`` (default 0.5): level of the *Threshold* binarization.
+  the grey levels of the pattern are kept (the grey off-axis hologram, an ideal modulation not feasible on a DMD, to
+  see what the binarization costs).
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
+* ``Order position``: a read-only text, updated with the periods, giving the position of the order to filter, and the
+  slices of a mask around it that can be copied to the slices of the *Intermediate Masking*.
 
-The two first orders of the grating carry opposite phases, and this is physical: the order at the positive frequency
-``(1, -1) / period`` (more columns and fewer rows than the zero order in the intermediate plane) carries the phase
-``-φ`` of the target, the one at the negative frequency (the opposite side of the zero order) carries ``+φ``. Select the
-order that carries the phase of the target, as in the figure below.
+The two first orders of the grating carry opposite phases, and this is physical: the order at ``+ν`` carries the phase
+``-φ`` of the target, the one at ``-ν`` (the order (-1, 0) of the review) carries ``+φ``. Select the order that carries
+the phase of the target: the one the *Order position* gives.
+
+Binary Threshold
+~~~~~~~~~~~~~~~~
+
+Encodes the **phase** of the target. The pattern is on where ``cos(2π ν·r - φ) > 0`` (Eq. 9 of the review), whatever
+the amplitude of the target, which is lost.
+
+* ``threshold`` (default 0.5, the mean of the grey pattern): level above which the grey pattern ``½ (1 + cos(2π ν·r - φ))``
+  is on.
+
+Parallel Lee
+~~~~~~~~~~~~
+
+Encodes **amplitude and phase**: a pixel is on where ``cos(2π ν·r - φ) > cos(π q)`` with ``A = sin(π q)`` (Eq. 11 of the
+review), ``A`` being the amplitude of the target, normalised so that its maximum is 1. Unchecking *Binarize* gives the
+grey pattern ``½ (1 + A cos(2π ν·r - φ))``. The amplitude levels that the binary pattern can render are limited by the
+period of the grating: a wider period gives a more faithful amplitude.
 
 **The carrier.** The selected order is off the optical axis, so the output field carries a linear phase (a tilt of the
 beam, the *carrier*) on top of the phase of the target. With *Remove carrier* the algorithm removes it numerically: the
@@ -94,14 +124,13 @@ selected order goes through the axis of the lens: the beam then leaves the lens 
 tilt. The phase of the output plane of the algorithm is then the one of the setup. This follows from the paraxial
 model of the 4f line used by the extension, it is not checked on a real setup.
 
-**Result with and without binarization.** The figure below shows the output field computed by the algorithm for a
-target given by the default *ImageFiles* loader (an image and its associated phase), with the binarization off (top) and on
-(bottom, width modulation), and the part of the pattern sent to the modulator in each case. The binarization costs some
-fidelity on the amplitude (correlation with the target image: 0.77 and 0.75, computed inside the target region) and
-adds some noise, but the phase of the target is kept. The figure is made by ``docs/scripts/dmd_lee_snapshots.py``.
+**Result.** The figure below shows the output field computed by the two algorithms for a target given by the default
+*ImageFiles* loader (an image and its associated phase), and the part of the pattern sent to the modulator. Binary
+Threshold keeps the phase of the target but not its amplitude; Parallel Lee keeps both, with some noise from the
+binarization. The figure is made by ``docs/scripts/binary_holograms_snapshots.py``.
 
-.. image:: ../_images/dmd_lee_binarization.png
-   :alt: Output field of DMD Lee, amplitude and phase, without and with binarization
+.. image:: ../_images/binary_holograms.png
+   :alt: Output field of Binary Threshold and Parallel Lee, amplitude and phase
 
 Gerchberg-Saxton
 ----------------

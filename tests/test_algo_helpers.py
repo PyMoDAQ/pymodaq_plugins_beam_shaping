@@ -20,7 +20,7 @@ def prepare(name, modulator_type):
 
 
 def test_4f_helpers_conserve_energy_and_calibrate_the_output(qapp):
-    app, algo = prepare('SuperPixels', 'amplitude')
+    app, algo = prepare('Binary Threshold', 'amplitude')
     algo.set_amplitude_in_modulator_plane(np.random.default_rng(0).uniform(size=algo.shape))
     intermediate = algo.compute_intermediate_field()
     assert algo.intermediate_field is intermediate
@@ -38,7 +38,7 @@ def test_4f_helpers_conserve_energy_and_calibrate_the_output(qapp):
 
 
 def test_intermediate_mask_filters_the_intermediate_field(qapp):
-    app, algo = prepare('SuperPixels', 'amplitude')
+    app, algo = prepare('Binary Threshold', 'amplitude')
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-60., 60.), (-60., 60.)))
     algo.set_amplitude_in_modulator_plane(np.random.default_rng(0).uniform(size=algo.shape))
     filtered = algo.compute_intermediate_field()
@@ -56,6 +56,6 @@ def test_back_propagate_amplitude_sets_a_phase_of_the_modulator(qapp):
 
 
 def test_the_centered_grid_is_centered(qapp):
-    app, algo = prepare('SuperPixels', 'amplitude')
+    app, algo = prepare('Binary Threshold', 'amplitude')
     xx, yy = algo.compute_grid()
     assert xx.shape == algo.shape and np.isclose(xx.mean(), 0) and np.isclose(yy.mean(), 0)

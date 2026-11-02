@@ -37,7 +37,7 @@ def test_plot_input_and_target_fields(qapp):
 
 
 def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
-    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))
     pg.run_algorithm(algo)
     log = pg.log_intensity(algo.intermediate_field, decades=4)
@@ -53,7 +53,7 @@ def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
 
 
 def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp):
-    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     mask = ((-100., 100.), (-100., 100.))
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, mask)
     snapped = pg.snap(algo)
@@ -72,7 +72,7 @@ def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp
 
 def test_plots_are_updated_not_created_again(qapp):
     from matplotlib import pyplot as plt
-    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     snapped = pg.snap(algo)
     figure = pg.plot_field(snapped, 'snap', log=True, show=False)
     n_figures = len(plt.get_fignums())
@@ -98,7 +98,7 @@ def test_plots_are_updated_not_created_again(qapp):
 
 def test_default_masks_cover_two_thirds_of_the_effective_area_around_the_center(qapp):
     from pymodaq_plugins_beam_shaping.utilities import regions
-    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     for apply_to, pixel_sizes in ((ApplyMaskTo.INTERMEDIATE, algo.intermediate_pixel_sizes),
                                   (ApplyMaskTo.TARGET, algo._target_field.pixels_sizes)):
         region = pg.default_mask(algo, apply_to)
@@ -113,7 +113,7 @@ def test_default_masks_cover_two_thirds_of_the_effective_area_around_the_center(
 
 def test_overview_is_made_of_subplots_and_updated(qapp):
     from matplotlib import pyplot as plt
-    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
     figure = pg.plot(algo, show=False)
@@ -127,7 +127,7 @@ def test_overview_is_made_of_subplots_and_updated(qapp):
 
 
 def test_overview_in_the_qt_backend_has_a_dock_per_field(qapp):
-    app, algo = prepare('DMD Lee', modulator_type='amplitude')
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
     overview = pg.plot(algo, backend='qt')
@@ -179,7 +179,7 @@ def test_unknown_initial_phase_parameter_lists_the_possible_ones(qapp):
 
 
 def test_parameters_are_set_without_widgets_and_masks_applied(qapp):
-    app, algo = prepare('DMD Lee', dict(carrier_factor=0.5), modulator_type='amplitude')
+    app, algo = prepare('Parallel Lee', dict(carrier_factor=0.5), modulator_type='amplitude')
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))
     pg.run_algorithm(algo)
     assert algo.settings['carrier_factor'] == 0.5
