@@ -128,6 +128,13 @@ def test_sizes_follow_the_shaper():
     assert sizing.get_effective_slm_pixel_size(other) == 12. * sizing.get_binning()
 
 
+def _set_global_preference(monkeypatch, module_under_test, key, value):
+    """The extension reads its preferences in the global configuration, section beam_shaping"""
+    real_config = module_under_test.config
+    monkeypatch.setattr(module_under_test, 'config',
+                        lambda *args: value if args == ('beam_shaping',) + key else real_config(*args))
+
+
 def test_preference_overwrites_the_calibration_choice_of_the_actuator(monkeypatch, caplog):
     from pymodaq_plugins_beam_shaping.extensions import spatial_beam_shaping as module_under_test
     module = FakeModule(shaper_params())
@@ -136,12 +143,12 @@ def test_preference_overwrites_the_calibration_choice_of_the_actuator(monkeypatc
     extension = _extension(module)
     use = module.settings.child('actuator_settings', PROPERTIES_NAME, 'use_internal_calibration')
 
-    monkeypatch.setattr(module_under_test, 'plugin_config', lambda *args: False)
+    _set_global_preference(monkeypatch, module_under_test, ('calibration', 'use_internal_calibration'), False)
     BeamShaping.apply_calibration_preference(extension)
     assert not use.value()
     assert 'Use internal calibration' in caplog.text
 
-    monkeypatch.setattr(module_under_test, 'plugin_config', lambda *args: True)
+    _set_global_preference(monkeypatch, module_under_test, ('calibration', 'use_internal_calibration'), True)
     BeamShaping.apply_calibration_preference(extension)
     assert use.value()
 
@@ -160,7 +167,7 @@ def test_wavelength_of_the_setup_is_imposed_to_the_actuator(monkeypatch, caplog)
     from pymodaq_plugins_beam_shaping.extensions import spatial_beam_shaping as module_under_test
     module = FakeModule(shaper_params() + [{'name': 'wavelength_nm', 'type': 'float', 'value': 515.}])
     extension = _extension(module)
-    monkeypatch.setattr(module_under_test, 'plugin_config', lambda *args: 800.)
+    _set_global_preference(monkeypatch, module_under_test, ('setup', 'wavelength_nm'), 800.)
 
     BeamShaping.apply_wavelength(extension)
     assert module.settings['actuator_settings', 'wavelength_nm'] == 800.
