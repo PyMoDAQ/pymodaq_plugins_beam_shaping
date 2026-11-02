@@ -4,6 +4,10 @@ Guidance for AI coding assistants (and humans) building on **PyMoDAQ 5.3.x** fro
 PyMoDAQ is a Qt framework that drives lab experiments: hardware is added through small *plugins*, and PyMoDAQ
 provides the GUI, threading, data model, scans and HDF5 saving. Python 3.10 to 3.13.
 
+> **This repository has specific guidance in [AGENTS_BEAM_SHAPING.md](AGENTS_BEAM_SHAPING.md)** (where the field loaders,
+> algorithms, Field Tool, shapers, tests and docs are, branch conventions). Read it first; the rest of this file is the
+> generic PyMoDAQ plugin guidance from the template.
+
 This repository is a plugin package named `pymodaq_plugins_<name>`. Rename everything that still says `template`
 before publishing.
 
