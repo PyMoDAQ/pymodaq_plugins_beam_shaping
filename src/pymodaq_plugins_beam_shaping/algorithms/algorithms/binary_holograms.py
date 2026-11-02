@@ -18,6 +18,9 @@ from typing import Union, Tuple, List, TYPE_CHECKING
 
 import numpy as np
 from copy import deepcopy
+from functools import lru_cache
+
+from scipy.spatial import cKDTree
 
 from pymodaq_plugins_beam_shaping.utilities.shaper import ModulatorType
 from pymodaq_utils.logger import set_logger, get_module_name
@@ -258,3 +261,105 @@ class ParallelLee(BinaryHologram):
             # the pixels are off
             return (np.cos(phase) > np.sqrt(1 - np.clip(modulation_depth, 0., 1.) ** 2)).astype(float)
         return 1 / 2 * (1 + modulation_depth * np.cos(phase))
+
+
+@lru_cache(maxsize=None)
+def superpixel_table(n: int) -> tuple[cKDTree, np.ndarray, np.ndarray, float]:
+    """ The complex values a superpixel of n x n mirrors can take, after Goorden et al., Opt. Express 22, 17999 (2014)
+
+    In the lattice of the carrier ``nu = (1 / n, -1 / n**2)`` the mirror (i, j) of a superpixel (i along x, j along y)
+    has the phasor ``exp(2 i pi (i / n - j / n**2))``: the n**2 phasors are uniformly spread on the unit circle. The
+    value of a superpixel is the sum of the phasors of its mirrors that are on, divided by n**2. All the 2**(n**2)
+    on / off combinations are enumerated, the distinct values (6561 for n = 4, 343 for n = 3) kept with one combination
+    each.
+
+    Returns
+    -------
+    tree: cKDTree
+        of the distinct values (real, imaginary) to find the nearest one
+    codes: np.ndarray
+        of shape (number of values, n**2) the on (1) / off (0) state of the mirrors m = j * n + i for each value
+    values: np.ndarray
+        the distinct complex values
+    reach: float
+        radius of the disk centered on zero in which any value is available (the minimum over the directions of the
+        largest amplitude available): the target amplitude is scaled to it
+    """
+    mirrors = n * n
+    all_codes = np.arange(2 ** mirrors)
+    states = ((all_codes[:, None] >> np.arange(mirrors)) & 1).astype(float)
+    i, j = np.arange(mirrors) % n, np.arange(mirrors) // n
+    phasors = np.exp(2j * np.pi * (i / n - j / n ** 2))
+    all_values = states @ phasors / mirrors
+    keys = np.round(all_values.real, 9) + 1j * np.round(all_values.imag, 9)
+    _, first = np.unique(keys, return_index=True)  # one combination for each distinct value
+    values, codes = all_values[first], states[first].astype(np.uint8)
+    bins = np.digitize(np.angle(values), np.linspace(-np.pi, np.pi, 73))
+    maxima = [np.abs(values[bins == b]).max() if np.any(bins == b) else 0. for b in range(1, 73)]
+    reach = max(min(maxima), 0.5 * np.abs(values).max())  # n = 2 has too few values to cover all the phases
+    return cKDTree(np.column_stack((values.real, values.imag))), codes, values, float(reach)
+
+
+@AlgorithmFactory.register_algorithm()
+class Superpixel(BinaryHologram):
+    """ Superpixel hologram: **amplitude and phase**
+
+    The modulator is cut into superpixels of n x n pixels, n being the period ``px``, in the lattice of the carrier
+    ``nu = (1 / n, -1 / n**2)`` (``py = px**2``: the smallest period that lifts the degeneracy of the phase, review
+    [1]). The n**2 mirrors of a superpixel have phasors uniformly spread on the unit circle, so that choosing which
+    ones are on gives a complex value to the superpixel. Each superpixel takes the on / off combination whose value is
+    the closest to the target (look-up of all the 2**(n**2) combinations, with their distinct values, 6561 for n = 4:
+    S. A. Goorden, J. Bertolotti and A. P. Mosk, Opt. Express 22, 17999 (2014), see also the Haskell hologram in
+    [1]). The filter of the Fourier plane, which selects the order (-1, 0) and is narrower than the spacing of the
+    orders, averages the mirrors of a superpixel: the resolution of the target is the one of a superpixel.
+
+    The target amplitude, normalised so that its maximum is 1, is scaled to the radius of the disk of the complex plane
+    in which every value is available (about 0.27 for n = 4): the efficiency of the method is the square of it.
+    """
+
+    ALGO_NAME = 'Superpixel'
+    STATUS = AlgoStatus.TESTED
+    STATUS_NOTE = STATUS_NOTE_CODE_ONLY
+    ALGOTYPE = AlgoType.AMPLITUDE_PHASE
+
+    params = (
+        [{'title': 'Period px (pxls):', 'name': 'px', 'type': 'int', 'value': 4, 'min': 2, 'max': 4,
+          'tip': 'Size n of the superpixels: n x n pixels (2 to 4: all the 2**(n**2) combinations are enumerated, '
+                 'n = 2 has too few values to code the phases)'},
+         {'title': 'Period py (pxls):', 'name': 'py', 'type': 'int', 'value': 16, 'readonly': True,
+          'tip': 'Imposed to px**2: the smallest period that lifts the degeneracy of the phase in the superpixel '
+                 'lattice (review of Gutiérrez-Cuevas and Popoff)'}] +
+        BinaryHologram._params_carrier)
+
+    def fix_period(self) -> bool:
+        if self.settings['py'] != self.settings['px'] ** 2:
+            self.settings.child('py').setValue(self.settings['px'] ** 2)
+            return True
+        return False
+
+    def compute_amplitude_pattern(self) -> np.ndarray:
+        n = self.settings['px']
+        tree, codes, values, reach = superpixel_table(n)
+        ny, nx = self.shape
+        xx, yy = self.compute_grid()
+        target = self._target_field.normalise_to_one().amplitude * reach * np.exp(1j * self._target_field.phase)
+
+        # value of each superpixel: the mean of the target over its pixels (the superpixels on the edges are cut)
+        blocks_y, blocks_x = -(-ny // n), -(-nx // n)
+        padded = np.zeros((blocks_y * n, blocks_x * n), dtype=complex)
+        counts = np.zeros(padded.shape)
+        padded[:ny, :nx], counts[:ny, :nx] = target, 1.
+        sums = padded.reshape(blocks_y, n, blocks_x, n).sum(axis=(1, 3))
+        number = counts.reshape(blocks_y, n, blocks_x, n).sum(axis=(1, 3))
+        wanted = sums / number
+
+        # the sum of the phasors of the mirrors is taken in the frame of the origin of the superpixel: remove the phase
+        # of the carrier at this origin
+        origin_x, origin_y = xx[::n, ::n][:blocks_y, :blocks_x], yy[::n, ::n][:blocks_y, :blocks_x]
+        wanted = wanted * np.exp(-2j * np.pi * (origin_x / n - origin_y / n ** 2))
+        _, nearest = tree.query(np.column_stack((wanted.real.ravel(), wanted.imag.ravel())))
+        states = codes[nearest].reshape(blocks_y, blocks_x, n * n)
+
+        y, x = np.arange(ny), np.arange(nx)
+        mirror = (y[:, None] % n) * n + (x[None, :] % n)
+        return states[(y // n)[:, None], (x // n)[None, :], mirror].astype(float)

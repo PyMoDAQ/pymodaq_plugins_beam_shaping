@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from pymodaq_plugins_beam_shaping.algorithms.algorithms.binary_holograms import (
-    BinaryThreshold, ParallelLee, CARRIER_FROM)
+    BinaryThreshold, ParallelLee, Superpixel, superpixel_table, CARRIER_FROM)
 from pymodaq_plugins_beam_shaping.field.operations.compute import remove_linear_phase, spectrum_centroid
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
@@ -276,3 +276,62 @@ def test_the_output_field_has_the_phase_of_the_target_without_offset(qapp, phase
     # the origin of the carrier is the one of the removal: no constant phase of the carrier is left, up to the
     # quantization of the position of the fringes on the pixels
     assert np.angle(np.exp(1j * (np.angle(centre) - phase))) == pytest.approx(0., abs=0.4)
+
+
+@pytest.mark.parametrize('n, distinct', [(3, 343), (4, 6561)])
+def test_the_superpixel_table_has_the_values_of_the_reference(n, distinct):
+    # Goorden et al., Opt. Express 22, 17999 (2014): 343 distinct fields for n = 3, 6561 for n = 4
+    tree, codes, values, reach = superpixel_table(n)
+    assert len(values) == len(codes) == distinct
+    assert np.abs(values).max() == pytest.approx(0.32, abs=0.01)  # half of the mirrors on, 10.3 % in intensity
+    assert 0.15 < reach < 0.32  # the disk in which any phase is available
+    for state, value in zip(codes[:50], values[:50]):  # the value is the sum of the phasors of the mirrors on
+        mirrors = np.arange(n * n)
+        phasors = np.exp(2j * np.pi * (mirrors % n / n - mirrors // n / n ** 2))
+        assert value == pytest.approx((state * phasors).sum() / n ** 2)
+
+
+class _SuperpixelStub(_Stub, Superpixel):
+    def __init__(self):
+        super(_Stub, self).__init__(parent=None)
+        self._target_field.amplitude = np.ones(self.shape)
+
+
+def test_the_superpixel_period_py_is_imposed(qapp):
+    superpixel = Superpixel()
+    superpixel.parent_app = types.SimpleNamespace(compute_phase_and_or_amplitude=lambda: None)
+    assert (superpixel.settings['px'], superpixel.settings['py']) == (4, 16)
+    assert superpixel.settings.child('py').opts['readonly']
+    superpixel.settings.child('px').setValue(3)
+    assert superpixel.settings['py'] == 9
+    assert (superpixel.settings.child('px').opts['min'], superpixel.settings.child('px').opts['max']) == (2, 4)
+
+
+def test_the_superpixel_pattern_is_binary(qapp):
+    superpixel = _SuperpixelStub()
+    assert set(np.unique(superpixel.compute_amplitude_pattern())) <= {0., 1.}
+
+
+def test_the_superpixel_output_is_the_target_field(qapp):
+    superpixel = _SuperpixelStub()
+    superpixel.settings.child('carrier_from').setValue(CARRIER_FROM[0])
+    ny, nx = superpixel.shape
+    ry, rx = superpixel.order_frequency()
+    cy, cx = ny // 2 + ry, nx // 2 + rx
+    superpixel.mask_slices = (slice(int(cy - 6), int(cy + 7)), slice(int(cx - 6), int(cx + 7)))
+
+    y, x = np.indices((ny, nx))
+    amplitude = np.exp(-(((y - ny / 2) / (ny / 4)) ** 2 + ((x - nx / 2) / (nx / 4)) ** 2))
+    phase = 1.5 * np.sin(2 * np.pi * (x - nx / 2) / nx) + 2 * (y - ny / 2) / ny
+    superpixel._target_field.amplitude = amplitude
+    superpixel._target_field.phase = phase
+    superpixel.compute_phase_and_or_amplitude()
+
+    window = (slice(ny // 4, 3 * ny // 4), slice(nx // 4, 3 * nx // 4))
+    target = (amplitude / amplitude.max() * np.exp(1j * phase))[window]
+    output = superpixel.output_field.field[window]
+    coherence = np.vdot(target, output) / np.linalg.norm(target) / np.linalg.norm(output)
+    assert abs(coherence) > 0.99  # the complex field, amplitude and phase, is the target
+    assert np.angle(coherence) == pytest.approx(0., abs=0.05)  # without constant phase
+    ratio = np.abs(output).mean() / np.abs(target).mean()  # the efficiency: the target is scaled to the reach of the table
+    assert ratio == pytest.approx(superpixel_table(4)[3], rel=0.05)

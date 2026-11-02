@@ -75,15 +75,19 @@ mask of the intermediate plane (*Intermediate Masking* settings, which these alg
    * - Parallel Lee
      - amplitude and phase
      - the width of the fringes follows the amplitude (:cite:t:`lee_binary_1974`)
+   * - Superpixel
+     - amplitude and phase
+     - blocks of n x n pixels whose on / off pattern gives a complex value (:cite:t:`goorden_superpixel-based_2014`)
 
-The orthogonal Lee hologram, that codes the amplitude along a direction orthogonal to the one of the phase, and the
-superpixel holograms (:cite:t:`goorden_superpixel-based_2014`) are described in the review but not available yet.
+The orthogonal Lee hologram, that codes the amplitude along a direction orthogonal to the one of the phase, is described
+in the review but not available.
 
 *Settings common to the algorithms*:
 
 * ``Period px (pxls)`` (default 4) and ``Period py (pxls)`` (default 16): periods of the grating along x and y, in
   pixels. ``py`` is 0 (aligned grating, ``ν = (1/px, 0)``) or a multiple of ``px`` (the tilted lattice of the review,
-  its default ``py = px²`` being the compromise it proposes); another value is corrected to a multiple.
+  its default ``py = px²`` being the compromise it proposes); another value is corrected to a multiple. For
+  *Superpixel*, ``py`` is imposed to ``px²`` (read only).
 * ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
   the grey levels of the pattern are kept (the grey off-axis hologram, an ideal modulation not feasible on a DMD, to
   see what the binarization costs).
@@ -112,6 +116,20 @@ review), ``A`` being the amplitude of the target, normalised so that its maximum
 grey pattern ``½ (1 + A cos(2π ν·r - φ))``. The amplitude levels that the binary pattern can render are limited by the
 period of the grating: a wider period gives a more faithful amplitude.
 
+Superpixel
+~~~~~~~~~~~
+
+Encodes **amplitude and phase** on superpixels of ``px × px`` pixels (``px`` from 2 to 4), in the lattice
+``ν = (1/px, -1/px²)``: the ``px²`` mirrors of a superpixel have phasors uniformly spread on the unit circle, so that
+the choice of the mirrors that are on gives a complex value to the superpixel (6561 distinct values for ``px`` = 4, 343
+for 3). Each superpixel takes the combination whose value is the closest to the mean of the target over it, found in a
+table of all the combinations, computed once for each ``px`` (:cite:t:`goorden_superpixel-based_2014`). The filter of the
+Fourier plane averages the mirrors of a superpixel: the resolution of the target is the one of a superpixel.
+
+The target amplitude, normalised so that its maximum is 1, is scaled to the radius of the disk of the complex plane in
+which any value is available (0.27 for ``px`` = 4, 0.18 for 3), the efficiency of the method being the square of it.
+``px`` = 2 has only 9 values: the phase is coarse. ``py`` = ``px²`` is imposed.
+
 **The carrier.** The selected order is off the optical axis, so the output field carries a linear phase (a tilt of the
 beam, the *carrier*) on top of the phase of the target. With *Remove carrier* the algorithm removes it numerically: the
 spectrum is shifted so that the position of the order goes to the zero frequency. This position is the center of the
@@ -124,10 +142,10 @@ selected order goes through the axis of the lens: the beam then leaves the lens 
 tilt. The phase of the output plane of the algorithm is then the one of the setup. This follows from the paraxial
 model of the 4f line used by the extension, it is not checked on a real setup.
 
-**Result.** The figure below shows the output field computed by the two algorithms for a target given by the default
+**Result.** The figure below shows the output field computed by the three algorithms for a target given by the default
 *ImageFiles* loader (an image and its associated phase), and the part of the pattern sent to the modulator. Binary
-Threshold keeps the phase of the target but not its amplitude; Parallel Lee keeps both, with some noise from the
-binarization. The figure is made by ``docs/scripts/binary_holograms_snapshots.py``.
+Threshold keeps the phase of the target but not its amplitude; Parallel Lee and Superpixel keep both, with some noise
+from the binarization (the periods of the figure are 8 pixels along x for the Lee holograms, 4 for the superpixels). The figure is made by ``docs/scripts/binary_holograms_snapshots.py``.
 
 .. image:: ../_images/binary_holograms.png
    :alt: Output field of Binary Threshold and Parallel Lee, amplitude and phase
