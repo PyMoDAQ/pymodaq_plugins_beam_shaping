@@ -113,6 +113,12 @@ The slopes and coefficients found are shown, read only, in the *Results* group o
    * - **Wrap phase**
      - Wraps the phase on the whole field.
      - *Range*: ``SYMMETRIC`` for :math:`]-\pi, \pi]`, ``POSITIVE`` for :math:`[0, 2\pi[`.
+   * - **Log10 amplitude**
+     - Replaces the amplitude by :math:`\log_{10}(A / A_{max})`, clipped at a floor, to see the weak parts of the
+       field (side lobes, noise floor). The phase is kept. Put it at the end of the chain, as the fits of the other
+       operations are weighted by the intensity.
+     - *Floor*: the smallest relative amplitude kept (avoids :math:`\log_{10}(0)`, default :math:`10^{-4}`). Result:
+       the minimum of the log10 amplitude.
 
 
 Adding an operation

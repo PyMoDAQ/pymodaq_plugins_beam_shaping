@@ -26,7 +26,7 @@ def rms_on(values, support):
 
 
 def test_operations_are_registered():
-    assert {'Remove linear phase', 'Remove Zernike', 'Unwrap phase', 'Wrap phase'} <= set(OperationFactory.operations())
+    assert {'Remove linear phase', 'Remove Zernike', 'Unwrap phase', 'Wrap phase', 'Log10 amplitude'} <= set(OperationFactory.operations())
 
 
 @pytest.mark.parametrize('ky, kx', [(0.3, -0.5), (-0.123, 0.789), (0., 0.25)])
@@ -215,3 +215,23 @@ def test_unwrap_then_wrap_in_the_chain(qtbot, dockarea):
     wrap_op.settings.child('range').setValue('POSITIVE')
     assert np.all((tool.field_after.phase >= 0) & (tool.field_after.phase < 2 * np.pi))
     assert np.allclose(np.exp(1j * tool.field_after.phase), np.exp(1j * tool.field_before.phase))
+
+
+def test_log10_amplitude():
+    amplitude = np.array([[0., 1e-6, 1e-2, 2.]])
+    result = compute.log10_amplitude(amplitude, floor=1e-4)
+    assert result == pytest.approx(np.log10([[1e-4, 1e-4, 5e-3, 1.]]))
+    assert np.all(compute.log10_amplitude(np.zeros((2, 2))) == -4)  # null field: only the floor
+
+
+def test_log10_amplitude_in_the_chain(qtbot, dockarea):
+    from pymodaq_plugins_beam_shaping.field.field_tool_app import FieldToolApp
+
+    tool = FieldToolApp(dockarea, field_sources={'output': lambda: make_field(np.zeros(SHAPE))})
+    tool.refresh()
+    operation = tool.add_operation('Log10 amplitude')
+    assert np.max(tool.field_after.amplitude) == pytest.approx(0.)
+    assert operation.settings['results', 'min'] == pytest.approx(-4.)
+    assert np.array_equal(tool.field_after.phase, tool.field_before.phase)
+    operation.settings.child('floor').setValue(1e-2)
+    assert np.min(tool.field_after.amplitude) == pytest.approx(-2.)
