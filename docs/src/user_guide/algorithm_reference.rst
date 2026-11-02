@@ -77,6 +77,10 @@ settings, which this algorithm needs), is the target field.
 * ``threshold`` (default 0.5): level of the *Threshold* binarization.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 
+The two first orders of the grating carry opposite phases (``+φ`` and ``-φ``): the algorithm gives the sign of the
+target phase in the pattern according to the side of the mask of the intermediate plane, so that the order selected
+carries the phase of the target, whichever one it is.
+
 **The carrier.** The selected order is off the optical axis, so the output field carries a linear phase (a tilt of the
 beam, the *carrier*) on top of the phase of the target. With *Remove carrier* the algorithm removes it numerically: the
 spectrum is shifted so that the position of the order goes to the zero frequency. This position is the center of the
@@ -90,10 +94,10 @@ tilt. The phase of the output plane of the algorithm is then the one of the setu
 model of the 4f line used by the extension, it is not checked on a real setup.
 
 **Result with and without binarization.** The figure below shows the output field computed by the algorithm for a
-target whose amplitude is an image and whose phase is a vortex of charge 1, with the binarization off (top) and on
+target given by the default *ImageFiles* loader (an image and its associated phase), with the binarization off (top) and on
 (bottom, width modulation), and the part of the pattern sent to the modulator in each case. The binarization costs some
-fidelity on the amplitude (correlation with the target image: 0.82 and 0.79, computed inside the target region) and
-adds some noise, but the phase of the vortex is kept. The figure is made by ``docs/scripts/dmd_lee_snapshots.py``.
+fidelity on the amplitude (correlation with the target image: 0.77 and 0.75, computed inside the target region) and
+adds some noise, but the phase of the target is kept. The figure is made by ``docs/scripts/dmd_lee_snapshots.py``.
 
 .. image:: ../_images/dmd_lee_binarization.png
    :alt: Output field of DMD Lee, amplitude and phase, without and with binarization

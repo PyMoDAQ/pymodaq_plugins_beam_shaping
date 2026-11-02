@@ -180,3 +180,21 @@ def test_the_binarization_by_threshold_loses_the_amplitude_of_the_target(qapp):
     lee.settings.child('binarize_method').setValue('Threshold')  # at 0.5, whatever the depth: on where cos(phase) > 0
     pattern = lee.compute_amplitude_pattern()
     assert pattern[:, :nx // 2].mean() == pytest.approx(pattern[:, nx // 2:].mean(), abs=0.02)
+
+
+def test_the_selected_order_carries_the_phase_of_the_target_whichever_side_it_is(qapp):
+    """The two first orders of the grating carry opposite phases: the sign of the target phase in the pattern follows
+    the order selected by the mask"""
+    lee = _Lee()
+    lee.settings.child('binarize').setValue(False)
+    lee._target_field.phase = np.full(lee.shape, 0.7)
+    ny, nx = lee.shape
+    patterns = []
+    for columns in (slice(nx // 2 + 10, nx // 2 + 20), slice(nx // 2 - 20, nx // 2 - 10)):
+        lee.mask_slices = (slice(ny // 2 - 5, ny // 2 + 5), columns)
+        patterns.append(lee.compute_amplitude_pattern())
+    xx, yy = lee.compute_grid()
+    theta = 2 * np.pi * (xx - yy) / lee.settings['super_pixel']
+    assert lee.order_sign() == 1  # the mask on the negative frequency side
+    assert np.allclose(patterns[1], 0.5 * (1 + np.cos(theta - 0.7)))
+    assert np.allclose(patterns[0], 0.5 * (1 + np.cos(theta + 0.7)))

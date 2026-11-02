@@ -1,6 +1,6 @@
 """Makes the figure of the DMD Lee algorithm of the documentation (docs/src/_images/dmd_lee_binarization.png)
 
-The same target (the default image of the *ImageFiles* loader as amplitude, a vortex of charge 1 as phase) is computed
+The same target (the default *ImageFiles* loader: its image as amplitude and its associated phase) is computed
 with the algorithm, with and without the binarization of the pattern (by width modulation of the stripes), with the
 helpers of the script
 ``scripts/algorithm_playground.py``. Run it with ``python dmd_lee_snapshots.py`` (the figure is written next to the
@@ -23,11 +23,7 @@ MASK_HALF_SIZE = 150.  # um, half size of the elliptical mask of the intermediat
 pg.ensure_qapp()
 app = pg.HeadlessApp(pg.make_shaper(modulator_type='amplitude'))
 input_field = pg.load_field('GaussianIntensity', None, app)
-target_field = pg.load_field('ImageFiles', {'phase.load': False}, app)
-
-# a phase for the target: a vortex of charge 1 around the center of the field
-yy, xx = np.indices(target_field.shape)
-target_field.phase = np.arctan2(yy - target_field.shape[0] / 2, xx - target_field.shape[1] / 2)
+target_field = pg.load_field('ImageFiles', None, app)  # the default image and its associated phase
 
 def make_algorithm(binarize: bool):
     algo = pg.create_algorithm(pg.reload_algorithm('DMD Lee'), app, {'binarize': binarize, 'super_pixel': SUPER_PIXEL})
@@ -70,21 +66,21 @@ window = (slice(max(rows.min() - margin, 0), rows.max() + margin), slice(max(col
 target_region = (slice(rows.min(), rows.max()), slice(columns.min(), columns.max()))
 ny, nx = reference.shape
 extent = np.array([window[1].start - nx / 2, window[1].stop - nx / 2,
-                   window[0].stop - ny / 2, window[0].start - ny / 2]) * pixel_size / 1000  # mm
+                   window[0].start - ny / 2, window[0].stop - ny / 2]) * pixel_size / 1000  # mm
 
 figure, axes = plt.subplots(2, 3, figsize=(11, 6.6), constrained_layout=True)
 for row, (binarize, label) in enumerate(((False, 'Without binarization'), (True, 'With binarization'))):
     amplitude, phase, pattern = results[binarize]
     amplitude = amplitude / amplitude[window].max()
-    axes[row, 0].imshow(amplitude[window], extent=extent, cmap='viridis', vmin=0, vmax=1)
+    axes[row, 0].imshow(amplitude[window], extent=extent, origin='lower', cmap='viridis', vmin=0, vmax=1)
     axes[row, 0].set_title(f'{label}\nAmplitude (correlation with the target image: '
                            f'{correlation(results[binarize][0][target_region], reference[target_region]):.2f})', fontsize=9)
     shown_phase = np.where(amplitude > 0.1, phase, np.nan)  # the phase only where there is light
-    image = axes[row, 1].imshow(shown_phase[window], extent=extent, cmap='twilight', vmin=-np.pi, vmax=np.pi)
+    image = axes[row, 1].imshow(shown_phase[window], extent=extent, origin='lower', cmap='twilight', vmin=-np.pi, vmax=np.pi)
     axes[row, 1].set_title('Phase (where the amplitude is above 10 %)', fontsize=9)
     centre = np.array(pattern.shape) // 2
     zoom = (slice(centre[0], centre[0] + 40), slice(centre[1], centre[1] + 40))
-    axes[row, 2].imshow(pattern[zoom], cmap='gray', vmin=0, vmax=1, interpolation='nearest')
+    axes[row, 2].imshow(pattern[zoom], cmap='gray', vmin=0, vmax=1, interpolation='nearest', origin='lower')
     axes[row, 2].set_title('Pattern on the modulator (40 x 40 pixels)', fontsize=9)
     for ax in axes[row, :2]:
         ax.set_xlabel('mm')
