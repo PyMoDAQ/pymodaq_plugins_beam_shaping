@@ -47,7 +47,7 @@ pg.plot_field(target_field, 'target', log=False, clim=None, xlim=None, ylim=None
 # %% Algorithm
 # Its parameters (dotted names for groups) and the number of iterations (iterative algorithms only)
 ALGORITHM = 'Gerchberg-Saxton'
-ALGORITHM_PARAMS = dict()  # e.g. for 'DMD Lee': dict(carrier_factor=1., remove_carrier=True)
+ALGORITHM_PARAMS = dict()  # e.g. for 'Parallel Lee': dict(carrier_factor=1., remove_carrier=True)
 N_ITERATIONS = 1
 # The initial phase (algorithms using one): a phase of the factory as in the extension ('FlatPhase', 'RandomPhase',
 # 'QuadraticPhase'...) with its parameters, or a 2D array of the shape of the fields

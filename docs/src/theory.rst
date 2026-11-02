@@ -150,3 +150,60 @@ Types of Spatial Light Modulation
 
    **Use Case**:
    Assessing the **robustness** of shaped fields (e.g., how the pattern degrades when the observation plane is displaced).
+
+.. _sec-theory-amplitude-modulation:
+
+Amplitude Modulation with Binary Holograms
+------------------------------------------
+Some modulators, such as the DMDs, can only switch each pixel on or off: they modulate the **amplitude** (a binary one),
+not the phase. The field of a target amplitude :math:`A` and phase :math:`\phi` is then encoded in a **hologram**, a
+grating of carrier :math:`\boldsymbol{\nu}` whose fringes are shifted by the phase and, for the methods that can,
+whose contrast or width follows the amplitude. A filter in the Fourier plane of a 4f line selects one diffraction order,
+which is the target field. The presentation follows the review :cite:t:`gutierrez-cuevas_binary_2024`, to which the
+equation numbers refer.
+
+**Grey off-axis hologram.** The ideal (grey levels, not feasible on a DMD) transmittance of the modulator is
+
+.. math::
+   T(\mathbf{r}) = \frac{1}{2} + \frac{A(\mathbf{r})}{2}\cos\left(2\pi\boldsymbol{\nu}\cdot\mathbf{r} - \phi(\mathbf{r})\right)
+   \quad \text{(Eq. 5)}.
+
+It is the sum of the zero order, and of the two first orders :math:`\frac{A}{4}e^{\pm i\phi}` at :math:`\pm\boldsymbol{\nu}`.
+The order :math:`(-1, 0)`, at :math:`-\boldsymbol{\nu}` in the Fourier plane, carries the target field :math:`\frac{A}{4} e^{i\phi}`: it is the one
+to filter to get the target field (the one at :math:`+\boldsymbol{\nu}` carries the opposite phase).
+
+**Binary threshold.** The first binary hologram (:cite:t:`bryngdahl_interferograms_1968`) cuts the grey pattern at its
+mean:
+
+.. math::
+   T(\mathbf{r}) = \frac{1}{2} + \frac{1}{2}\,\mathrm{sgn}\left[\cos\left(2\pi\boldsymbol{\nu}\cdot\mathbf{r} - \phi\right)\right]
+   \quad \text{(Eq. 9)}.
+
+A pixel is on where the cosine is positive whatever :math:`A`: the amplitude is lost and only the phase, coded in the
+position of the fringes, is kept. This is a **phase-only** method.
+
+**Parallel Lee hologram.** The width of the on fringes is made to follow the amplitude (:cite:t:`lee_binary_1974`,
+:cite:t:`brown_complex_1966`): a pixel is on where
+
+.. math::
+   \cos\left(2\pi\boldsymbol{\nu}\cdot\mathbf{r} - \phi\right) > \cos(\pi q), \qquad A = \sin(\pi q)
+   \quad \text{(Eq. 11)}.
+
+Fringes of relative width :math:`q` have a first order of amplitude :math:`\sin(\pi q)/\pi = A/\pi` : the relation between the
+amplitude and the width is not linear, and amplitude and phase are coded along the same direction, which couples
+them (the number of amplitude levels is limited by the period of the grating).
+
+**Orthogonal Lee hologram.** The phase is coded in the position of the fringes along :math:`\boldsymbol{\nu}` and the
+amplitude in their height, along a direction :math:`\boldsymbol{\nu}_\perp` orthogonal to it (Eq. 16), so that the
+two are independent. It is not implemented in the toolbox.
+
+**Tilted lattices.** The carrier :math:`\boldsymbol{\nu} = (1/p_x, -1/p_y)` with :math:`p_y/p_x = k` an integer, tilts
+the fringes on the pixel lattice, and gives more phase values for the same period. The review proposes
+:math:`p_y = p_x^2` as a compromise. The aligned grating is the case :math:`\boldsymbol{\nu} = (1/p, 0)`.
+
+**Superpixels.** In the Haskell and superpixel holograms the modulator is cut into blocks of :math:`p \times p`
+pixels, each block being given the on/off pattern whose Fourier coefficient is the closest to the complex value of the
+target (:cite:t:`goorden_superpixel-based_2014`). They reach more amplitude and phase values than the Lee holograms.
+They are not available yet in the toolbox.
+
+The algorithms of the toolbox that use these holograms are described in :ref:`sec-algo-amplitude-modulation`.

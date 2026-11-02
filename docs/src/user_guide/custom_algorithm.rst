@@ -118,7 +118,7 @@ The settings
 
 They are displayed in the *Algorithm* settings and read in the code with ``self.settings['super_pixel']``. When the
 user changes one, ``value_changed(param)`` is called: the default one calls ``parent_app.algo_settings_changed()``;
-set ``RECOMPUTE_ON_CHANGE = True`` to run the algorithm again at once (as *DMD Lee* does) or reimplement the method. The values are saved in the configuration of the extension
+set ``RECOMPUTE_ON_CHANGE = True`` to run the algorithm again at once (as *Parallel Lee* does) or reimplement the method. The values are saved in the configuration of the extension
 with the other settings.
 
 The methods to write
@@ -263,7 +263,7 @@ transform to the Fourier plane, the filtering by the mask and the transform back
            self.compute_intermediate_field()
            self.compute_output_from_intermediate()
 
-If the algorithm has to act on the field of the Fourier plane (as *DMD Lee* does to remove the carrier), do it between
+If the algorithm has to act on the field of the Fourier plane (as *Parallel Lee* does to remove the carrier), do it between
 the two last calls, on ``self.intermediate_field``, or pass the modified field to ``compute_output_from_intermediate``.
 
 A 2f setup with a phase only modulator, iterative: Gerchberg-Saxton is two calls.
