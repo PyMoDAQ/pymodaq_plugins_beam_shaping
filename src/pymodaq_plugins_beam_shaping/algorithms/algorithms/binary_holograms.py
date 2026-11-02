@@ -30,7 +30,7 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup,
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
-from pymodaq_plugins_beam_shaping.field.operations.compute import centered_grid, linear_phase
+from pymodaq_plugins_beam_shaping.field.operations.compute import centered_grid, remove_linear_phase, spectrum_centroid
 from pymodaq_plugins_beam_shaping.utilities import regions
 
 if TYPE_CHECKING:
@@ -43,36 +43,6 @@ plugin_config = PluginConfig()
 
 CARRIER_FROM = ('Mask center', 'Spectrum centroid')
 STATUS_NOTE_CODE_ONLY = 'Code only: the filtered order is checked against the theory in simulation, not on a bench'
-
-
-def spectrum_centroid(spectrum: np.ndarray) -> tuple[float, float]:
-    """ Center of gravity (rows, columns) of the intensity of a centered spectrum, relative to the zero frequency"""
-    intensity = np.abs(spectrum) ** 2
-    total = intensity.sum()
-    if total == 0:
-        raise ValueError('The spectrum is null: nothing to find the position of the order from')
-    rows, columns = np.indices(intensity.shape)
-    return tuple(float((index * intensity).sum() / total) - size // 2
-                 for index, size in zip((rows, columns), intensity.shape))
-
-
-def remove_linear_phase(field: np.ndarray, ky: float, kx: float) -> np.ndarray:
-    """ Remove a linear phase from a complex array, with the helpers of the operations of the Field Tool
-
-    This is the same as shifting the spectrum of the array (Field.fft2: centered, zero frequency at index N // 2)
-    by (ky, kx) pixels, fractional values included, up to a constant phase.
-
-    Parameters
-    ----------
-    field: np.ndarray
-        2D complex array (rows, columns)
-    ky, kx: float
-        carrier in cycles per array along the rows and the columns, that is the position of the center of the
-        mask in the spectrum minus the index of the zero frequency
-    """
-    ny, nx = field.shape
-    return field * np.exp(-1j * linear_phase(field.shape, 2 * np.pi * ky / ny, 2 * np.pi * kx / nx))
-
 
 
 class BinaryHologram(AlgoBase):

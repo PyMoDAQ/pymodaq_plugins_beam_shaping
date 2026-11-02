@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 
 from pymodaq_plugins_beam_shaping.algorithms.algorithms.binary_holograms import (
-    BinaryThreshold, ParallelLee, remove_linear_phase, spectrum_centroid, CARRIER_FROM)
+    BinaryThreshold, ParallelLee, CARRIER_FROM)
+from pymodaq_plugins_beam_shaping.field.operations.compute import remove_linear_phase, spectrum_centroid
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 
