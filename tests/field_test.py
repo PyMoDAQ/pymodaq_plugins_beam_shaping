@@ -27,6 +27,16 @@ class TestField:
 
 
 
+def test_normalise_to_intensity_matches_the_total_intensity_and_keeps_the_phase():
+    reference = Field('reference', amplitude=np.full((4, 4), 2.), phase=np.full((4, 4), 0.5))  # total intensity 64
+    field = Field('field', amplitude=np.linspace(1., 2., 16).reshape(4, 4), phase=np.full((4, 4), 0.3))
+
+    normalised = reference.normalise_to_intensity(field)
+
+    assert np.sum(normalised.intensity) == pytest.approx(np.sum(reference.intensity))
+    assert np.allclose(normalised.amplitude / field.amplitude, normalised.amplitude[0, 0] / field.amplitude[0, 0])
+    assert np.allclose(normalised.phase, 0.3)
+    assert np.sum(field.intensity) != pytest.approx(np.sum(reference.intensity))  # the field itself is untouched
 
 
 def test_split_as_dte_keeps_the_axes():

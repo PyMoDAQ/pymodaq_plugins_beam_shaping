@@ -276,7 +276,7 @@ class Field(DataRaw):
         return self * (1. / peak)
 
     def normalise_to_intensity(self, field: 'Field'):
-        """ Normalise a Field object to this input total intensity
+        """ A copy of a Field object normalised to the total intensity of this one (same phase)
 
         Parameters
         ----------
@@ -287,6 +287,7 @@ class Field(DataRaw):
         -------
         Field
         """
-        return field * np.sum(self.intensity) / np.sum(field.intensity)
+        # the ratio is one of intensities: the amplitude is multiplied by its square root, the phase is untouched
+        return field * np.sqrt(np.sum(self.intensity) / np.sum(field.intensity))
 
 
