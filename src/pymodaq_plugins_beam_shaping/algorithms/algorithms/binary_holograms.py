@@ -30,6 +30,7 @@ from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup,
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
+from pymodaq_plugins_beam_shaping.field.operations.compute import centered_grid, linear_phase
 from pymodaq_plugins_beam_shaping.utilities import regions
 
 if TYPE_CHECKING:
@@ -56,10 +57,10 @@ def spectrum_centroid(spectrum: np.ndarray) -> tuple[float, float]:
 
 
 def remove_linear_phase(field: np.ndarray, ky: float, kx: float) -> np.ndarray:
-    """ Remove a linear phase from a complex array centered as the output of Field.ifft2
+    """ Remove a linear phase from a complex array, with the helpers of the operations of the Field Tool
 
     This is the same as shifting the spectrum of the array (Field.fft2: centered, zero frequency at index N // 2)
-    by (ky, kx) pixels, fractional values included.
+    by (ky, kx) pixels, fractional values included, up to a constant phase.
 
     Parameters
     ----------
@@ -70,10 +71,7 @@ def remove_linear_phase(field: np.ndarray, ky: float, kx: float) -> np.ndarray:
         mask in the spectrum minus the index of the zero frequency
     """
     ny, nx = field.shape
-    y = np.arange(ny) - ny // 2
-    x = np.arange(nx) - nx // 2
-    return field * np.exp(-2j * np.pi * (ky * y[:, None] / ny + kx * x[None, :] / nx))
-
+    return field * np.exp(-1j * linear_phase(field.shape, 2 * np.pi * ky / ny, 2 * np.pi * kx / nx))
 
 
 
@@ -137,12 +135,11 @@ class BinaryHologram(AlgoBase):
         return False
 
     def compute_grid(self) -> tuple[np.ndarray, np.ndarray]:
-        """ The positions (x, y) of the pixels in pixels, with the origin at the index N // 2, the one of the fields
-        transformed by Field.fft2 / ifft2: the phase of the grating is then zero at the origin of the carrier removal,
-        and the output field has the phase of the target (not shifted by half a pixel of carrier)"""
-        x = np.arange(self.shape[1]) - self.shape[1] // 2
-        y = np.arange(self.shape[0]) - self.shape[0] // 2
-        return np.meshgrid(x, y)
+        """ The positions (x, y) of the pixels in pixels, centered on the middle of the array (the helper of the
+        operations of the Field Tool, the one of the carrier removal): the phase of the grating is then zero at the
+        origin of the carrier removal, and the output field has the phase of the target"""
+        y, x = centered_grid(self.shape)
+        return x, y
 
     def carrier_phase(self) -> np.ndarray:
         """ The phase 2 pi nu . r of the grating at each pixel"""
