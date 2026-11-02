@@ -63,11 +63,18 @@ settings, which this algorithm needs), is the target field.
 
 *Settings*:
 
-* ``Super Pixel size (pxls)`` (default 5): period of the grating, in pixels.
-* ``Binarize`` (default checked): the pattern is thresholded to 0 and 1, as a DMD can only switch its pixels on or off.
-  Unchecked, the grey levels of the pattern are kept (an ideal modulation, not feasible on a DMD, to see what the
-  binarization costs).
-* ``threshold`` (default 0.5): level above which the pattern is 1 when it is binarized.
+* ``Super Pixel size (pxls)`` (default 5): period of the grating, in pixels. The binary pattern can only render as many
+  amplitude levels as the period has pixels, so a wider period gives a more faithful amplitude (8 pixels or more is
+  advisable, the figure below uses 10), at the cost of a smaller field (the orders are further apart in the spectrum).
+* ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
+  the grey levels of the pattern are kept (an ideal modulation, not feasible on a DMD, to see what the binarization
+  costs).
+* ``Binarization`` (default *Width modulation*): *Width modulation* is the binary Lee hologram: the pixel is on where
+  ``cos(θ) > sqrt(1 - A²)``, so the stripes are wider where the amplitude is higher, and the first order has the
+  amplitude ``A`` (up to the factor 2/π lost to the binarization). *Threshold* compares the grey pattern to
+  ``threshold``: with the default 0.5 this is equivalent to ``cos(θ) > 0`` whatever ``A``, the amplitude of the target
+  is lost and only its phase is kept.
+* ``threshold`` (default 0.5): level of the *Threshold* binarization.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 
 **The carrier.** The selected order is off the optical axis, so the output field carries a linear phase (a tilt of the
@@ -81,6 +88,15 @@ optically, by moving the second lens of the 4f slightly off the optical axis, to
 selected order goes through the axis of the lens: the beam then leaves the lens parallel to the optical axis, without
 tilt. The phase of the output plane of the algorithm is then the one of the setup. This follows from the paraxial
 model of the 4f line used by the extension, it is not checked on a real setup.
+
+**Result with and without binarization.** The figure below shows the output field computed by the algorithm for a
+target whose amplitude is an image and whose phase is a vortex of charge 1, with the binarization off (top) and on
+(bottom, width modulation), and the part of the pattern sent to the modulator in each case. The binarization costs some
+fidelity on the amplitude (correlation with the target image: 0.82 and 0.79, computed inside the target region) and
+adds some noise, but the phase of the vortex is kept. The figure is made by ``docs/scripts/dmd_lee_snapshots.py``.
+
+.. image:: ../_images/dmd_lee_binarization.png
+   :alt: Output field of DMD Lee, amplitude and phase, without and with binarization
 
 Gerchberg-Saxton
 ----------------
