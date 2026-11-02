@@ -118,24 +118,11 @@ class DmDLee(AlgoBase):
         amplitude[amplitude <= threshold] = 0
         return amplitude
 
-    def order_sign(self) -> int:
-        """ Sign of the target phase in the pattern so that the order selected by the intermediate mask carries the
-        phase of the target (and not its opposite)
-
-        The two first orders of ``cos(theta - s phi)`` carry the phases ``-s phi`` (at the positive frequency
-        ``(1, -1) / period``) and ``+s phi`` (at the negative one): the order at the positive frequency needs s = -1.
-        Without mask (no order selected) s = 1.
-        """
-        carrier = self.get_carrier()
-        if carrier is None:
-            return 1
-        return -1 if carrier[1] - carrier[0] > 0 else 1
-
     def compute_amplitude_pattern(self) -> np.ndarray:
         xx, yy = self.compute_grid()
 
         modulation_depth = self._target_field.normalise_to_one().amplitude  # 1 where the target is the brightest
-        phase = 2 * np.pi * (xx - yy) / self.settings['super_pixel'] - self.order_sign() * self._target_field.phase
+        phase = 2 * np.pi * (xx - yy) / self.settings['super_pixel'] - self._target_field.phase
 
         if self.settings['binarize'] and self.settings['binarize_method'] == BINARIZATIONS[0]:
             # binary Lee hologram: the pixel is on where cos(phase) > cos(pi * w), the stripes of relative width

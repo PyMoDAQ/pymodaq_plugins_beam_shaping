@@ -77,9 +77,10 @@ settings, which this algorithm needs), is the target field.
 * ``threshold`` (default 0.5): level of the *Threshold* binarization.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 
-The two first orders of the grating carry opposite phases (``+φ`` and ``-φ``): the algorithm gives the sign of the
-target phase in the pattern according to the side of the mask of the intermediate plane, so that the order selected
-carries the phase of the target, whichever one it is.
+The two first orders of the grating carry opposite phases, and this is physical: the order at the positive frequency
+``(1, -1) / period`` (more columns and fewer rows than the zero order in the intermediate plane) carries the phase
+``-φ`` of the target, the one at the negative frequency (the opposite side of the zero order) carries ``+φ``. Select the
+order that carries the phase of the target, as in the figure below.
 
 **The carrier.** The selected order is off the optical axis, so the output field carries a linear phase (a tilt of the
 beam, the *carrier*) on top of the phase of the target. With *Remove carrier* the algorithm removes it numerically: the

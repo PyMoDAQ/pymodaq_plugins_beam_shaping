@@ -40,6 +40,8 @@ centre = np.array(intensity.shape) // 2
 intensity[(rows - centre[0]) ** 2 + (columns - centre[1]) ** 2 < 30 ** 2] = 0  # not the zero order
 order = np.array(np.unravel_index(np.argmax(intensity), intensity.shape))
 y, x = (order - centre) * regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)
+if x - y > 0:  # the order at the positive frequency carries the opposite phase: take the other one
+    y, x = -y, -x
 mask = ((y - MASK_HALF_SIZE, y + MASK_HALF_SIZE), (x - MASK_HALF_SIZE, x + MASK_HALF_SIZE))
 
 results = {}
