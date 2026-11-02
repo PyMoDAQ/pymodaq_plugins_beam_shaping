@@ -56,6 +56,6 @@ def test_back_propagate_amplitude_sets_a_phase_of_the_modulator(qapp):
 
 
 def test_the_centered_grid_is_centered(qapp):
-    app, algo = prepare('Binary Threshold', 'amplitude')
+    app, algo = prepare('Gerchberg-Saxton', 'phase')
     xx, yy = algo.compute_grid()
     assert xx.shape == algo.shape and np.isclose(xx.mean(), 0) and np.isclose(yy.mean(), 0)
