@@ -147,3 +147,37 @@ def test_the_pattern_is_binarized_or_not_and_follows_the_target_amplitude(qapp):
     # where the target is null the pattern is flat (0.5), where it is the brightest the modulation is full
     flat, full = pattern[0, :5], pattern[-1, -5:]
     assert np.allclose(flat, 0.5, atol=0.01) and (full.max() - full.min()) > 0.5
+
+
+@pytest.mark.parametrize('depth', [0.5, 0.75, 1.])
+def test_binary_width_modulation_gives_a_first_order_of_the_amplitude_of_the_target(qapp, depth):
+    lee = _Lee()
+    lee.settings.child('super_pixel').setValue(20)  # the width of the stripes is a whole number of pixels: wide period
+    ny, nx = lee.shape
+    amplitude = np.full((ny, nx), 1.)
+    amplitude[:, nx // 2:] = depth  # normalised to the maximum: the right half has a depth of `depth`
+    lee._target_field.amplitude = amplitude
+    lee._target_field.phase = np.zeros((ny, nx))
+
+    pattern = lee.compute_amplitude_pattern()
+    assert set(np.unique(pattern)) <= {0., 1.}
+
+    xx, yy = lee.compute_grid()
+    first_order = np.exp(-2j * np.pi * (xx - yy) / lee.settings['super_pixel'])  # the carrier of the order +1
+    halves = (slice(0, nx // 2), slice(nx // 2, nx))
+    amplitudes = [2 * abs(np.mean(pattern[:, half] * first_order[:, half])) for half in halves]
+    # the first order of a binary grating of relative width w has the amplitude 2 sin(pi w) / pi, at most 2 / pi
+    assert amplitudes[0] == pytest.approx(2 / np.pi, abs=0.05)
+    assert amplitudes[1] / amplitudes[0] == pytest.approx(depth, abs=0.1)
+
+
+def test_the_binarization_by_threshold_loses_the_amplitude_of_the_target(qapp):
+    lee = _Lee()
+    ny, nx = lee.shape
+    amplitude = np.full((ny, nx), 1.)
+    amplitude[:, nx // 2:] = 0.25
+    lee._target_field.amplitude = amplitude
+    lee.settings.child('binarize_method').setValue('Threshold')  # at 0.5, whatever the depth: on where cos(phase) > 0
+    pattern = lee.compute_amplitude_pattern()
+    assert pattern[:, :nx // 2].mean() == pytest.approx(pattern[:, nx // 2:].mean(), abs=0.02)
+
