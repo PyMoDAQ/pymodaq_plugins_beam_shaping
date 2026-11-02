@@ -392,7 +392,7 @@ class BeamShaping(CustomExt):
                                              title='Target Field Loader',
                                              shaper=self.shaper)
         self._target_field_loader.set_loader_in_settings(
-            plugin_config('target', 'default_loader')[0])
+            config('beam_shaping', 'target', 'default_loader')[0])
 
 
         self._input_field_dockarea = gutils.DockArea()
@@ -400,7 +400,7 @@ class BeamShaping(CustomExt):
                                                   title='Input Field Loader',
                                                   shaper=self.shaper)
         self._input_field_loader.set_loader_in_settings(
-            plugin_config('input', 'default_loader')[0])
+            config('beam_shaping', 'input', 'default_loader')[0])
         self._input_field_loader.update_apply_mask(size=self.slm_shape, apply=True)
 
         self._field_tool_dockarea = gutils.DockArea()
@@ -663,12 +663,12 @@ class BeamShaping(CustomExt):
 
     def add_corrections_actuators(self):
         try:
-            if plugin_config('corrections', 'actuators', 'focal_length'):
+            if config('beam_shaping', 'corrections', 'actuators', 'focal_length'):
                 self.dashboard.add_move_from_extension(f'FocalLength', "FocalLength",
                                                        self._corrections,
                                                        ui_identifier='Simple')
-            for n in range(plugin_config('corrections', 'zernike', 'order_max')):
-                if plugin_config('corrections', 'zernike', 'actuators', f'n{n}'):
+            for n in range(config('beam_shaping', 'corrections', 'zernike', 'order_max')):
+                if config('beam_shaping', 'corrections', 'zernike', 'actuators', f'n{n}'):
                     for m in range(-n, n+2, 2):
                         self.dashboard.add_move_from_extension(f'Zernike {n}/{m}',
                                                                "Zernike",
@@ -702,7 +702,7 @@ class BeamShaping(CustomExt):
         if self._shaper_actuator is None:
             return
         shaper = Shaper.from_module(self._shaper_actuator)
-        wanted = bool(plugin_config('calibration', 'use_internal_calibration'))
+        wanted = bool(config('beam_shaping', 'calibration', 'use_internal_calibration'))
         if shaper is None or not shaper.has_internal_calibration or shaper.use_internal_calibration == wanted:
             return
         self._shaper_actuator.settings.child(self._shaper_actuator._hw_settings_name, PROPERTIES_NAME,
@@ -726,7 +726,7 @@ class BeamShaping(CustomExt):
                                                            WAVELENGTH_SETTING_NAME)
         except (KeyError, AttributeError):
             return  # this plugin does not need the wavelength
-        wanted = float(plugin_config('setup', 'wavelength_nm'))
+        wanted = float(config('beam_shaping', 'setup', 'wavelength_nm'))
         if setting.value() == wanted:
             return
         old = setting.value()
