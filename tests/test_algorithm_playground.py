@@ -172,6 +172,16 @@ def test_initial_phase_from_the_factory(qapp, phase, params):
     assert np.all(np.isfinite(algo.output_field.amplitude))
 
 
+def test_random_phase_seed_makes_the_pattern_reproducible(qapp):
+    app, algo = prepare('Gerchberg-Saxton')
+    fixed = dict(fixed_seed=True, seed=3)
+    first = pg.initial_phase(algo, 'RandomPhase', fixed)
+    assert np.array_equal(first, pg.initial_phase(algo, 'RandomPhase', fixed))
+    assert not np.array_equal(first, pg.initial_phase(algo, 'RandomPhase', dict(fixed_seed=True, seed=4)))
+    free = pg.initial_phase(algo, 'RandomPhase', None)  # no fixed seed: a different pattern each time
+    assert not np.array_equal(free, pg.initial_phase(algo, 'RandomPhase', None))
+
+
 def test_unknown_initial_phase_parameter_lists_the_possible_ones(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     with pytest.raises(KeyError, match='phase_value'):

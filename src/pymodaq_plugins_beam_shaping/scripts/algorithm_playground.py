@@ -50,7 +50,8 @@ ALGORITHM = 'Gerchberg-Saxton'
 ALGORITHM_PARAMS = dict()  # e.g. for 'Parallel Lee': dict(carrier_factor=1., remove_carrier=True)
 N_ITERATIONS = 1
 # The initial phase (algorithms using one): a phase of the factory as in the extension ('FlatPhase', 'RandomPhase',
-# 'QuadraticPhase'...) with its parameters, or a 2D array of the shape of the fields
+# 'QuadraticPhase'...) with its parameters, or a 2D array of the shape of the fields. For 'RandomPhase', set
+# dict(fixed_seed=True, seed=1) to get the same pattern at each run, and change the seed to get another one
 INITIAL_PHASE = 'FlatPhase'
 INITIAL_PHASE_PARAMS = dict()  # e.g. for 'QuadraticPhase': {'quadratic.auto': False, 'quadratic.x_quad': 0.5}
 
