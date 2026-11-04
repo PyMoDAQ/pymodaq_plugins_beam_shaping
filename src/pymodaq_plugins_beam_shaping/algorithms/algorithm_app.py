@@ -18,6 +18,7 @@ from pymodaq_data.h5modules.saving import SaveType
 
 from pymodaq_gui.managers.parameter_manager import Parameter
 from pymodaq_gui.utils.custom_app import CustomApp
+from pymodaq_gui.utils.enums import MenuToolbarNames
 from pymodaq_gui.parameter.ioxml import parameter_to_xml_string
 from pymodaq_utils.enums import StrEnum
 from pymodaq_gui.utils.dock import DockArea, Dock
@@ -62,8 +63,6 @@ class Actions(StrEnum):
     CONTINUOUS = 'continuous'
     STOP = 'stop'
     SAVE_CONTINUOUS = 'save_continuous'
-    SHOW_SAVE_SETTINGS = 'show_saving'
-    SHOW_SAVED_DATA = 'show_saved_data'
     RESET = 'reset_phase'
     COMPUTE_FFT = 'compute_fft'
     SHOW_DATA = 'show_data'
@@ -108,6 +107,8 @@ def status_text(algo_class: type[AlgoBase]) -> str:
 
 class AlgoApp(CustomApp):
     save_settings = True
+    h5_base_group_name = ContinuousSaver.base_name  # the name of the files of the H5Manager
+    show_h5file_statusbar_widgets = True  # the LED of the state of the h5 file (and SWMR) of the H5Manager
     params = [
 
         {'title': 'Initial Phase', 'name': 'ini_phase_group', 'type': 'group',
@@ -171,7 +172,13 @@ class AlgoApp(CustomApp):
         self._current_data: DataToExport = None
         self._current_phase: np.ndarray = None  # cached phase to be used for subsequent optimizations
 
+        # the continuous saving writes in the file of the H5Manager of the app (CustomApp.h5_manager)
+        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True,
+                                                 h5saver_provider=self._get_h5saver)
+        self._h5saver_configured = False
+
         self.setup_ui()
+        self._configure_h5saver()  # before any file is created from the actions of the H5Manager
 
         self.enable_things(False)
 
@@ -188,11 +195,6 @@ class AlgoApp(CustomApp):
                 {'title': stop, 'name': stop, 'type': 'group',
                  'visible': self.settings['stopping', 'stopping_type'] == stop,
                  'children': stopping_factory.get_stop_class(stop).params})
-
-        # the continuous saving writes in the file of the H5Manager of the app (CustomApp.h5_manager)
-        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True,
-                                                 h5saver_provider=self._get_h5saver)
-        self._h5saver_configured = False
 
     def _configure_h5saver(self):
         """ Set the H5Saver of the H5Manager for the continuous saving, before its first file is created"""
@@ -217,13 +219,6 @@ class AlgoApp(CustomApp):
     @property
     def h5saver(self) -> H5Saver:
         return self._get_h5saver()
-
-    def show_saver_settings(self, show: bool = True):
-        self._configure_h5saver()
-        self.h5_manager.show_settings(show)
-
-    def show_continuous_data(self):
-        self.h5_manager.show_file_content()
 
     def close_file(self):
         self.h5_manager.close_file()
@@ -354,7 +349,6 @@ class AlgoApp(CustomApp):
                 self.set_target_field(self._target_field)
             self.set_action_visible(Actions.CONTINUOUS, self._algorithm.ITERATIVE)
             self.set_action_visible(Actions.SAVE_CONTINUOUS, self._algorithm.ITERATIVE)
-            self.set_action_visible(Actions.SHOW_SAVED_DATA, self._algorithm.ITERATIVE)
             self._iter_count_widget.setVisible(self._algorithm.ITERATIVE)
 
             self.config_saver_loader.base_path = [self._algorithm.ALGO_NAME]
@@ -453,9 +447,13 @@ class AlgoApp(CustomApp):
         self._iter_count_widget.setToolTip('Current Iteration Number')
 
         self.statusbar.addPermanentWidget(self._iter_count_widget)
+        self.populate_status_bar()  # with the LED of the h5 file state (and SWMR) of the H5Manager
 
     def setup_menus_and_toolbars(self, menubar: QtWidgets.QMenuBar = None):
-        pass  # actions auto-affected in setup_actions
+        # the file actions of the H5Manager (new file, open, show content, saving settings...), as in the other
+        # extensions of PyMoDAQ; the other actions are auto-affected in setup_actions
+        self.add_toolbar(MenuToolbarNames.FILE, MenuToolbarNames.FILE.capitalize(), self.mainwindow,
+                         toolbar=self.h5_manager.toolbar, add_break=False)
 
     def setup_actions(self):
         self.add_widget('algorithms', QtWidgets.QComboBox,
@@ -481,16 +479,9 @@ class AlgoApp(CustomApp):
         self.add_action(Actions.SHOW_DATA, 'Continuous', 'bid_landscape',
                         tip='Display the data after each iteration', checkable=True, checked=True,
                         icon_checked_color=self.get_theme().green)
-        self.add_action(Actions.SHOW_SAVE_SETTINGS, 'Show Saving Settings', 'account_tree',
-                        tip="Show the Continuous Saving settings",
-                        checkable=True, icon_checked_color=self.get_theme().green,
-                        auto_toolbar=False)
         self.add_action(Actions.SAVE_CONTINUOUS, 'Save Continuous', 'save_clock',
                         tip="Save continuously the algorithm output",
                         checkable=True, icon_checked_color=self.get_theme().green)
-        self.add_action(Actions.SHOW_SAVED_DATA, 'Show file content', 'folder_data',
-                        tip='Browse the content of the current HDF5 file')
-        self.set_action_visible(Actions.SHOW_SAVED_DATA, False)
 
     def connect_things(self):
         self.connect_action(Actions.STEP, self.compute_phase_and_or_amplitude)
@@ -503,14 +494,11 @@ class AlgoApp(CustomApp):
         self.connect_action('algorithms', slot=self.show_algorithm_status,
                             signal_name='currentTextChanged')
         self.connect_action(Actions.SAVE_CONTINUOUS, self.do_save_continuous)
-        self.connect_action(Actions.SHOW_SAVE_SETTINGS, self.show_saver_settings)
-        self.connect_action(Actions.SHOW_SAVED_DATA, self.show_continuous_data)
 
     def enable_things(self, enable=True, exclude: tuple[str]= ()):
         """ Given the initialization state of the chosen algorithm enable or not some actions and settings"""
         for action in (Actions.STEP, Actions.CONTINUOUS, Actions.RESET,
-                       Actions.SAVE_CONTINUOUS, Actions.SHOW_SAVE_SETTINGS,
-                       Actions.SHOW_SAVED_DATA):
+                       Actions.SAVE_CONTINUOUS):
             if action not in exclude:
                 self.set_action_enabled(action, enable)
         self.set_action_enabled('algorithms', not enable)
