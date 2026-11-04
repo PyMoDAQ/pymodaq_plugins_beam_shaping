@@ -221,11 +221,20 @@ class AlgoApp(CustomApp):
         return self._get_h5saver()
 
     def close_file(self):
+        self._finalize_saving()
         self.h5_manager.close_file()
+
+    def _finalize_saving(self):
+        """ Make the file consistent (SWMR ended, shapes up to date): on pause, stop and before closing it"""
+        if self._continuous_saver.is_set:
+            self._continuous_saver.finalize()
+            self.h5_manager.update_file_status_led()
 
     def do_save_continuous(self, dosave: bool = True):
         self.h5saver.settings.child('do_save').setValue(dosave)
-        if dosave:
+        if not dosave:
+            self._finalize_saving()
+        else:
             settings = [self.settings] + ([self._algorithm.settings] if self._algorithm is not None else [])
             self._continuous_saver.start(settings_as_xml=settings_to_xml(settings))
 
@@ -415,6 +424,8 @@ class AlgoApp(CustomApp):
             self.enable_things(enable=False)
 
     def _algo_stopped(self):
+        if self.is_action_checked(Actions.SAVE_CONTINUOUS):
+            self._finalize_saving()  # the file can be browsed while the algorithm is paused
         if self.is_action_checked(Actions.CONTINUOUS):
             self.get_action(Actions.CONTINUOUS).trigger()
 

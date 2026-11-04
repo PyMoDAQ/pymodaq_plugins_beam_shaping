@@ -80,6 +80,9 @@ def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
         assert len(flushed) > n_flushes
     del app.h5saver.flush
     assert app.continuous_saver.file_path == tmp_path / 'continuous.h5'
+    app._finalize_saving()  # as when the algorithm is paused: the attributes of the arrays are up to date
+    from test_algorithm_playground import check_enlarged_nodes
+    check_enlarged_nodes(tmp_path / 'continuous.h5', 2)
     app.close_file()
 
     with DataLoader(tmp_path / 'continuous.h5') as loader:

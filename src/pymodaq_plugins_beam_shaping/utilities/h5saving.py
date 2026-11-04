@@ -4,7 +4,10 @@ from typing import Callable, Union, List, Tuple, TYPE_CHECKING, Iterable
 import xml.etree.ElementTree as ET
 
 from pymodaq_data.h5modules.backends import GROUP, Node
-from pymodaq_data.h5modules.data_saving import DataToExportEnlargeableSaver, DataToExport, DataToExportSaver
+import numpy as np
+
+from pymodaq_data.h5modules.data_saving import (DataToExportEnlargeableSaver, DataToExport, DataToExportSaver,
+                                                DataBundle)
 
 from pymodaq.utils.h5modules.module_saving import ModuleSaver, GroupModuleType
 
@@ -77,10 +80,24 @@ class ShapingSaver(ModuleSaver):
                                                    settings_as_xml=settings_as_xml, metadata=metadata)
 
 
-    def add_data(self, data: DataToExport):
+    def add_data(self, dte: DataToExport, axis_values: List[Union[float, np.ndarray]] = None, **kwargs):
+        """ Append data to the last group, as the next step of the enlargeable arrays
 
-        self._datatoexport_saver.add_data(self.get_last_node(self._h5saver.raw_group),
-                                          data, axis_values=(self.h5saver.settings['N_saved'],))
+        Parameters
+        ----------
+        dte: DataToExport
+            the data of this step
+        axis_values: list of float
+            the value of the 'step' axis for these data. By default, the number of data already saved
+            (the N_saved setting of the H5Saver)
+        """
+        if axis_values is None:
+            axis_values = (self.h5saver.settings['N_saved'],)
+        self._datatoexport_saver.add_data(self.get_last_node(self._h5saver.raw_group), dte,
+                                          axis_values=axis_values)
+
+    def add_data_bundle(self, data: DataBundle):
+        self.add_data(data.dte, axis_values=data.axis_values)
 
 
 FIELDS_SAVED_BY_THE_APP = ('modulator/phase',)  # the fields of the continuous saving of the AlgoApp
@@ -150,11 +167,13 @@ class ContinuousSaver:
         self._h5saver: H5Saver = None
         self._module_saver: ShapingSaver = None
         self._file_path: Path = None
+        self._step = 0  # number of steps saved in the current run
+        self._started = False  # a run has been started
 
     @property
     def is_set(self) -> bool:
         """ True once the saver has been used (file created or run started)"""
-        return self._h5saver is not None or self._module_saver is not None
+        return self._h5saver is not None or self._started
 
     def _new_h5saver(self) -> H5Saver:
         return configure_h5saver(
@@ -204,7 +223,11 @@ class ContinuousSaver:
         self._module_saver = None
 
     def start(self, settings_as_xml: bytes = None):
-        """ A new 'BeamShaping' group for a new run, the step counter reset"""
+        """ A new 'ShapingXXX' group for a new run, the step counter reset"""
+        self.finalize()
+        self._module_saver = None  # a new one: the SWMR mode of the previous run is over
+        self._started = True
+        self._step = 0
         self.h5saver.settings.child('N_saved').setValue(0)
         self.module_saver.get_set_node(new=True, settings_as_xml=settings_as_xml)
 
@@ -213,11 +236,31 @@ class ContinuousSaver:
         data = select_data_to_save(dte, self.fields, self.metrics)
         if len(data) == 0:
             return
-        self.module_saver.add_data(data)
-        self.h5saver.settings.child('N_saved').setValue(self.h5saver.settings['N_saved'] + 1)
+        self.module_saver.add_data(data, axis_values=[self._step])
+        self._step += 1
+        self.h5saver.settings.child('N_saved').setValue(self._step)
         self.h5saver.flush()  # the content of the file is up to date at each step, e.g. to browse it while paused
+
+    def finalize(self):
+        """ Make the file consistent: end the SWMR mode if it was activated
+
+        In SWMR mode the attributes of the enlargeable arrays (shape) and of the step axis (size) are not updated,
+        they are set from the actual data when the file is closed and reopened. Call it when the saving is paused or
+        stopped. The file stays open, and the next steps are appended to the same group.
+        """
+        h5saver = self.h5saver if self.is_set else None
+        if h5saver is not None and h5saver.is_swmr_active:
+            file_path = Path(h5saver.settings['current_h5_file'])
+            h5saver.close_file()  # ends the SWMR mode
+            h5saver.init_file(addhoc_file_path=file_path)  # reopened in append mode, with its nodes
+            h5saver.reconcile_swmr_attrs()  # the shapes from the actual data
+            for node in h5saver.walk_nodes('/'):  # and the sizes of the enlarged axes (not done by the above)
+                if node.path.split('/')[-2:-1] == ['NavAxes'] and node.attrs['CLASS'] == 'EARRAY':
+                    node.attrs['size'] = int(node.attrs['shape'][0])
+            self._module_saver = None  # its nodes belong to the file before it was reopened
 
     def close_file(self):
         """ Close the file of its own H5Saver (with a provider, closing the file is the job of its manager)"""
         if self._h5saver is not None:
+            self.finalize()
             self._h5saver.close_file()
