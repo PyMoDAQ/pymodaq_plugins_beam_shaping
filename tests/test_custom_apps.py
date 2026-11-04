@@ -55,6 +55,34 @@ def test_algo_app(qtbot, dockarea):
     assert app.module_and_data_saver is None
 
 
+def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
+    """ The modulator phase and the metrics of each output, enlarged along the steps (the format the playground
+    script reuses)"""
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+    from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg
+
+    shaper = pg.make_shaper(width=64, height=64, pixel_size=8.)
+    headless = pg.HeadlessApp(shaper)
+    algo = pg.create_algorithm(pg.reload_algorithm('Gerchberg-Saxton'), headless)
+    pg.set_fields(algo, pg.load_field('GaussianIntensity', None, headless),
+                  pg.load_field('LaguerreGaussian', None, headless))
+
+    app = AlgoApp(dockarea)
+    app.continuous_saver.open_file(tmp_path / 'continuous.h5')
+    app.do_save_continuous(True)
+    for _ in range(2):
+        pg.run_algorithm(algo)
+        app.save_continuous(algo.get_fields_to_plot())
+    app.close_file()
+
+    with DataLoader(tmp_path / 'continuous.h5') as loader:
+        assert loader.get_node('/RawData/Shaping000').attrs['title'] == 'BeamShaping'
+        saved = {dwa.get_full_name(): dwa for dwa in loader.load_all('/RawData/Shaping000')}
+    assert set(saved) == {'modulator/phase', 'AlgoData/metrics'}
+    assert all(dwa.shape[0] == 2 for dwa in saved.values())
+
+
 def test_correction_app(qtbot, dockarea):
     from pymodaq_plugins_beam_shaping.utilities.corrections import Correction
 

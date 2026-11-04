@@ -221,3 +221,50 @@ class TmpReload(Direct):
     finally:
         pg.AlgorithmFactory.algorithms_registry.pop('TmpReload', None)
         sys.modules.pop('tmp_reload_algo', None)
+
+
+
+def load_saved(path, group='/RawData/Shaping000'):
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    with DataLoader(path) as loader:
+        return {dwa.get_full_name(): dwa for dwa in loader.load_all(group)}
+
+
+def test_no_saving_by_default(qapp):
+    app, algo = prepare('Gerchberg-Saxton')
+    pg.run_algorithm(algo, 2)
+    assert not hasattr(algo, 'saved_h5file')
+
+
+@pytest.mark.parametrize('fields, metrics, expected', [
+    (True, False, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase'}),
+    (False, True, {'AlgoData/metrics'}),
+    (True, True, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase', 'AlgoData/metrics'}),
+    (('modulator/phase',), True, {'modulator/phase', 'AlgoData/metrics'}),
+])
+def test_fields_and_metrics_saved_at_each_iteration(qapp, tmp_path, fields, metrics, expected):
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'run.h5'
+    pg.run_algorithm(algo, 3, save_fields=fields, save_metrics=metrics, h5file=path)
+    assert algo.saved_h5file == path
+    saved = load_saved(path)
+    assert set(saved) == expected
+    for dwa in saved.values():
+        assert dwa.shape[0] == 3  # enlarged along the 'step' axis, one step per iteration
+    if 'modulator/phase' in saved:
+        assert np.allclose(saved['modulator/phase'][0][-1], algo.modulator_field.phase)
+
+
+def test_intermediate_field_saved(qapp, tmp_path):
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
+    pg.run_algorithm(algo, save_fields=True, h5file=tmp_path / 'run.h5')
+    assert 'intermediate/intensity' in load_saved(tmp_path / 'run.h5')
+
+
+def test_runs_added_to_the_same_file(qapp, tmp_path):
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'runs.h5'
+    pg.run_algorithm(algo, 1, save_metrics=True, h5file=path)
+    pg.run_algorithm(algo, 2, save_metrics=True, h5file=path)
+    assert load_saved(path, '/RawData/Shaping000')['AlgoData/metrics'].shape[0] == 1
+    assert load_saved(path, '/RawData/Shaping001')['AlgoData/metrics'].shape[0] == 2

@@ -40,7 +40,8 @@ from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
-from pymodaq_plugins_beam_shaping.utilities.h5saving import ShapingSaver
+from pymodaq_plugins_beam_shaping.utilities.h5saving import ShapingSaver, ContinuousSaver, FIELDS_SAVED_BY_THE_APP
+from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
 from pymodaq_plugins_beam_shaping.utilities import sizing, regions
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
@@ -187,69 +188,47 @@ class AlgoApp(CustomApp):
                  'visible': self.settings['stopping', 'stopping_type'] == stop,
                  'children': stopping_factory.get_stop_class(stop).params})
 
-        self._module_and_data_saver: ShapingSaver = None
-        self._h5saver: H5Saver = None
-
+        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True)
 
     @property
-    def module_and_data_saver(self) -> ShapingSaver:
-        return self._module_and_data_saver
+    def continuous_saver(self) -> ContinuousSaver:
+        return self._continuous_saver
 
-    @module_and_data_saver.setter
-    def module_and_data_saver(self, saver: ShapingSaver):
-        self._module_and_data_saver = saver
+    @property
+    def module_and_data_saver(self) -> Union[ShapingSaver, None]:
+        """ The saver of the continuous saving, None until it is used"""
+        return self._continuous_saver.module_saver if self._continuous_saver.is_set else None
 
     @property
     def h5saver(self) -> H5Saver:
-        if self._h5saver is None:
-            self._h5saver = H5Saver(save_type=SaveType.custom,
-                                    backend=config('data', 'data_saving', 'backend')[0])
-            for setting_name in ('save_type', 'save_2D', 'do_save', 'backend', 'custom_name', 'close_after_scan',):
-                self._h5saver.settings.child(setting_name).hide()
-        if self._h5saver.h5_file is None:
-            self._h5saver.init_file(update_h5=True)
-        if not self._h5saver.isopen():
-            self._h5saver.init_file(addhoc_file_path=self._h5saver.settings['current_h5_file'])
-
-        return self._h5saver
+        return self._continuous_saver.h5saver
 
     @h5saver.setter
     def h5saver(self, h5saver_temp: H5Saver):
-        self._h5saver = h5saver_temp
+        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True, h5saver=h5saver_temp)
 
     def show_saver_settings(self, show: bool = True):
-        if self._h5saver is not None:
+        if self._continuous_saver.is_set:
             self.h5saver.settings_tree.setVisible(show)
 
     def show_continuous_data(self):
-        if self._h5saver is not None:
+        if self._continuous_saver.is_set:
             self.h5saver.show_file_content()
 
     def close_file(self):
-        if self._h5saver is not None:
-            self._h5saver.close_file()
-
-    def setup_continuous_saving(self):
-        """Configure the objects dealing with the continuous saving mode"""
-        self.module_and_data_saver = ShapingSaver()
-        self.module_and_data_saver.h5saver = self.h5saver
+        self._continuous_saver.close_file()
 
     def do_save_continuous(self, dosave: bool = True):
-        if self._h5saver is None:
-            self.setup_continuous_saving()
-            self.h5saver.settings.child('base_name').setValue('Shaping')
-            self.h5saver.settings.child('N_saved').show()
-
         self.h5saver.settings.child('do_save').setValue(dosave)
-
         if dosave:
-            self.h5saver.settings.child('N_saved').setValue(0)
-            self.module_and_data_saver.get_set_node(new=True)
+            settings = [self.settings] + ([self._algorithm.settings] if self._algorithm is not None else [])
+            self._continuous_saver.start(settings_as_xml=settings_to_xml(settings))
 
     def save_continuous(self, dte: DataToExport):
-        if self._h5saver is not None:
-            self.module_and_data_saver.add_data(dte)
-            self.h5saver.settings.child('N_saved').setValue(self.h5saver.settings['N_saved'] + 1)
+        """ Save the part of the output of the algorithm chosen in the continuous saver (modulator phase and metrics)
+        """
+        if self._continuous_saver.is_set:
+            self._continuous_saver.add(dte)
 
     def quit_fun(self):
         super().quit_fun()
@@ -280,16 +259,7 @@ class AlgoApp(CustomApp):
             new_file = not fname.exists()
 
 
-            settings_all = [parameter_to_xml_string(self.settings),
-                            parameter_to_xml_string(self.algorithm.settings)]
-            settings_str = b'<All_settings title="All Settings" type="group">'
-            for set in settings_all:
-                if len(settings_str + set) < 60000:
-                    # size limit for any object header (including all the other attributes) is 64kb
-                    settings_str += set
-                else:
-                    break
-            settings_str += b'</All_settings>'
+            settings_str = settings_to_xml((self.settings, self.algorithm.settings))
 
             with DataToExportSaver(fname, new_file=new_file, save_type=SaveType.custom) as saver:
                 group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_str,
@@ -715,11 +685,7 @@ class AlgoApp(CustomApp):
                   phase=dte.get_data_from_full_name('modulator/phase')[0],
                   pixel_sizes=self._input_field.pixels_sizes))
         if self.is_action_checked(Actions.SAVE_CONTINUOUS):
-            dte_to_save = DataToExport('tosave', data=[
-                dte.get_data_from_full_name('modulator/phase').deepcopy(),
-                dte.get_data_from_full_name('AlgoData/metrics').deepcopy(),
-            ])
-            self.save_continuous(dte_to_save)
+            self.save_continuous(dte)
 
         if self.is_action_checked(Actions.SHOW_DATA):
             self.fields_to_plot.emit(dte)

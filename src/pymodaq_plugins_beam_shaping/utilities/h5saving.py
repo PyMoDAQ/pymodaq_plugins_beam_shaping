@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Union, List, Tuple, TYPE_CHECKING, Iterable
 
 import xml.etree.ElementTree as ET
@@ -8,6 +9,9 @@ from pymodaq_data.h5modules.data_saving import DataToExportEnlargeableSaver, Dat
 from pymodaq.utils.h5modules.module_saving import ModuleSaver, GroupModuleType
 
 from aenum import extend_enum
+
+from pymodaq_data.h5modules.saving import SaveType
+from pymodaq_utils.config import GlobalConfig
 
 from pymodaq_gui.h5modules.saving import H5Saver
 
@@ -77,3 +81,123 @@ class ShapingSaver(ModuleSaver):
 
         self._datatoexport_saver.add_data(self.get_last_node(self._h5saver.raw_group),
                                           data, axis_values=(self.h5saver.settings['N_saved'],))
+
+
+FIELDS_SAVED_BY_THE_APP = ('modulator/phase',)  # the fields of the continuous saving of the AlgoApp
+
+
+def select_data_to_save(dte: DataToExport, fields: Union[bool, Iterable[str]] = True,
+                        metrics: bool = True) -> DataToExport:
+    """ The part of the output of an algorithm (``AlgoBase.get_fields_to_plot``) to save at each iteration
+
+    Parameters
+    ----------
+    dte: DataToExport
+        the output of the algorithm: amplitude and phase of the output and modulator fields, the intensity of the
+        intermediate one (4f setups) and the metrics
+    fields: bool or iterable of str
+        True: all the fields, False: none, or the full names of the ones to save ('modulator/phase',
+        'output/amplitude', 'intermediate/intensity'...)
+    metrics: bool
+        save the metrics (fitness, efficiency...)
+    """
+    if fields is True:
+        names = [dwa.get_full_name() for dwa in dte if dwa.name != 'metrics']
+    elif fields is False or fields is None:
+        names = []
+    else:
+        names = list(fields)
+    if metrics:
+        names.append(dte.get_data_from_name('metrics').get_full_name())
+    return DataToExport('tosave', data=[dte.get_data_from_full_name(name).deepcopy() for name in names])
+
+
+class ContinuousSaver:
+    """ Save the output of an algorithm at each iteration in a h5 file
+
+    The format of the continuous saving of the AlgoApp: a group /RawData/ShapingXXX (ShapingSaver) per run, holding the
+    saved data enlarged along a 'step' axis. Used by the AlgoApp and the algorithm playground script.
+
+    Parameters
+    ----------
+    fields: bool or iterable of str
+        the fields to save, see ``select_data_to_save``
+    metrics: bool
+        save the metrics
+    h5saver: H5Saver
+        optional, the object managing the file (created when first needed otherwise)
+    """
+    base_name = 'Shaping'
+
+    def __init__(self, fields: Union[bool, Iterable[str]] = FIELDS_SAVED_BY_THE_APP, metrics: bool = True,
+                 h5saver: H5Saver = None):
+        self.fields = fields
+        self.metrics = metrics
+        self._h5saver: H5Saver = h5saver
+        self._module_saver: ShapingSaver = None
+        self._file_path: Path = None
+
+    @property
+    def is_set(self) -> bool:
+        """ True if the h5saver has been created"""
+        return self._h5saver is not None
+
+    def _new_h5saver(self) -> H5Saver:
+        h5saver = H5Saver(save_type=SaveType.custom, backend=GlobalConfig()('data', 'data_saving', 'backend')[0])
+        for setting_name in ('save_type', 'save_2D', 'do_save', 'backend', 'custom_name', 'close_after_scan',):
+            h5saver.settings.child(setting_name).hide()
+        h5saver.settings.child('base_name').setValue(self.base_name)
+        h5saver.settings.child('N_saved').show()
+        return h5saver
+
+    @property
+    def h5saver(self) -> H5Saver:
+        """ The H5Saver, created and its file opened if needed: a new one in the PyMoDAQ data folder the first time, then
+        the same one (closing the file does not start a new one)"""
+        if self._h5saver is None:
+            self._h5saver = self._new_h5saver()
+        if self._h5saver.h5_file is None or not self._h5saver.isopen():
+            if self._file_path is None:  # a new file named after the date and time
+                self._h5saver.init_file(update_h5=True)
+                self._file_path = Path(self._h5saver.settings['current_h5_file'])
+            else:  # reopened, the new data are added to it
+                self._h5saver.init_file(addhoc_file_path=self._file_path)
+        return self._h5saver
+
+    @property
+    def module_saver(self) -> ShapingSaver:
+        if self._module_saver is None:
+            self._module_saver = ShapingSaver()
+            self._module_saver.h5saver = self.h5saver
+        return self._module_saver
+
+    @property
+    def file_path(self) -> Union[Path, None]:
+        """ The file the data are saved in, None before the first save"""
+        return self._file_path
+
+    def open_file(self, file_path: Union[str, Path]):
+        """ Save in this file (created if needed, added to otherwise) instead of a new one in the data folder"""
+        self.close_file()
+        self._file_path = Path(file_path)
+        if self._h5saver is None:
+            self._h5saver = self._new_h5saver()
+        self._h5saver.init_file(addhoc_file_path=self._file_path)
+        self._module_saver = None
+
+    def start(self, settings_as_xml: bytes = None):
+        """ A new 'BeamShaping' group for a new run, the step counter reset"""
+        self.h5saver.settings.child('N_saved').setValue(0)
+        self.module_saver.get_set_node(new=True, settings_as_xml=settings_as_xml)
+
+    def add(self, dte: DataToExport):
+        """ Save the selected data of the output of an algorithm, as the next step"""
+        data = select_data_to_save(dte, self.fields, self.metrics)
+        if len(data) == 0:
+            return
+        self.module_saver.add_data(data)
+        self.h5saver.settings.child('N_saved').setValue(self.h5saver.settings['N_saved'] + 1)
+
+    def close_file(self):
+        if self._h5saver is not None:
+            self._h5saver.close_file()
