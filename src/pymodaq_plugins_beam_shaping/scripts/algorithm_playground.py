@@ -103,6 +103,8 @@ SAVE_FILE = None  # None: a file in the PyMoDAQ data folder for the session, or 
 
 pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS, save_fields=SAVE_FIELDS,
                  save_metrics=SAVE_METRICS, h5file=SAVE_FILE)
+if SAVE_FIELDS or SAVE_METRICS:
+    print(f'saved in {algo.saved_h5file}')
 print(f'fitness = {algo.fitness:.4g}, efficiency = {algo.efficiency:.4g}')
 
 # %% Overview, as in the extension: the output, modulator and intermediate planes (a dock each with qt, the rows of

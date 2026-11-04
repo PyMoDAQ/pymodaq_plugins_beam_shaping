@@ -269,7 +269,7 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
     ``save_fields`` True for all the fields (output and modulator amplitude and phase, intermediate intensity) or the
     full names of some of them ('modulator/phase'...), ``save_metrics`` for the metrics. ``h5file``: the file to add
     the run to (created if needed), None for a file in the PyMoDAQ data folder as the extension, created at the first
-    saved run and holding the next ones. The path of the file is printed and stored in ``algo.saved_h5file``."""
+    saved run and holding the next ones. The path of the file is stored in ``algo.saved_h5file``."""
     phase = initial_phase(algo, ini_phase, ini_phase_params) if algo.INI_PHASE else np.zeros(algo.shape)
     saver = None
     if save_fields or save_metrics:
@@ -298,7 +298,6 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
         if saver is not None:
             algo.saved_h5file = saver.file_path
             saver.close_file()
-            print(f'Saved in {algo.saved_h5file}')
     return algo
 
 

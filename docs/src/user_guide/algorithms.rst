@@ -301,7 +301,7 @@ phase of the output and modulator planes and the intensity of the intermediate o
 as ``('modulator/phase',)``) and ``SAVE_METRICS``, both off by default. The format is the one of the continuous saving
 of the extension: a group ``/RawData/ShapingXXX`` per run, holding the data enlarged along a ``step`` axis, with the
 settings of the algorithm. ``SAVE_FILE`` gives the file (created if needed, the runs being added to it); with ``None``
-a file is created in the PyMoDAQ data folder at the first saved run and holds the next ones. Its path is printed.
+a file is created in the PyMoDAQ data folder at the first saved run and holds the next ones. Its path is printed (``algo.saved_h5file``).
 
 The last cells run the algorithm, plot an overview as in the extension, then the output field and the intermediate
 plane of 4f setups (its intensity in log scale), and give the results as ``Field`` objects. The overview shows the
