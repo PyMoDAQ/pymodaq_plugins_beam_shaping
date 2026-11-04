@@ -338,3 +338,39 @@ version stays usable.
    The parameters of the algorithms are widgets, so a ``QApplication`` is needed. The helpers create it if there is none,
    no event loop is required. Matplotlib must be installed. The algorithm receives the same calls as in the extension
    through a minimal stand-in for it, but the script has not been tested on hardware.
+
+Running the same algorithm many times from a script
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The cells of the script are thin wrappers around the helpers of ``headless_algorithms``, which can be called from your
+own script to run an algorithm many times with all the settings fixed but a few ones that change from one run to the
+next (a parameter, the seed of the random initial phase, the target...). The shaper and the fields are loaded once, and
+only the algorithm is created again for each run, which is cheap compared to an iteration (a few tens of ms against
+some hundreds of ms for a 1024 x 1024 shaper). Parameters are given as in the script, by name, with dots for groups:
+
+.. code-block:: python
+
+   from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg
+
+   # what stays fixed: loaded once
+   app = pg.HeadlessApp(pg.make_shaper())
+   input_field = pg.load_field('GaussianIntensity', {}, app)
+   target_field = pg.load_field('ImageFiles', {'phase.load': False}, app)
+   algo_class = pg.reload_algorithm('Gerchberg-Saxton')
+
+
+   def run(n_iterations=100, algo_params=None, ini_phase='RandomPhase', ini_phase_params=None, **saving):
+       """ One run with a new algorithm, only what is given differs from the defaults """
+       algo = pg.create_algorithm(algo_class, app, algo_params)
+       pg.set_fields(algo, input_field, target_field)
+       pg.run_algorithm(algo, n_iterations, ini_phase, ini_phase_params, **saving)
+       return algo
+
+
+   # what changes: here the seed of the random initial phase, one run per value
+   for seed in range(5):
+       algo = run(n_iterations=3, ini_phase_params=dict(fixed_seed=True, seed=seed))
+       print(f'seed {seed}: fitness = {algo.fitness:.4g}, efficiency = {algo.efficiency:.4g}')
+
+The saving options of ``pg.run_algorithm`` (``save_fields``, ``save_metrics``, ``h5file``) can be given to ``run``: with
+the same ``h5file`` all the runs are added to a single file, a group per run.
