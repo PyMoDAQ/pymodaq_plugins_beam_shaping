@@ -69,11 +69,12 @@ def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
                   pg.load_field('LaguerreGaussian', None, headless))
 
     app = AlgoApp(dockarea)
-    app.continuous_saver.open_file(tmp_path / 'continuous.h5')
+    app.h5_manager.get_h5saver().init_file(addhoc_file_path=tmp_path / 'continuous.h5')  # the file of the app
     app.do_save_continuous(True)
     for _ in range(2):
         pg.run_algorithm(algo)
         app.save_continuous(algo.get_fields_to_plot())
+    assert app.continuous_saver.file_path == tmp_path / 'continuous.h5'
     app.close_file()
 
     with DataLoader(tmp_path / 'continuous.h5') as loader:

@@ -40,7 +40,8 @@ from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
-from pymodaq_plugins_beam_shaping.utilities.h5saving import ShapingSaver, ContinuousSaver, FIELDS_SAVED_BY_THE_APP
+from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, ContinuousSaver, FIELDS_SAVED_BY_THE_APP,
+                                                              configure_h5saver)
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
 from pymodaq_plugins_beam_shaping.utilities import sizing, regions
@@ -188,7 +189,21 @@ class AlgoApp(CustomApp):
                  'visible': self.settings['stopping', 'stopping_type'] == stop,
                  'children': stopping_factory.get_stop_class(stop).params})
 
-        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True)
+        # the continuous saving writes in the file of the H5Manager of the app (CustomApp.h5_manager)
+        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True,
+                                                 h5saver_provider=self._get_h5saver)
+        self._h5saver_configured = False
+
+    def _configure_h5saver(self):
+        """ Set the H5Saver of the H5Manager for the continuous saving, before its first file is created"""
+        if not self._h5saver_configured:
+            configure_h5saver(self.h5_manager.get_h5saver(create_new_file=False), ContinuousSaver.base_name)
+            self._h5saver_configured = True
+
+    def _get_h5saver(self) -> H5Saver:
+        """ The H5Saver of the H5Manager with its file open (a new one if there is none)"""
+        self._configure_h5saver()
+        return self.h5_manager.h5saver
 
     @property
     def continuous_saver(self) -> ContinuousSaver:
@@ -201,22 +216,17 @@ class AlgoApp(CustomApp):
 
     @property
     def h5saver(self) -> H5Saver:
-        return self._continuous_saver.h5saver
-
-    @h5saver.setter
-    def h5saver(self, h5saver_temp: H5Saver):
-        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True, h5saver=h5saver_temp)
+        return self._get_h5saver()
 
     def show_saver_settings(self, show: bool = True):
-        if self._continuous_saver.is_set:
-            self.h5saver.settings_tree.setVisible(show)
+        self._configure_h5saver()
+        self.h5_manager.show_settings(show)
 
     def show_continuous_data(self):
-        if self._continuous_saver.is_set:
-            self.h5saver.show_file_content()
+        self.h5_manager.show_file_content()
 
     def close_file(self):
-        self._continuous_saver.close_file()
+        self.h5_manager.close_file()
 
     def do_save_continuous(self, dosave: bool = True):
         self.h5saver.settings.child('do_save').setValue(dosave)
