@@ -71,9 +71,14 @@ def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
     app = AlgoApp(dockarea)
     app.h5_manager.get_h5saver().init_file(addhoc_file_path=tmp_path / 'continuous.h5')  # the file of the app
     app.do_save_continuous(True)
+    flushed = []
+    app.h5saver.flush = lambda: flushed.append(True)  # the file is flushed at each step, to browse it while paused
     for _ in range(2):
         pg.run_algorithm(algo)
+        n_flushes = len(flushed)
         app.save_continuous(algo.get_fields_to_plot())
+        assert len(flushed) > n_flushes
+    del app.h5saver.flush
     assert app.continuous_saver.file_path == tmp_path / 'continuous.h5'
     app.close_file()
 

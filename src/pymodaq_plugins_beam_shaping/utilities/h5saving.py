@@ -209,12 +209,13 @@ class ContinuousSaver:
         self.module_saver.get_set_node(new=True, settings_as_xml=settings_as_xml)
 
     def add(self, dte: DataToExport):
-        """ Save the selected data of the output of an algorithm, as the next step"""
+        """ Save the selected data of the output of an algorithm, as the next step, and flush the file"""
         data = select_data_to_save(dte, self.fields, self.metrics)
         if len(data) == 0:
             return
         self.module_saver.add_data(data)
         self.h5saver.settings.child('N_saved').setValue(self.h5saver.settings['N_saved'] + 1)
+        self.h5saver.flush()  # the content of the file is up to date at each step, e.g. to browse it while paused
 
     def close_file(self):
         """ Close the file of its own H5Saver (with a provider, closing the file is the job of its manager)"""
