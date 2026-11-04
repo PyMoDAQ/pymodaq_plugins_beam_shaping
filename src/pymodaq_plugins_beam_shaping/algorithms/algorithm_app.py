@@ -107,6 +107,7 @@ def status_text(algo_class: type[AlgoBase]) -> str:
 
 class AlgoApp(CustomApp):
     save_settings = True
+    ALGORITHM_COMBO_TIP = 'select the algorithm to compute the phase'
     h5_base_group_name = ContinuousSaver.base_name  # the name of the files of the H5Manager
     show_h5file_statusbar_widgets = True  # the LED of the state of the h5 file (and SWMR) of the H5Manager
     params = [
@@ -469,10 +470,7 @@ class AlgoApp(CustomApp):
                          toolbar=self.h5_manager.toolbar, add_break=False)
 
     def setup_actions(self):
-        self.add_widget('algorithms', QtWidgets.QComboBox,
-                        tip='select the algorithm to compute the phase')
-        self.add_widget('algorithm_status', QtWidgets.QLabel,
-                        tip='how far the selected algorithm has been validated, see its STATUS attribute')
+        self.add_widget('algorithms', QtWidgets.QComboBox, tip=self.ALGORITHM_COMBO_TIP)
         self.fill_algorithm_combo(self.algorithms)
         if len(self.algorithms) > 1:
             self.get_action('algorithms').setCurrentText(self.algorithms[0])
@@ -572,16 +570,13 @@ class AlgoApp(CustomApp):
             combo.setItemData(combo.count() - 1, status_text(algo_class), QtCore.Qt.ToolTipRole)
 
     def show_algorithm_status(self, *args):
-        """ Show the status of the selected algorithm next to the combo box """
-        label: QtWidgets.QLabel = self.get_action('algorithm_status').widget
+        """ Complete the tooltip of the combo box with the status of the selected algorithm """
+        combo: QtWidgets.QComboBox = self.get_action('algorithms').widget
         name = self.algorithm_name
         if not name:
-            label.setText('')
-            label.setToolTip('')
+            combo.setToolTip(self.ALGORITHM_COMBO_TIP)
             return
-        algo_class = algo_factory.get_algorithm(name)
-        label.setText(f'<span style="color:{status_color(algo_class.STATUS).name()}">&#9679;</span> {algo_class.STATUS}')
-        label.setToolTip(status_text(algo_class))
+        combo.setToolTip(f'{self.ALGORITHM_COMBO_TIP}\n{status_text(algo_factory.get_algorithm(name))}')
 
     def define_phase(self, force_reset=False):
         if self._algorithm is not None and force_reset:

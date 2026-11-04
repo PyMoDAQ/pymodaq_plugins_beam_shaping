@@ -69,18 +69,17 @@ def test_status_next_to_the_name_and_broken_hidden(qtbot, dockarea, statuses):
     plugin_config['algo', 'show_broken'] = False
     app = AlgoApp(dockarea, shaper=_shaper())
     combo = app.get_action('algorithms').widget
-    label = app.get_action('algorithm_status').widget
 
     assert bad.ALGO_NAME not in _items(app)
     assert combo.currentText() == good.ALGO_NAME
-    assert 'tested' in label.text()
-    assert 'checked on the bench' in label.toolTip()
+    assert app.ALGORITHM_COMBO_TIP in combo.toolTip()
+    assert 'checked on the bench' in combo.toolTip()
     assert 'tested' in combo.itemData(0, QtCore.Qt.ToolTipRole)
     assert not combo.itemIcon(0).isNull()
 
-    combo.setCurrentIndex(1)  # the label follows the selection
+    combo.setCurrentIndex(1)  # the tooltip follows the selection
     other = AlgorithmFactory.get_algorithm(combo.currentText())
-    assert str(other.STATUS) in label.text()
+    assert str(other.STATUS) in combo.toolTip()
 
 
 def test_broken_shown_if_the_configuration_asks(qtbot, dockarea, statuses):
