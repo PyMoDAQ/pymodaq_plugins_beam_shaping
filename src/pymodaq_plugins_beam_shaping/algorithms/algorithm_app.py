@@ -42,7 +42,7 @@ from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
 from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, ContinuousSaver, FIELDS_SAVED_BY_THE_APP,
-                                                              configure_h5saver)
+                                                              configure_h5saver, fields_of_modulator)
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
 from pymodaq_plugins_beam_shaping.utilities import sizing, regions
@@ -236,6 +236,8 @@ class AlgoApp(CustomApp):
             self._finalize_saving()
         else:
             settings = [self.settings] + ([self._algorithm.settings] if self._algorithm is not None else [])
+            # what is sent to the shaper: the phase for a phase modulator, the amplitude for an amplitude one...
+            self._continuous_saver.fields = fields_of_modulator(self.shaper.modulator_type)
             self._continuous_saver.start(settings_as_xml=settings_to_xml(settings))
 
     def save_continuous(self, dte: DataToExport):

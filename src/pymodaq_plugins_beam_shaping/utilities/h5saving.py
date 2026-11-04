@@ -18,6 +18,8 @@ from pymodaq_utils.config import GlobalConfig
 
 from pymodaq_gui.h5modules.saving import H5Saver
 
+from pymodaq_plugins_beam_shaping.utilities.shaper import ModulatorType
+
 extend_enum(GroupModuleType, 'SHAPING')
 
 
@@ -100,7 +102,18 @@ class ShapingSaver(ModuleSaver):
         self.add_data(data.dte, axis_values=data.axis_values)
 
 
-FIELDS_SAVED_BY_THE_APP = ('modulator/phase',)  # the fields of the continuous saving of the AlgoApp
+FIELDS_SAVED_BY_THE_APP = ('modulator/phase',)  # default fields of the continuous saving of the AlgoApp
+
+
+def fields_of_modulator(modulator_type: ModulatorType) -> tuple[str, ...]:
+    """ The modulator field(s) actually sent to the shaper: the phase for a phase modulator, the amplitude (binary
+    hologram...) for an amplitude one, both otherwise"""
+    modulator_type = ModulatorType(modulator_type)
+    if modulator_type == ModulatorType.PHASE:
+        return ('modulator/phase',)
+    if modulator_type == ModulatorType.AMPLITUDE:
+        return ('modulator/amplitude',)
+    return ('modulator/amplitude', 'modulator/phase')
 
 
 def select_data_to_save(dte: DataToExport, fields: Union[bool, Iterable[str]] = True,
