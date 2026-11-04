@@ -231,3 +231,84 @@ class TmpReload(Direct):
     finally:
         pg.AlgorithmFactory.algorithms_registry.pop('TmpReload', None)
         sys.modules.pop('tmp_reload_algo', None)
+
+
+
+def load_saved(path, group='/RawData/Shaping000'):
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    with DataLoader(path) as loader:
+        return {dwa.get_full_name(): dwa for dwa in loader.load_all(group)}
+
+
+def check_enlarged_nodes(path, n_steps, group='/RawData/Shaping000'):
+    """ The attributes of the enlargeable arrays and of the step axis are the actual ones (not those of one step)"""
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    with DataLoader(path) as loader:
+        nodes = [node for node in loader.walk_nodes(group) if 'CLASS' in node.attrs and node.attrs['CLASS'] == 'EARRAY']
+        assert len(nodes) > 1
+        for node in nodes:
+            assert tuple(node.attrs['shape']) == tuple(node.node.shape), node.path
+            if node.name.startswith('EnlData') or node.path.endswith('NavAxes/Axis00'):
+                assert node.attrs['shape'][0] == n_steps, node.path
+        axis = loader.get_node(f'{group}/NavAxes/Axis00')
+        assert axis.attrs['size'] == n_steps
+        assert list(axis.read()) == list(range(n_steps))
+
+
+def test_no_saving_by_default(qapp):
+    app, algo = prepare('Gerchberg-Saxton')
+    pg.run_algorithm(algo, 2)
+    assert not hasattr(algo, 'saved_h5file')
+
+
+@pytest.mark.parametrize('fields, metrics, expected', [
+    (True, False, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase'}),
+    (False, True, {'AlgoData/metrics'}),
+    (True, True, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase', 'AlgoData/metrics'}),
+    (('modulator/phase',), True, {'modulator/phase', 'AlgoData/metrics'}),
+])
+def test_fields_and_metrics_saved_at_each_iteration(qapp, tmp_path, fields, metrics, expected):
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'run.h5'
+    pg.run_algorithm(algo, 3, save_fields=fields, save_metrics=metrics, h5file=path)
+    assert algo.saved_h5file == path
+    check_enlarged_nodes(path, 3)
+    saved = load_saved(path)
+    assert set(saved) == expected
+    for dwa in saved.values():
+        assert dwa.shape[0] == 3  # enlarged along the 'step' axis, one step per iteration
+    if 'modulator/phase' in saved:
+        assert np.allclose(saved['modulator/phase'][0][-1], algo.modulator_field.phase)
+
+
+def test_intermediate_field_saved(qapp, tmp_path):
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
+    pg.run_algorithm(algo, save_fields=True, h5file=tmp_path / 'run.h5')
+    assert 'intermediate/intensity' in load_saved(tmp_path / 'run.h5')
+
+
+def test_runs_added_to_the_same_file(qapp, tmp_path):
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'runs.h5'
+    pg.run_algorithm(algo, 1, save_metrics=True, h5file=path)
+    pg.run_algorithm(algo, 2, save_metrics=True, h5file=path)
+    assert load_saved(path, '/RawData/Shaping000')['AlgoData/metrics'].shape[0] == 1
+    assert load_saved(path, '/RawData/Shaping001')['AlgoData/metrics'].shape[0] == 2
+
+
+def test_saving_resumed_after_a_pause_in_the_same_group(qapp, tmp_path):
+    """ finalize (pause) makes the attributes of the file right, the next steps are appended to the same group"""
+    from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver
+    app, algo = prepare('Gerchberg-Saxton')
+    pg.run_algorithm(algo)
+    saver = ContinuousSaver(fields=('modulator/phase',), metrics=True)
+    saver.open_file(tmp_path / 'pause.h5')
+    saver.start()
+    for _ in range(2):
+        saver.add(algo.get_fields_to_plot())
+    saver.finalize()
+    check_enlarged_nodes(tmp_path / 'pause.h5', 2)  # browsable while paused
+    for _ in range(3):
+        saver.add(algo.get_fields_to_plot())
+    saver.close_file()
+    check_enlarged_nodes(tmp_path / 'pause.h5', 5)

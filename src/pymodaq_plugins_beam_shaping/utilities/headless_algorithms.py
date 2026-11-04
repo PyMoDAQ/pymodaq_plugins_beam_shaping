@@ -9,7 +9,8 @@ loop is needed.
 """
 import importlib
 import sys
-from typing import Optional, Union
+from pathlib import Path
+from typing import Iterable, Optional, Union
 
 import numpy as np
 
@@ -19,6 +20,8 @@ from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, regi
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
+from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver
+from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 from pymodaq_data import Q_
 
@@ -251,20 +254,50 @@ def initial_phase(algo, kind: Union[str, np.ndarray] = 'FlatPhase', params: Opti
     return phase_class(holder.settings, algo).compute_phase()
 
 
+_data_folder_saver = None  # saves the runs without a given file
+
+
 def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
-                  ini_phase_params: Optional[dict] = None):
+                  ini_phase_params: Optional[dict] = None, save_fields: Union[bool, Iterable[str]] = False,
+                  save_metrics: bool = False, h5file: Union[None, str, Path] = None):
     """ Run the algorithm (iterations only for the iterative ones), the results are in its fields
 
-    The initial phase is the name of a phase of the factory with its parameters, or an array"""
+    The initial phase is the name of a phase of the factory with its parameters, or an array.
+
+    With ``save_fields`` and/or ``save_metrics``, the output of each iteration is saved in a h5 file in the format of
+    the continuous saving of the extension (a group /RawData/ShapingXXX per run, the data enlarged along a 'step' axis):
+    ``save_fields`` True for all the fields (output and modulator amplitude and phase, intermediate intensity) or the
+    full names of some of them ('modulator/phase'...), ``save_metrics`` for the metrics. ``h5file``: the file to add
+    the run to (created if needed), None for a file in the PyMoDAQ data folder as the extension, created at the first
+    saved run and holding the next ones. The path of the file is stored in ``algo.saved_h5file``."""
     phase = initial_phase(algo, ini_phase, ini_phase_params) if algo.INI_PHASE else np.zeros(algo.shape)
-    algo.do_things_after_init()
-    if algo.INI_PHASE:
-        algo.define_input_phase(phase)
-    algo.compute_forward_fft(update_plots=False)
-    for index in range(n_iterations if algo.ITERATIVE else 1):
-        algo.start()
-        algo.compute_phase_and_or_amplitude(do_step=True, ini_phase=phase if index == 0 else None)
-        algo.stop()
+    saver = None
+    if save_fields or save_metrics:
+        global _data_folder_saver
+        if h5file is not None:
+            saver = ContinuousSaver()
+            saver.open_file(h5file)
+        else:  # one file in the data folder for the session (the file name has a one second resolution)
+            if _data_folder_saver is None:
+                _data_folder_saver = ContinuousSaver()
+            saver = _data_folder_saver
+        saver.fields, saver.metrics = save_fields, save_metrics
+        saver.start(settings_as_xml=settings_to_xml((algo.settings,)))
+    try:
+        algo.do_things_after_init()
+        if algo.INI_PHASE:
+            algo.define_input_phase(phase)
+        algo.compute_forward_fft(update_plots=False)
+        for index in range(n_iterations if algo.ITERATIVE else 1):
+            algo.start()
+            algo.compute_phase_and_or_amplitude(do_step=True, ini_phase=phase if index == 0 else None)
+            algo.stop()
+            if saver is not None:
+                saver.add(algo.get_fields_to_plot())
+    finally:
+        if saver is not None:
+            algo.saved_h5file = saver.file_path
+            saver.close_file()
     return algo
 
 

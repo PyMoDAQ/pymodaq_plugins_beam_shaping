@@ -96,7 +96,16 @@ if snap_plot is not None and intermediate_mask is not None:  # the plot of the s
                   mask=(intermediate_mask, INTERMEDIATE_MASK_TYPE), backend=PLOT_BACKEND, figure=snap_plot)
 
 # %% Run
-pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS)
+# Optional saving at each iteration, in the format of the continuous saving of the extension: one group
+# /RawData/ShapingXXX per run, the data enlarged along a 'step' axis
+SAVE_FIELDS = False  # True: all the fields (output, modulator, intermediate), or some, e.g. ('modulator/phase',)
+SAVE_METRICS = False  # the metrics (fitness, efficiency...)
+SAVE_FILE = None  # None: a file in the PyMoDAQ data folder for the session, or a path. The runs are added to the file
+
+pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS, save_fields=SAVE_FIELDS,
+                 save_metrics=SAVE_METRICS, h5file=SAVE_FILE)
+if SAVE_FIELDS or SAVE_METRICS:
+    print(f'saved in {algo.saved_h5file}')
 print(f'fitness = {algo.fitness:.4g}, efficiency = {algo.efficiency:.4g}')
 
 # %% Overview, as in the extension: the output, modulator and intermediate planes (a dock each with qt, the rows of

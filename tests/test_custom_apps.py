@@ -55,6 +55,43 @@ def test_algo_app(qtbot, dockarea):
     assert app.module_and_data_saver is None
 
 
+def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
+    """ The modulator phase and the metrics of each output, enlarged along the steps (the format the playground
+    script reuses)"""
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+    from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg
+
+    shaper = pg.make_shaper(width=64, height=64, pixel_size=8.)
+    headless = pg.HeadlessApp(shaper)
+    algo = pg.create_algorithm(pg.reload_algorithm('Gerchberg-Saxton'), headless)
+    pg.set_fields(algo, pg.load_field('GaussianIntensity', None, headless),
+                  pg.load_field('LaguerreGaussian', None, headless))
+
+    app = AlgoApp(dockarea)
+    app.h5_manager.get_h5saver().init_file(addhoc_file_path=tmp_path / 'continuous.h5')  # the file of the app
+    app.do_save_continuous(True)
+    flushed = []
+    app.h5saver.flush = lambda: flushed.append(True)  # the file is flushed at each step, to browse it while paused
+    for _ in range(2):
+        pg.run_algorithm(algo)
+        n_flushes = len(flushed)
+        app.save_continuous(algo.get_fields_to_plot())
+        assert len(flushed) > n_flushes
+    del app.h5saver.flush
+    assert app.continuous_saver.file_path == tmp_path / 'continuous.h5'
+    app._finalize_saving()  # as when the algorithm is paused: the attributes of the arrays are up to date
+    from test_algorithm_playground import check_enlarged_nodes
+    check_enlarged_nodes(tmp_path / 'continuous.h5', 2)
+    app.close_file()
+
+    with DataLoader(tmp_path / 'continuous.h5') as loader:
+        assert loader.get_node('/RawData/Shaping000').attrs['title'] == 'BeamShaping'
+        saved = {dwa.get_full_name(): dwa for dwa in loader.load_all('/RawData/Shaping000')}
+    assert set(saved) == {'modulator/phase', 'AlgoData/metrics'}
+    assert all(dwa.shape[0] == 2 for dwa in saved.values())
+
+
 def test_correction_app(qtbot, dockarea):
     from pymodaq_plugins_beam_shaping.utilities.corrections import Correction
 
@@ -159,3 +196,28 @@ def test_roi_select_is_the_same_in_both_viewers(qtbot, dockarea):
     assert not amp.is_action_checked('ROIselect') and not amp.ROIselect.isVisible()
     phase.get_action('ROIselect').trigger()
     assert amp.ROIselect.isVisible() and geometry(phase) == pytest.approx(before) == geometry(amp)
+
+
+@pytest.mark.parametrize('modulator_type, expected', [('phase', {'modulator/phase'}),
+                                                      ('amplitude', {'modulator/amplitude'}),
+                                                      ('both', {'modulator/amplitude', 'modulator/phase'})])
+def test_algo_app_saves_what_is_sent_to_the_shaper(qtbot, dockarea, tmp_path, modulator_type, expected):
+    """ The modulator phase for a phase modulator, the amplitude (binary holograms) for an amplitude one"""
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+    from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg
+
+    headless = pg.HeadlessApp(pg.make_shaper(width=64, height=64, pixel_size=8., modulator_type=modulator_type))
+    algo = pg.create_algorithm(pg.reload_algorithm('Gerchberg-Saxton'), headless)
+    pg.set_fields(algo, pg.load_field('GaussianIntensity', None, headless),
+                  pg.load_field('LaguerreGaussian', None, headless))
+    pg.run_algorithm(algo)
+
+    app = AlgoApp(dockarea, shaper=headless.shaper)
+    app.h5_manager.get_h5saver().init_file(addhoc_file_path=tmp_path / 'sent.h5')
+    app.do_save_continuous(True)
+    app.save_continuous(algo.get_fields_to_plot())
+    app.close_file()
+    with DataLoader(tmp_path / 'sent.h5') as loader:
+        saved = {dwa.get_full_name() for dwa in loader.load_all('/RawData/Shaping000')}
+    assert saved == expected | {'AlgoData/metrics'}

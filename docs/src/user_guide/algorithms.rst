@@ -296,6 +296,13 @@ cells one after the other, editing the settings on the way:
   draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
   again until the mask is right.
 
+The *Run* cell can save the output of each iteration: ``SAVE_FIELDS`` (``True`` for all the fields, the amplitude and
+phase of the output and modulator planes and the intensity of the intermediate one, or the names of some of them such
+as ``('modulator/phase',)``) and ``SAVE_METRICS``, both off by default. The format is the one of the continuous saving
+of the extension: a group ``/RawData/ShapingXXX`` per run, holding the data enlarged along a ``step`` axis, with the
+settings of the algorithm. ``SAVE_FILE`` gives the file (created if needed, the runs being added to it); with ``None``
+a file is created in the PyMoDAQ data folder at the first saved run and holds the next ones. Its path is printed (``algo.saved_h5file``).
+
 The last cells run the algorithm, plot an overview as in the extension, then the output field and the intermediate
 plane of 4f setups (its intensity in log scale), and give the results as ``Field`` objects. The overview shows the
 output, modulator and intermediate planes with their amplitude and phase, and the metrics: with ``'qt'`` a dock per field
