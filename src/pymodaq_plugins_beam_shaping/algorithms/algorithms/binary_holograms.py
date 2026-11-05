@@ -174,6 +174,12 @@ class BinaryHologram(AlgoBase):
                             for _slice, size in zip(slices, self.shape))
         return tuple(self.settings['carrier_factor'] * value for value in carrier)
 
+    @property
+    def input_power(self) -> float:
+        """ The binary pattern is the amplitude of the modulator plane (the algorithms assume a uniform illumination of
+        unit amplitude, not the profile of the input field): the incident power is the number of pixels"""
+        return float(np.prod(self.shape))
+
     def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
         self.update_order_position()
         amplitude_pattern = self.compute_amplitude_pattern()

@@ -46,6 +46,27 @@ def test_intermediate_mask_filters_the_intermediate_field(qapp):
     assert filtered.intensity.sum() < unfiltered.intensity.sum()
 
 
+def test_efficiency_is_the_output_power_over_the_incident_power_filter_included(qapp):
+    # a phase modulator in a 2f setup loses nothing
+    app, algo = prepare('Gerchberg-Saxton', 'phase')
+    pg.run_algorithm(algo, 2, verbose=False)
+    assert algo.efficiency == pytest.approx(1.)
+    assert algo.input_power == pytest.approx(algo._input_field.intensity.sum())
+
+    # a binary hologram: the mirrors that are off and the filter of the intermediate plane lose power
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    pg.run_algorithm(algo, verbose=False)
+    n_pixels = np.prod(algo.shape)
+    assert algo.input_power == n_pixels
+    unfiltered = algo.efficiency
+    assert unfiltered == pytest.approx(algo.output_field.intensity.sum() / n_pixels)
+    assert unfiltered == pytest.approx(algo.modulator_field.intensity.sum() / n_pixels)  # nothing filtered yet
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
+    pg.run_algorithm(algo, verbose=False)
+    assert algo.efficiency < unfiltered
+    assert algo.efficiency == pytest.approx(algo.output_field.intensity.sum() / n_pixels)
+
+
 def test_back_propagate_amplitude_sets_a_phase_of_the_modulator(qapp):
     app, algo = prepare('Gerchberg-Saxton', 'phase')
     pg.run_algorithm(algo, 1)
