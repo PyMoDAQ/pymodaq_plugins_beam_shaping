@@ -91,7 +91,7 @@ in the review but not available.
 * ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
   the grey levels of the pattern are kept (the grey off-axis hologram, an ideal modulation not feasible on a DMD, to
   see what the binarization costs).
-* ``Compensate input`` (default checked, *Parallel Lee* and *Superpixel*) and ``Min input level`` (default 0.05): the
+* ``Compensate input`` (default checked, *Parallel Lee* and *Superpixel*) and ``Min input level`` (default 0.2: the transmission needed is at most 5 times the one at the peak of the beam, a lower level leaves little to the centre): the
   mirrors multiply the amplitude of the input beam, so the amplitude to encode is the target divided by the input
   amplitude, scaled so that no mirror has to give more than the input (4f setups: the magnification only changes the
   axes, the arrays keep their shape). Where the input is below the minimum level (a fraction of its maximum) the

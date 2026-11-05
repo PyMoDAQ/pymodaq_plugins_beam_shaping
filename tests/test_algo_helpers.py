@@ -142,3 +142,17 @@ def test_the_slm_field_holds_the_phase_without_correction_and_the_pattern(qapp):
     app, algo = prepare('Gerchberg-Saxton', 'phase')
     pg.run_algorithm(algo, 1, verbose=False)
     assert 'slm/amplitude' not in [dwa.get_full_name() for dwa in algo.get_fields_to_plot()]
+
+
+def test_the_default_compensation_keeps_the_dynamic_range_of_the_pattern_modest(qapp):
+    """ With the default settings, a flat target through a Gaussian beam does not need a transmission at the border
+    of the beam more than a few times the one of the centre: the centre would otherwise be left with almost nothing
+    to the binary pattern (what a full area target showed on the app)"""
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    ny, nx = algo.shape
+    y, x = np.indices((ny, nx))
+    algo._input_field.amplitude = np.exp(-(((y - ny / 2) / (ny / 3)) ** 2 + ((x - nx / 2) / (nx / 3)) ** 2))
+    algo._target_field.amplitude = np.ones(algo.shape)
+    encoded = algo.encoded_amplitude()
+    assert encoded.max() == pytest.approx(1.)
+    assert encoded[ny // 2, nx // 2] >= 1 / 5.5
