@@ -213,16 +213,26 @@ def get_target_field(algo):
     return algo._target_field
 
 
-def set_mask(app: HeadlessApp, apply_to: ApplyMaskTo, slices_um: Optional[tuple], mask_type: str = 'elliptical'):
-    """ Apply a mask given as ((start, stop) along y, (start, stop) along x) in um around the center of the field,
-    None to remove it"""
-    app.masks[str(apply_to)] = None if slices_um is None else (tuple(slice(*s) for s in slices_um), mask_type)
+def set_mask(app: HeadlessApp, apply_to: ApplyMaskTo, slices_um, mask_type: str = 'elliptical'):
+    """ Apply a mask given by its region in um around the center of the field, None to remove it.
+
+    The region is given as the slices shown by the field loader and the extension, as text or not
+    (``'(slice(-100, 100, None), slice(-50, 50, None))'``, along y then along x), so that they can be copied and pasted,
+    or as ((start, stop) along y, (start, stop) along x)
+    """
+    slices = regions.as_slices(slices_um)
+    app.masks[str(apply_to)] = None if slices is None else (slices, mask_type)
+
+
+def mask_to_str(slices_um) -> str:
+    """ The region of a mask as text, in the form of the field loader and the extension, to copy it"""
+    return regions.slices_to_str(regions.as_slices(slices_um))
 
 
 def default_mask(algo, apply_to: ApplyMaskTo, fraction: float = 2 / 3) -> tuple:
     """ The default region of a mask, as in the extension: centered and covering 2/3 of the effective area of the SLM
-    in the plane (target or intermediate), given as ((start, stop) along y, (start, stop) along x) in um around the
-    center of the field, rounded to the um"""
+    in the plane (target or intermediate), given as slices along y then along x in um around the center of the field,
+    rounded to the um, as shown by the field loader and the extension"""
     if str(apply_to) == str(ApplyMaskTo.INTERMEDIATE):
         pixel_sizes = algo.intermediate_pixel_sizes
     else:
@@ -230,7 +240,7 @@ def default_mask(algo, apply_to: ApplyMaskTo, fraction: float = 2 / 3) -> tuple:
     shape = sizing.get_effective_needed_field_size(algo.shaper)
     half_field = np.array(shape) * regions.pixel_sizes_in_um(pixel_sizes) / 2
     slices = regions.default_slices(algo.shaper, pixel_sizes, fraction)
-    return tuple((round(_slice.start - half), round(_slice.stop - half)) for _slice, half in zip(slices, half_field))
+    return tuple(slice(round(_slice.start - half), round(_slice.stop - half)) for _slice, half in zip(slices, half_field))
 
 
 def _phase_settings(phase_class):
@@ -375,10 +385,10 @@ def center_axes(dte):
 
 
 def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'um', color: str = 'red'):
-    """ Draw the outline of a mask (((start, stop) along y, (start, stop) along x) in um around the center of the
-    field) on the 2D data of a matplotlib figure (axes in ``units``, um for the plots of this module)"""
+    """ Draw the outline of a mask (slices in um around the center of the field, see :func:`set_mask`) on the 2D data of a matplotlib figure (axes in ``units``, um for the plots of this module)"""
     from matplotlib.patches import Ellipse, Rectangle
-    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in limits] for limits in slices_um]
+    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in (_slice.start, _slice.stop)]
+                          for _slice in regions.as_slices(slices_um)]
     for ax in _image_axes(figure):
         if MaskType(mask_type) == MaskType.ELLIPTICAL:
             patch = Ellipse(((x0 + x1) / 2, (y0 + y1) / 2), x1 - x0, y1 - y0)
@@ -397,7 +407,8 @@ def draw_mask_qt(dispatcher, slices_um, mask_type: str = 'elliptical', units: st
     dispatcher.mask_rois = []
     if slices_um is None:
         return dispatcher
-    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in limits] for limits in slices_um]
+    (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in (_slice.start, _slice.stop)]
+                          for _slice in regions.as_slices(slices_um)]
     for viewer in dispatcher.viewers:
         view = getattr(viewer, 'view', None)
         if view is None or not hasattr(view, 'plotitem'):

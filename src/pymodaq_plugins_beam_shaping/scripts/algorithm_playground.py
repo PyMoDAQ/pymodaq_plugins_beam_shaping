@@ -70,7 +70,9 @@ if snapped_intermediate is not None:
     snap_plot = pg.plot_field(snapped_intermediate, 'intermediate (snap, no mask)', log=True, clim=None, xlim=None,
                               ylim=None, backend=PLOT_BACKEND)
 
-# %% Masks: slices in um as ((start, stop) along y, (start, stop) along x) around the center of the field
+# %% Masks: slices in um, along y then along x, around the center of the field, as shown by the field loader and the
+# extension: they can be pasted as is, e.g. TARGET_MASK = (slice(-100, 100, None), slice(-50, 50, None)), as text or as
+# ((-100, 100), (-50, 50)).
 # None: the default region of the extension, centered and covering 2/3 of the effective area of the SLM in the plane
 # (printed below, copy and edit it). Run this cell again to adjust the intermediate mask: its outline is drawn on the
 # plot of the snap, which is updated
@@ -84,11 +86,11 @@ INTERMEDIATE_MASK_TYPE = 'elliptical'
 target_mask = intermediate_mask = None
 if APPLY_TARGET_MASK:
     target_mask = TARGET_MASK if TARGET_MASK is not None else pg.default_mask(algo, ApplyMaskTo.TARGET)
-    print(f'TARGET_MASK = {target_mask}')
+    print(f'TARGET_MASK = {pg.mask_to_str(target_mask)}')
 if APPLY_INTERMEDIATE_MASK:
     intermediate_mask = (INTERMEDIATE_MASK if INTERMEDIATE_MASK is not None
                          else pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
-    print(f'INTERMEDIATE_MASK = {intermediate_mask}')
+    print(f'INTERMEDIATE_MASK = {pg.mask_to_str(intermediate_mask)}')
 pg.set_mask(app, ApplyMaskTo.TARGET, target_mask, TARGET_MASK_TYPE)
 pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, intermediate_mask, INTERMEDIATE_MASK_TYPE)
 if snap_plot is not None and intermediate_mask is not None:  # the plot of the snap is updated, not created again
