@@ -42,6 +42,7 @@ class _Stub:
 
     def __init__(self):
         super().__init__(parent=None)
+        self._input_field.amplitude = np.ones(self.shape)  # a uniform illumination of unit amplitude
         self._target_field.amplitude = np.ones(self.shape)  # modulation depth of 1 everywhere
         self.settings.child('px').setValue(5)  # a period of 5 pixels along x and y
         self.settings.child('py').setValue(5)
@@ -339,6 +340,7 @@ def test_the_superpixel_output_is_the_target_field(qapp):
     y, x = np.indices((ny, nx))
     amplitude = np.exp(-(((y - ny / 2) / (ny / 4)) ** 2 + ((x - nx / 2) / (nx / 4)) ** 2))
     phase = 1.5 * np.sin(2 * np.pi * (x - nx / 2) / nx) + 2 * (y - ny / 2) / ny
+    superpixel._input_field.amplitude = np.ones((ny, nx))  # uniform illumination
     superpixel._target_field.amplitude = amplitude
     superpixel._target_field.phase = phase
     superpixel.compute_phase_and_or_amplitude()

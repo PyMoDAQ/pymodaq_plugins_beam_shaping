@@ -77,6 +77,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         self._target_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self._input_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self.intermediate_field: Optional[Field] = None
+        self._slm_amplitude: Optional[np.ndarray] = None  # what is sent to an amplitude modulator, see slm_amplitude
+        self._unreachable_mask: Optional[np.ndarray] = None  # where the target cannot be reached, see subclasses
 
         self._modulator_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self._modulator_field.calibrate_axes(self._input_field.pixels_sizes)
@@ -229,7 +231,34 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             self.set_amplitude_in_modulator_plane(field.amplitude)
 
     def set_amplitude_in_modulator_plane(self, amplitude: np.ndarray):
-        self._modulator_field.amplitude = amplitude
+        """ Set the amplitude pattern of an amplitude modulator (0 and 1 for a DMD)
+
+        The pattern is what is sent to the modulator (see :attr:`slm_amplitude`) whereas the amplitude of the modulator
+        field, the field just after the modulator used to compute the output, is the input amplitude times the pattern
+        """
+        self._slm_amplitude = np.array(amplitude, dtype=float)
+        self._modulator_field.amplitude = self._input_field.amplitude * self._slm_amplitude
+
+    @property
+    def slm_amplitude(self) -> np.ndarray:
+        """ The amplitude pattern to send to the modulator (not including the input beam): the one set by
+        :meth:`set_amplitude_in_modulator_plane`, 1 everywhere if the algorithm did not set any"""
+        if self._slm_amplitude is None or self._slm_amplitude.shape != self._modulator_field.shape:
+            return np.ones(self._modulator_field.shape)
+        return self._slm_amplitude
+
+    @property
+    def unreachable_mask(self) -> Optional[np.ndarray]:
+        """ Boolean array of the pixels where the target cannot be obtained (None: not computed)"""
+        return self._unreachable_mask
+
+    @property
+    def unreachable_fraction(self) -> float:
+        """ Fraction of the pixels asked by the target that cannot be obtained, see :attr:`unreachable_mask`"""
+        if self._unreachable_mask is None:
+            return 0.
+        asked = self._target_field.amplitude > 0
+        return float(np.sum(self._unreachable_mask & asked) / max(np.sum(asked), 1))
 
     def set_phase_in_modulator_plane(self, phase: np.ndarray, induced_amplitude: np.ndarray = None):
         if phase.shape == self._modulator_field.shape:
@@ -364,6 +393,12 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             self.modulator_field.amplitude_as_dwa('modulator'),
             self.modulator_field.phase_as_dwa('modulator'),
         ])
+        if self._slm_amplitude is not None:
+            dte.append(Field('slm', amplitude=self.slm_amplitude,
+                             pixel_sizes=self._modulator_field.pixels_sizes).amplitude_as_dwa('slm'))
+        if self._unreachable_mask is not None:
+            dte.append(Field('unreachable', amplitude=self._unreachable_mask.astype(float),
+                             pixel_sizes=self._modulator_field.pixels_sizes).amplitude_as_dwa('unreachable'))
         if self.intermediate_field is not None:
             dte.append(self.intermediate_field.intensity_as_dwa('intermediate'))
         return dte

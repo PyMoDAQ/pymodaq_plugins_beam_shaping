@@ -48,6 +48,18 @@ CARRIER_FROM = ('Mask center', 'Spectrum centroid')
 STATUS_NOTE_CODE_ONLY = 'Code only: the filtered order is checked against the theory in simulation, not on a bench'
 
 
+def block_average(array: np.ndarray, n: int) -> np.ndarray:
+    """ Each element replaced by the mean of its block of n x n elements (the blocks on the edges are cut)"""
+    ny, nx = array.shape
+    blocks_y, blocks_x = -(-ny // n), -(-nx // n)
+    padded = np.zeros((blocks_y * n, blocks_x * n))
+    counts = np.zeros(padded.shape)
+    padded[:ny, :nx], counts[:ny, :nx] = array, 1.
+    sums = padded.reshape(blocks_y, n, blocks_x, n).sum(axis=(1, 3))
+    number = counts.reshape(blocks_y, n, blocks_x, n).sum(axis=(1, 3))
+    return np.kron(sums / number, np.ones((n, n)))[:ny, :nx]
+
+
 class BinaryHologram(AlgoBase):
     """ Base of the binary holograms of a 4f line, with a filter in the Fourier plane selecting one diffraction order
 
@@ -79,6 +91,16 @@ class BinaryHologram(AlgoBase):
         {'title': 'Order position:', 'name': 'order_position', 'type': 'str', 'value': '', 'readonly': True,
          'tip': 'Position of the order to filter (-1, 0) in the intermediate plane, and the slices of a mask around '
                 'it, to copy to the slices of the Intermediate Masking'},
+    ]
+    _params_compensation = [
+        {'title': 'Compensate input:', 'name': 'compensate_input', 'type': 'bool', 'value': True,
+         'tip': 'Divide the target amplitude by the amplitude of the input beam, so that the output is the target and '
+                'not the target times the beam profile. The scale of the target is then set so that no mirror has to '
+                'give more than the input'},
+        {'title': 'Min input level:', 'name': 'min_input_level', 'type': 'float', 'value': 0.05, 'min': 0.,
+         'max': 1., 'step': 0.01,
+         'tip': 'Fraction of the maximum of the input amplitude below which the mirrors are off: the target cannot '
+                'be obtained there (the region is shown in the unreachable data)'},
     ]
     _params_period = [
         {'title': 'Period px (pxls):', 'name': 'px', 'type': 'int', 'value': 4, 'min': 2,
@@ -174,11 +196,31 @@ class BinaryHologram(AlgoBase):
                             for _slice, size in zip(slices, self.shape))
         return tuple(self.settings['carrier_factor'] * value for value in carrier)
 
-    @property
-    def input_power(self) -> float:
-        """ The binary pattern is the amplitude of the modulator plane (the algorithms assume a uniform illumination of
-        unit amplitude, not the profile of the input field): the incident power is the number of pixels"""
-        return float(np.prod(self.shape))
+    def encoded_amplitude(self, block: int = 1) -> np.ndarray:
+        """ Amplitude to encode in the pattern, from 0 to 1: the target amplitude compensated for the beam profile
+
+        The mirrors multiply the amplitude of the input beam by their transmission t (0 or 1, in average between). To
+        get the target the amplitude to encode is t = target / input. The input is the amplitude seen on the
+        mirrors: averaged over blocks of ``block`` x ``block`` mirrors (a superpixel). The result is scaled so that
+        its maximum is 1 (the efficiency is the price of the flat output). Where the input is lower than the *minimum
+        input level* (relative to its maximum) the mirrors cannot give the amplitude requested: t is 0 there and they
+        are flagged in :attr:`unreachable_mask` if the target asks for light there.
+
+        Without compensation, or if the input is null, the target normalised to one is returned.
+        """
+        target = self._target_field.normalise_to_one().amplitude
+        input_amplitude = self._input_field.amplitude
+        peak = float(np.max(input_amplitude)) if input_amplitude.size else 0.
+        if not self.settings['compensate_input'] or peak == 0. or input_amplitude.shape != target.shape:
+            self._unreachable_mask = None
+            return target
+        if block > 1:
+            input_amplitude = block_average(input_amplitude, block)
+        reachable = input_amplitude >= self.settings['min_input_level'] * peak
+        transmission = np.where(reachable, target / np.where(reachable, input_amplitude, 1.), 0.)
+        self._unreachable_mask = ~reachable
+        maximum = float(np.max(transmission))
+        return transmission / maximum if maximum > 0 else transmission
 
     def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
         self.update_order_position()
@@ -257,14 +299,14 @@ class ParallelLee(BinaryHologram):
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
 
     params = (
-        BinaryHologram._params_period +
+        BinaryHologram._params_period + BinaryHologram._params_compensation +
         [{'title': 'Binarize:', 'name': 'binarize', 'type': 'bool', 'value': True,
           'tip': 'Binarize the pattern to 0 and 1, as a DMD can only do (width modulation of the fringes). '
                  'Unchecked: the grey levels of the pattern are kept (ideal modulation)'}] +
         BinaryHologram._params_carrier)
 
     def compute_amplitude_pattern(self) -> np.ndarray:
-        modulation_depth = self._target_field.normalise_to_one().amplitude  # 1 where the target is the brightest
+        modulation_depth = self.encoded_amplitude()  # 1 where the amplitude to encode is the largest
         phase = self.carrier_phase() - self._target_field.phase
         if self.settings['binarize']:
             # the pixel is on where cos(phase) > cos(pi q): stripes of relative width q = arcsin(A) / pi. Where A = 0
@@ -339,7 +381,7 @@ class Superpixel(BinaryHologram):
          {'title': 'Period py (pxls):', 'name': 'py', 'type': 'int', 'value': 16, 'readonly': True,
           'tip': 'Imposed to px**2: the smallest period that lifts the degeneracy of the phase in the superpixel '
                  'lattice (review of Gutiérrez-Cuevas and Popoff)'}] +
-        BinaryHologram._params_carrier)
+        BinaryHologram._params_compensation + BinaryHologram._params_carrier)
 
     def fix_period(self) -> bool:
         if self.settings['py'] != self.settings['px'] ** 2:
@@ -352,7 +394,7 @@ class Superpixel(BinaryHologram):
         tree, codes, values, reach = superpixel_table(n)
         ny, nx = self.shape
         xx, yy = self.compute_grid()
-        target = self._target_field.normalise_to_one().amplitude * reach * np.exp(1j * self._target_field.phase)
+        target = self.encoded_amplitude(block=n) * reach * np.exp(1j * self._target_field.phase)
 
         # value of each superpixel: the mean of the target over its pixels (the superpixels on the edges are cut)
         blocks_y, blocks_x = -(-ny // n), -(-nx // n)

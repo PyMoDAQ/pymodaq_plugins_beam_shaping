@@ -91,9 +91,19 @@ in the review but not available.
 * ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
   the grey levels of the pattern are kept (the grey off-axis hologram, an ideal modulation not feasible on a DMD, to
   see what the binarization costs).
+* ``Compensate input`` (default checked, *Parallel Lee* and *Superpixel*) and ``Min input level`` (default 0.05): the
+  mirrors multiply the amplitude of the input beam, so the amplitude to encode is the target divided by the input
+  amplitude, scaled so that no mirror has to give more than the input (4f setups: the magnification only changes the
+  axes, the arrays keep their shape). Where the input is below the minimum level (a fraction of its maximum) the
+  mirrors are off and the target cannot be obtained: this region is shown in the ``unreachable`` data (and its fraction
+  of the target is ``unreachable_fraction``). Unchecked, the output is the target times the beam profile. For *Superpixel*
+  the input is averaged over each superpixel.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 * ``Order position``: a read-only text, updated with the periods, giving the position of the order to filter, and the
   slices of a mask around it that can be copied to the slices of the *Intermediate Masking*.
+
+The pattern sent to the modulator (``slm`` data, 0 and 1) is not the amplitude of the modulator field, the field just
+after the modulator: this one is the input beam times the pattern, and is the one used to compute the output.
 
 The two first orders of the grating carry opposite phases, and this is physical: the order at ``+ν`` carries the phase
 ``-φ`` of the target, the one at ``-ν`` (the order (-1, 0) of the review) carries ``+φ``. Select the order that carries

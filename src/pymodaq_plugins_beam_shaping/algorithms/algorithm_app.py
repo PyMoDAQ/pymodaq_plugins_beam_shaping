@@ -688,9 +688,15 @@ class AlgoApp(CustomApp):
         self._current_data = dte
         self._current_phase: np.ndarray = dte.get_data_from_full_name('modulator/phase')[0].copy()
 
+        # what is sent to the modulator: the amplitude pattern of the algorithm (the modulator field amplitude also
+        # contains the input beam) and the phase
+        try:
+            slm_amplitude = dte.get_data_from_full_name('slm/amplitude')[0]
+        except (ValueError, KeyError, IndexError):  # the algorithm sets no amplitude pattern (phase algorithms)
+            slm_amplitude = dte.get_data_from_full_name('modulator/amplitude')[0]
         self.modulator_field_signal.emit(
             Field('modulator',
-                  amplitude=dte.get_data_from_full_name('modulator/amplitude')[0],
+                  amplitude=slm_amplitude,
                   phase=dte.get_data_from_full_name('modulator/phase')[0],
                   pixel_sizes=self._input_field.pixels_sizes))
         if self.is_action_checked(Actions.SAVE_CONTINUOUS):
