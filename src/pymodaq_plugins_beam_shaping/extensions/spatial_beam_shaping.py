@@ -32,6 +32,7 @@ from pymodaq_plugins_beam_shaping.algorithms import AlgorithmFactory, AlgoBase
 from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
+from pymodaq_plugins_beam_shaping.utilities.region_outline import RegionOutline
 from pymodaq_plugins_beam_shaping.utilities.h5saving import add_plugin_version
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
@@ -86,6 +87,7 @@ class BeamShaping(CustomExt):
         self.output_viewers: ViewerDispatcher = None
         self.intermediate_viewer: Viewer2D = None
         self.other_viewers: ViewerDispatcher = None
+        self.region_outline = RegionOutline()  # of the region the target cannot be obtained in
 
         self._shaper: Shaper = None
 
@@ -673,8 +675,14 @@ class BeamShaping(CustomExt):
             dte_output.get_data_from_full_name('output/phase')[0] = \
             np.unwrap(dte_output.get_data_from_full_name('output/phase')[0])
 
+        try:  # the region the target cannot be obtained in: an outline on the target and the output, not an image
+            unreachable = dte.remove(dte.get_data_from_full_name('unreachable/amplitude'))[0] > 0.5
+        except ValueError:
+            unreachable = None
+        self.region_outline.show(self.target_viewers, unreachable)
         self.modulator_viewers.show_data(dte_modulator)
         self.output_viewers.show_data(dte_output)
+        self.region_outline.show(self.output_viewers, unreachable)
         self.metrics_viewer.show_data(metrics.split_as_dte('Metrics'))
         self.other_viewers.show_data(dte)
 

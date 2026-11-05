@@ -27,6 +27,10 @@ from pymodaq_data import Q_
 
 
 def ensure_qapp():
+    from qtpy import QtWidgets
+    app = QtWidgets.QApplication.instance()
+    if app is not None:  # mkQApp applies the theme again at each call, which crashes after many calls
+        return app
     from pymodaq_gui.qt_utils import mkQApp
     return mkQApp('AlgorithmPlayground')
 

@@ -211,7 +211,11 @@ class BinaryHologram(AlgoBase):
         target = self._target_field.normalise_to_one().amplitude
         input_amplitude = self._input_field.amplitude
         peak = float(np.max(input_amplitude)) if input_amplitude.size else 0.
-        if not self.settings['compensate_input'] or peak == 0. or input_amplitude.shape != target.shape:
+        if not self.settings['compensate_input'] or peak == 0.:
+            self._unreachable_mask = None
+            return target
+        if input_amplitude.shape != target.shape:  # not expected: the field loaders give the same shape to both
+            logger.warning('The input and the target do not have the same shape: the input is not compensated')
             self._unreachable_mask = None
             return target
         if block > 1:
