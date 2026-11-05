@@ -15,7 +15,7 @@ def prepare(name, modulator_type):
     app = pg.HeadlessApp(pg.make_shaper(width=128, height=128, pixel_size=8., modulator_type=modulator_type))
     algo = pg.create_algorithm(pg.reload_algorithm(name), app)
     pg.set_fields(algo, pg.load_field('GaussianIntensity', None, app),
-                  pg.load_field('ImageFiles', {'phase.load': False}, app))
+                  pg.load_field('ImageFiles', {'phase/load': False}, app))
     return app, algo
 
 
