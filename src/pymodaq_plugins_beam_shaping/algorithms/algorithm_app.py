@@ -42,7 +42,7 @@ from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
 from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, ContinuousSaver, FIELDS_SAVED_BY_THE_APP,
-                                                              configure_h5saver, fields_of_modulator)
+                                                              configure_h5saver, fields_of_modulator, algorithm_name_settings)
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
 from pymodaq_plugins_beam_shaping.utilities import sizing, regions
@@ -236,7 +236,9 @@ class AlgoApp(CustomApp):
         if not dosave:
             self._finalize_saving()
         else:
-            settings = [self.settings] + ([self._algorithm.settings] if self._algorithm is not None else [])
+            settings = [self.settings]
+            if self._algorithm is not None:
+                settings = [algorithm_name_settings(self._algorithm.ALGO_NAME)] + settings + [self._algorithm.settings]
             # what is sent to the shaper: the phase for a phase modulator, the amplitude for an amplitude one...
             self._continuous_saver.fields = fields_of_modulator(self.shaper.modulator_type)
             self._continuous_saver.start(settings_as_xml=settings_to_xml(settings))
@@ -276,7 +278,8 @@ class AlgoApp(CustomApp):
             new_file = not fname.exists()
 
 
-            settings_str = settings_to_xml((self.settings, self.algorithm.settings))
+            settings_str = settings_to_xml((algorithm_name_settings(self.algorithm.ALGO_NAME), self.settings,
+                                            self.algorithm.settings))
 
             with DataToExportSaver(fname, new_file=new_file, save_type=SaveType.custom) as saver:
                 group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_str,

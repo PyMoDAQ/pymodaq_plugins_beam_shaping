@@ -20,7 +20,7 @@ from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, regi
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
-from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver
+from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver, algorithm_name_settings
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 from pymodaq_data import Q_
@@ -264,13 +264,44 @@ def initial_phase(algo, kind: Union[str, np.ndarray] = 'FlatPhase', params: Opti
     return phase_class(holder.settings, algo).compute_phase()
 
 
+def run_settings(algo, app: HeadlessApp, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
+                 ini_phase_params: Optional[dict] = None, n_iterations: int = 1):
+    """ The settings of a run, laid out as the settings of the extension (initial phase, masks) with the number of
+    iterations, to be saved with the settings of the algorithm"""
+    from pyqtgraph.parametertree import Parameter
+    ini_phase_name = ini_phase if isinstance(ini_phase, str) else 'array'
+    phase_children = []
+    if isinstance(ini_phase, str) and algo.INI_PHASE:
+        holder = _phase_settings(PhaseFactory.get_phase(ini_phase))
+        set_parameters(holder, ini_phase_params or {})
+        phase_children = [holder.settings]
+    children = [
+        {'name': 'n_iterations', 'title': 'Iterations', 'type': 'int', 'value': int(n_iterations)},
+        {'name': 'ini_phase_group', 'title': 'Initial Phase', 'type': 'group', 'children': [
+            {'name': 'ini_phase_factory', 'title': 'Phase type:', 'type': 'str', 'value': ini_phase_name},
+            {'name': 'phase_params', 'title': 'Phase Parameters', 'type': 'group', 'children': phase_children}]}]
+    for apply_to in (ApplyMaskTo.TARGET, ApplyMaskTo.INTERMEDIATE):
+        mask = app.masks[str(apply_to)]
+        children.append(
+            {'name': str(apply_to), 'title': f'{str(apply_to).capitalize()} Masking', 'type': 'group', 'children': [
+                {'name': 'apply_mask', 'title': 'Apply Mask', 'type': 'bool', 'value': mask is not None},
+                {'name': 'mask_type', 'title': 'Mask Type', 'type': 'str',
+                 'value': str(MaskType(mask[1])) if mask is not None else ''},
+                {'name': 'slices', 'title': 'Slices (um):', 'type': 'str',
+                 'value': mask_to_str(mask[0]) if mask is not None else ''}]})
+    return Parameter.create(name='settings', type='group', children=children)
+
+
 _data_folder_saver = None  # saves the runs without a given file
 
 
 def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
                   ini_phase_params: Optional[dict] = None, save_fields: Union[bool, Iterable[str]] = False,
-                  save_metrics: bool = False, h5file: Union[None, str, Path] = None):
+                  save_metrics: bool = False, h5file: Union[None, str, Path] = None, verbose: bool = True):
     """ Run the algorithm (iterations only for the iterative ones), the results are in its fields
+
+    With ``verbose`` (default), the index of the iteration and the metrics (fitness, efficiency) are printed after each
+    iteration of an iterative algorithm.
 
     The initial phase is the name of a phase of the factory with its parameters, or an array.
 
@@ -292,16 +323,22 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
                 _data_folder_saver = ContinuousSaver()
             saver = _data_folder_saver
         saver.fields, saver.metrics = save_fields, save_metrics
-        saver.start(settings_as_xml=settings_to_xml((algo.settings,)))
+        saver.start(settings_as_xml=settings_to_xml((
+            algorithm_name_settings(type(algo).ALGO_NAME),
+            run_settings(algo, algo.parent_app, ini_phase, ini_phase_params, n_iterations), algo.settings)))
     try:
         algo.do_things_after_init()
         if algo.INI_PHASE:
             algo.define_input_phase(phase)
         algo.compute_forward_fft(update_plots=False)
-        for index in range(n_iterations if algo.ITERATIVE else 1):
+        n_steps = n_iterations if algo.ITERATIVE else 1
+        for index in range(n_steps):
             algo.start()
             algo.compute_phase_and_or_amplitude(do_step=True, ini_phase=phase if index == 0 else None)
             algo.stop()
+            if verbose and algo.ITERATIVE:
+                print(f'iteration {index + 1}/{n_steps}: fitness = {algo.fitness:.4g}, '
+                      f'efficiency = {algo.efficiency:.4g}')
             if saver is not None:
                 saver.add(algo.get_fields_to_plot())
     finally:
