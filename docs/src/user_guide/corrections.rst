@@ -23,7 +23,9 @@ Phase Corrections
 =================
 
 A real setup often features optical aberrations deteriorating the calculated shaping. A correction module (and interface
-see :numref:`FIG-corrections`) is provided to add correction terms to the calculated modulator phase.
+see :numref:`FIG-corrections`) is provided to add correction terms to the calculated modulator phase. As they act on the phase, the corrections (and the :doc:`calibration <calibration>` of the
+phase) are only available, and their actions only shown, if the modulator of the shaper can modulate the phase (phase only
+or phase and amplitude), not for amplitude modulators such as DMDs.
 
 .. _sec-corrections-types:
 
