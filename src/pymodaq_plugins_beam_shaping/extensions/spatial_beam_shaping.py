@@ -57,6 +57,15 @@ def create_calibration_scan_app(dashboard) -> tuple[SharedUI, BeamShapingCalibra
 
 
 
+# the actions that only make sense for a modulator able to modulate the phase
+PHASE_TOOLS = ('calibration', 'show_calibration', 'corrections', 'send_correc_to_shaper', 'add_corrections')
+
+
+def is_phase_capable(modulator_type: ModulatorType) -> bool:
+    """ True if the modulator can modulate the phase: phase only or both phase and amplitude"""
+    return ModulatorType(modulator_type) in (ModulatorType.PHASE, ModulatorType.BOTH)
+
+
 class BeamShaping(CustomExt):
     command_runner = QtCore.Signal(utils.ThreadCommand)
 
@@ -170,9 +179,23 @@ class BeamShaping(CustomExt):
             shaper = get_default_shaper()
         if (self._shaper is None or self._shaper.modulator_type != shaper.modulator_type) and \
                 self.has_action('calibration'):
-            self.set_action_visible('calibration', shaper.modulator_type == ModulatorType.PHASE)
+            self.update_phase_tools(shaper.modulator_type)
         self._shaper = shaper
         return shaper
+
+    def update_phase_tools(self, modulator_type: ModulatorType):
+        """ Show the tools that only make sense for a modulator able to modulate the phase (the SLM phase calibration
+        and the focal / Zernike corrections), hide them for the others (amplitude modulators such as DMDs)"""
+        visible = is_phase_capable(modulator_type)
+        for name in PHASE_TOOLS:
+            if self.has_action(name):
+                self.set_action_visible(name, visible)
+        if self.has_menu('calibration'):
+            self.get_menu('calibration').menuAction().setVisible(visible)
+        if not visible:  # nothing to keep open or to send for the tools that are no longer available
+            for name in ('calibration', 'corrections', 'send_correc_to_shaper'):
+                if self.has_action(name) and self.is_action_checked(name):
+                    self.set_action_checked(name, False)
 
     @property
     def modulator_type(self) -> ModulatorType:
@@ -491,8 +514,7 @@ class BeamShaping(CustomExt):
         self.toolbar.addSeparator()
         self.add_action('calibration', 'Calibration', 'equalizer',
                         tip='Perform a calibration of the SLM phase wrt the grey levels applied to it.',
-                        checkable=True, menu='calibration',
-                        enabled=self.modulator_type == ModulatorType.PHASE)
+                        checkable=True, menu='calibration')
         self.add_action('show_calibration', 'ShowCalibration',
                         tip='Show the saved calibration curve if any...', auto_toolbar=False,
                         checkable=False, menu='calibration')
@@ -521,6 +543,7 @@ class BeamShaping(CustomExt):
                     toolbar='dashboard'
                         )
 
+        self.update_phase_tools(self.modulator_type)
         logger.debug('actions set')
 
     def update_ui_from_algo(self, algo: AlgoBase):

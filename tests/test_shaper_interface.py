@@ -6,6 +6,7 @@ from pymodaq_gui.parameter import Parameter
 
 from pymodaq_plugins_utils.hardware.shaper import (Shaper, ModulatorType, shaper_params, fill_shaper_settings,
                                                    GEOMETRY_NAME, PROPERTIES_NAME)
+from pymodaq_plugins_beam_shaping.extensions import spatial_beam_shaping as spatial_module
 from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
 from pymodaq_plugins_beam_shaping.utilities.shaper import get_default_shaper
 
@@ -181,3 +182,41 @@ def test_wavelength_of_the_setup_is_imposed_to_the_actuator(monkeypatch, caplog)
 def test_wavelength_ignored_by_a_plugin_that_does_not_need_it():
     BeamShaping.apply_wavelength(_extension(FakeModule(shaper_params())))
     BeamShaping.apply_wavelength(_extension(None))
+
+
+class _FakeActions:
+    """ Records the visibility of the actions and menus an extension would change"""
+
+    def __init__(self, checked=()):
+        self.names = set(spatial_module.PHASE_TOOLS)
+        self.visible = {}
+        self.checked = set(checked)
+        self.menu_visible = None
+        menu = types.SimpleNamespace(menuAction=lambda: types.SimpleNamespace(
+            setVisible=lambda visible: setattr(self, 'menu_visible', visible)))
+        self.get_menu = lambda name: menu
+
+    def has_action(self, name):
+        return name in self.names
+
+    def has_menu(self, name):
+        return name == 'calibration'
+
+    def set_action_visible(self, name, visible):
+        self.visible[name] = visible
+
+    def is_action_checked(self, name):
+        return name in self.checked
+
+    def set_action_checked(self, name, checked):
+        self.checked.discard(name)
+
+
+@pytest.mark.parametrize('modulator_type, visible', [('phase', True), ('both', True), ('amplitude', False)])
+def test_calibration_and_corrections_only_for_phase_capable_modulators(modulator_type, visible):
+    fake = _FakeActions(checked=('calibration', 'corrections', 'send_correc_to_shaper'))
+    BeamShaping.update_phase_tools(fake, ModulatorType(modulator_type))
+    assert fake.visible == {name: visible for name in spatial_module.PHASE_TOOLS}
+    assert fake.menu_visible is visible
+    # what is open or sent is closed with the tools that are no longer available
+    assert fake.checked == (set(('calibration', 'corrections', 'send_correc_to_shaper')) if visible else set())
