@@ -97,7 +97,7 @@ class BinaryHologram(AlgoBase):
          'tip': 'Divide the target amplitude by the amplitude of the input beam, so that the output is the target and '
                 'not the target times the beam profile. The scale of the target is then set so that no mirror has to '
                 'give more than the input'},
-        {'title': 'Min input level:', 'name': 'min_input_level', 'type': 'float', 'value': 0.05, 'min': 0.,
+        {'title': 'Min input level:', 'name': 'min_input_level', 'type': 'float', 'value': 0.2, 'min': 0.,
          'max': 1., 'step': 0.01,
          'tip': 'Fraction of the maximum of the input amplitude below which the mirrors are off: the target cannot '
                 'be obtained there (the region is shown in the unreachable data)'},
