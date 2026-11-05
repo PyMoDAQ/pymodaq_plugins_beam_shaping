@@ -42,7 +42,8 @@ from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
 from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, ContinuousSaver, FIELDS_SAVED_BY_THE_APP,
-                                                              configure_h5saver, fields_of_modulator, algorithm_name_settings)
+                                                              configure_h5saver, fields_of_modulator, algorithm_name_settings,
+                                                              add_plugin_version)
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
 from pymodaq_plugins_beam_shaping.utilities import sizing, regions
@@ -285,6 +286,7 @@ class AlgoApp(CustomApp):
                 group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_str,
                                              group_name=group_name)
                 saver.add_data(group, self.algorithm.get_fields_to_plot())
+                add_plugin_version(saver)
 
 
     @property
