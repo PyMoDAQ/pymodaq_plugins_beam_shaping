@@ -78,7 +78,7 @@ class BeamShaping(CustomExt):
         self._target_field_loader: FieldLoaderApp = None
         self._input_field_loader: FieldLoaderApp = None
 
-        self._modulator_field: Field = None
+        self._slm_field: Field = None
         self._correction_phase: DataCalculated = None
         self.metrics_viewer:  ViewerDispatcher = None
         self.modulator_viewers: ViewerDispatcher = None
@@ -157,13 +157,14 @@ class BeamShaping(CustomExt):
         if initialized:
             self.update_from_shaper()
 
-    def update_modulator_field(self, field: Field):
-        """ field contains here the modulator field"""
+    def update_slm_field(self, field: Field):
+        """ field contains here the SLM field, what is sent to the modulator: its phase (the corrections are added
+        when sending) and its amplitude pattern, not the modulator field (which contains the input beam)"""
 
         if field is None:
             field = self.input_field
 
-        self._modulator_field = field
+        self._slm_field = field
 
         self.send_field_to_shaper(field,
                                   send_to_shaper=self.is_action_checked('send_algo_to_shaper'),
@@ -221,16 +222,18 @@ class BeamShaping(CustomExt):
                 self.send_amplitude_to_shaper(field, send_to_shaper, with_corrections)
 
     def send_amplitude_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=False):
-        """ Send the modulator amplitude to the shaper
+        """ Send the amplitude pattern (0 and 1 for a DMD) of the SLM field to the shaper
 
         Parameters
         ----------
-        field: the field to send
+        field: the SLM field to send
         send_to_shaper: should we send it?
         with_corrections: should we add corrections, mostly for the field's phase so probably unused here
         """
         if self._shaper_actuator is not None and send_to_shaper:
-            amplitude_dwa = DataShaper('amplitude', data=[field.amplitude])
+            # on the pixels of the device, as the phase: cropped to the modulator and unbinned
+            amplitude = sizing.unbin_to_real_slm(field.amplitude[tuple(self.get_slm_slices())])
+            amplitude_dwa = DataShaper('amplitude', data=[amplitude])
             self._shaper_actuator.move_abs(amplitude_dwa)
 
     def send_phase_to_shaper(self, field: Field, send_to_shaper=True, with_corrections=True):
@@ -283,8 +286,8 @@ class BeamShaping(CustomExt):
             linear_phase_array = self._corrections.compute_linear_phase(correction_values.tilt_x, correction_values.tilt_y)
             zernike_phase = self._corrections.compute_zernike_phase(correction_values.zernike)
             dte = DataToExport('SLM Phases')
-            if self._modulator_field is not None:
-                dte.append(self._modulator_field.phase_as_dwa(name='Algo Phase').isig[tuple(self.get_slm_slices())])
+            if self._slm_field is not None:
+                dte.append(self._slm_field.phase_as_dwa(name='Algo Phase').isig[tuple(self.get_slm_slices())])
 
             dte.append(DataCalculated('Quadratic Phase', data=[quad_phase_array[tuple(self.get_slm_slices())]]),)
             dte.append(DataCalculated('Linear Phase', data=[linear_phase_array[tuple(self.get_slm_slices())]]),)
@@ -305,6 +308,7 @@ class BeamShaping(CustomExt):
 
         if fname:
             dwa_modulator_amplitude = None
+            dwa_slm_amplitude = None  # the pattern sent to an amplitude modulator, if the file has one
             dwa_modulator_phase = None
             dwa_target_amplitude = None
             dwa_target_phase = None
@@ -321,7 +325,9 @@ class BeamShaping(CustomExt):
 
                 for node in loader.walk_nodes('/RawData/Algorithm/Data2D/'):
                     if 'ARRAY' in node.attrs['CLASS']:
-                        if node.attrs.get('origin', '') == 'modulator' and node.title == 'amplitude':
+                        if node.attrs.get('origin', '') == 'slm' and node.title == 'amplitude':
+                            dwa_slm_amplitude = loader.load_data(node.path)
+                        elif node.attrs.get('origin', '') == 'modulator' and node.title == 'amplitude':
                             dwa_modulator_amplitude = loader.load_data(node.path)
                         elif node.attrs.get('origin', '') == 'modulator' and node.title == 'phase':
                             dwa_modulator_phase = loader.load_data(node.path)
@@ -343,8 +349,9 @@ class BeamShaping(CustomExt):
                     text='Could not load this file as the size is not coherent with the current sizing configuration')
                 return
 
-            modulator_field = Field('modulator',
-                                    amplitude=dwa_modulator_amplitude[0],
+            slm_field = Field('slm',
+                                    amplitude=(dwa_slm_amplitude if dwa_slm_amplitude is not None
+                                               else dwa_modulator_amplitude)[0],
                                     phase=dwa_modulator_phase[0],
                                     pixel_sizes=self.input_field.pixels_sizes,
                                     )
@@ -382,14 +389,16 @@ class BeamShaping(CustomExt):
                 )
             self.algorithm.set_input_field(input_field)
             self.algorithm.set_target_field(target_field)
-            self.update_modulator_field(modulator_field)
-            self.algorithm.algorithm.set_phase_in_modulator_plane(modulator_field.phase)
+            self.update_slm_field(slm_field)
+            self.algorithm.algorithm.set_phase_in_modulator_plane(slm_field.phase)
+            if dwa_slm_amplitude is not None:  # an amplitude modulator: the pattern too
+                self.algorithm.algorithm.set_amplitude_in_modulator_plane(dwa_slm_amplitude[0])
             self.algorithm.compute_fft()
 
 
     def update_correction_phase(self, dwa: DataCalculated):
         self._correction_phase = dwa
-        self.update_modulator_field(self._modulator_field)
+        self.update_slm_field(self._slm_field)
 
     @property
     def algorithm(self):
@@ -585,7 +594,7 @@ class BeamShaping(CustomExt):
         self._input_field_loader.field_signal.connect(self._field_tool.update_from_source)
         self._target_field_loader.field_signal.connect(self._field_tool.update_from_source)
 
-        self._algorithm.modulator_field_signal.connect(self.update_modulator_field)
+        self._algorithm.slm_field_signal.connect(self.update_slm_field)
         self._input_field_loader.field_signal.connect(self._algorithm.set_input_field)
         self._target_field_loader.field_signal.connect(self._algorithm.set_target_field)
         self._target_field_loader.field_signal.connect(lambda field: self.show_set_target_roi_select())

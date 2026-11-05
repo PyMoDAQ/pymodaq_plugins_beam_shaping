@@ -46,7 +46,7 @@ from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, Conti
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
 from pymodaq_plugins_beam_shaping.utilities import sizing, regions
-from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
+from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper
 
 logger = set_logger(get_module_name(__file__))
 
@@ -155,7 +155,7 @@ class AlgoApp(CustomApp):
     ]
 
     command_runner = QtCore.Signal(ThreadCommand)
-    modulator_field_signal = QtCore.Signal(Field)
+    slm_field_signal = QtCore.Signal(Field)
     algo_changed = QtCore.Signal(AlgoBase)
     fields_to_plot = QtCore.Signal(DataToExport)
 
@@ -688,10 +688,16 @@ class AlgoApp(CustomApp):
         self._current_data = dte
         self._current_phase: np.ndarray = dte.get_data_from_full_name('modulator/phase')[0].copy()
 
-        self.modulator_field_signal.emit(
-            Field('modulator',
-                  amplitude=dte.get_data_from_full_name('modulator/amplitude')[0],
-                  phase=dte.get_data_from_full_name('modulator/phase')[0],
+        # the SLM field, what is sent to the modulator (not the modulator field, which contains the input beam): a
+        # full field, with an amplitude of 1 for a phase-only modulator and a phase of 0 for an amplitude-only one
+        phase = dte.get_data_from_full_name('modulator/phase')[0]
+        modulator_type = ModulatorType(self.shaper.modulator_type)
+        amplitude = (np.ones_like(phase) if modulator_type == ModulatorType.PHASE
+                     else dte.get_data_from_full_name('slm/amplitude')[0])
+        self.slm_field_signal.emit(
+            Field('slm',
+                  amplitude=amplitude,
+                  phase=np.zeros_like(phase) if modulator_type == ModulatorType.AMPLITUDE else phase,
                   pixel_sizes=self._input_field.pixels_sizes))
         if self.is_action_checked(Actions.SAVE_CONTINUOUS):
             self.save_continuous(dte)

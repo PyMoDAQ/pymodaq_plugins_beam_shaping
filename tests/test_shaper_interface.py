@@ -220,3 +220,73 @@ def test_calibration_and_corrections_only_for_phase_capable_modulators(modulator
     assert fake.menu_visible is visible
     # what is open or sent is closed with the tools that are no longer available
     assert fake.checked == (set(('calibration', 'corrections', 'send_correc_to_shaper')) if visible else set())
+
+
+class _RecordingActuator:
+    def __init__(self):
+        self.moves = []
+
+    def move_abs(self, data):
+        self.moves.append(data)
+
+
+def _extension_sending_to(actuator, modulator_type):
+    """ The sending methods of the extension, with a fake actuator recording what the shaper receives"""
+    import functools
+    import numpy as np
+    from pymodaq_plugins_beam_shaping.utilities import sizing
+
+    shaper = Shaper('SLM', 640, 480, 12., False, False, ModulatorType(modulator_type))
+    extension = types.SimpleNamespace(_shaper_actuator=actuator, shaper=shaper, modulator_type=shaper.modulator_type,
+                                      _correction_phase=None, slm_shape=sizing.get_effective_slm_size(shaper))
+    extension.input_field = types.SimpleNamespace(shape=sizing.get_effective_needed_field_size(shaper))
+    for name in ('get_slm_slices', 'send_field_to_shaper', 'send_amplitude_to_shaper', 'send_phase_to_shaper'):
+        setattr(extension, name, functools.partial(getattr(BeamShaping, name), extension))
+    return extension, shaper
+
+
+def test_the_pattern_of_an_amplitude_modulator_is_cropped_and_unbinned_to_the_device():
+    """ A DMD receives its 0 / 1 pattern on its own pixels, as a phase SLM receives its phase: the size of the
+    computation area is bigger than the device"""
+    import numpy as np
+    from pymodaq_plugins_beam_shaping.field import Field
+    from pymodaq_plugins_beam_shaping.utilities import sizing
+
+    actuator = _RecordingActuator()
+    extension, shaper = _extension_sending_to(actuator, 'amplitude')
+    shape = sizing.get_effective_needed_field_size(shaper)
+    pattern = (np.indices(shape).sum(axis=0) % 2).astype(float)  # a checkerboard of 0 and 1
+    BeamShaping.send_field_to_shaper(extension, Field('slm', amplitude=pattern, phase=np.zeros(shape)))
+
+    assert len(actuator.moves) == 1
+    sent = actuator.moves[0][0]
+    assert sent.shape == (shaper.height, shaper.width)  # the pixels of the device
+    assert set(np.unique(sent)) <= {0., 1.}
+    cropped = pattern[tuple(extension.get_slm_slices())]
+    assert np.array_equal(sent, sizing.unbin_to_real_slm(cropped))
+
+
+def test_a_new_correction_is_added_on_top_of_the_slm_phase_without_changing_it():
+    import numpy as np
+    from pymodaq_plugins_beam_shaping.field import Field
+    from pymodaq_plugins_beam_shaping.utilities import sizing
+
+    actuator = _RecordingActuator()
+    extension, shaper = _extension_sending_to(actuator, 'phase')
+    shaper.has_internal_calibration = shaper.use_internal_calibration = True
+    shape = sizing.get_effective_needed_field_size(shaper)
+    phase = np.random.default_rng(0).uniform(0, 6, shape)
+    field = Field('slm', amplitude=np.ones(shape), phase=phase)
+    crop = tuple(extension.get_slm_slices())
+
+    def sent_phase():
+        return actuator.moves[-1][0]
+
+    BeamShaping.send_field_to_shaper(extension, field, with_corrections=True)
+    without = sent_phase().copy()
+    assert np.allclose(without, sizing.unbin_to_real_slm(phase[crop]))  # no correction yet
+
+    extension._correction_phase = [np.full(shape, 0.5)]
+    BeamShaping.send_field_to_shaper(extension, field, with_corrections=True)
+    assert np.allclose(sent_phase(), without + 0.5)
+    assert np.array_equal(field.phase, phase)  # the SLM field is not modified by the correction

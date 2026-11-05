@@ -199,8 +199,8 @@ def test_roi_select_is_the_same_in_both_viewers(qtbot, dockarea):
 
 
 @pytest.mark.parametrize('modulator_type, expected', [('phase', {'modulator/phase'}),
-                                                      ('amplitude', {'modulator/amplitude'}),
-                                                      ('both', {'modulator/amplitude', 'modulator/phase'})])
+                                                      ('amplitude', {'slm/amplitude'}),
+                                                      ('both', {'slm/amplitude', 'modulator/phase'})])
 def test_algo_app_saves_what_is_sent_to_the_shaper(qtbot, dockarea, tmp_path, modulator_type, expected):
     """ The modulator phase for a phase modulator, the amplitude (binary holograms) for an amplitude one"""
     from pymodaq_data.h5modules.data_saving import DataLoader
@@ -221,3 +221,68 @@ def test_algo_app_saves_what_is_sent_to_the_shaper(qtbot, dockarea, tmp_path, mo
     with DataLoader(tmp_path / 'sent.h5') as loader:
         saved = {dwa.get_full_name() for dwa in loader.load_all('/RawData/Shaping000')}
     assert saved == expected | {'AlgoData/metrics'}
+
+
+@pytest.mark.parametrize('modulator_type, algo_name', [('phase', 'Gerchberg-Saxton'),
+                                                       ('amplitude', 'Parallel Lee'),
+                                                       ('both', 'Gerchberg-Saxton')])
+def test_algo_app_emits_the_slm_field(qtbot, dockarea, modulator_type, algo_name):
+    """ What the extension sends to the modulator is a full field: the amplitude is 1 for a phase-only modulator,
+    the phase is 0 for an amplitude-only one, and the amplitude is a 0 / 1 pattern for a binary hologram, never the
+    input beam"""
+    import numpy as np
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+    from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg
+
+    headless = pg.HeadlessApp(pg.make_shaper(width=64, height=64, pixel_size=8., modulator_type=modulator_type))
+    algo = pg.create_algorithm(pg.reload_algorithm(algo_name), headless)
+    pg.set_fields(algo, pg.load_field('GaussianIntensity', None, headless),
+                  pg.load_field('LaguerreGaussian', None, headless))
+    pg.run_algorithm(algo)
+
+    app = AlgoApp(dockarea, shaper=headless.shaper)
+    app._input_field = algo._input_field
+    emitted = []
+    app.slm_field_signal.connect(emitted.append)
+    app.process_output(algo.get_fields_to_plot())
+
+    assert len(emitted) == 1
+    field = emitted[0]
+    assert field.amplitude.shape == field.phase.shape == algo.shape
+    if modulator_type == 'phase':
+        assert np.all(field.amplitude == 1)
+        assert np.allclose(field.phase, algo.slm_field.phase)
+    elif modulator_type == 'amplitude':
+        assert np.all(field.phase == 0)
+        assert set(np.unique(field.amplitude)) <= {0., 1.}
+        assert not np.allclose(field.amplitude, algo._input_field.amplitude)
+    else:
+        assert np.all(field.amplitude == 1)  # a phase algorithm: nothing to shape in amplitude
+        assert np.allclose(field.phase, algo.slm_field.phase)
+
+
+def test_algo_app_saves_the_pattern_of_an_amplitude_modulator_in_the_slm_node(qtbot, dockarea, tmp_path):
+    """ The file of the extension (loaded again by it) holds the 0 / 1 pattern as the 'slm' amplitude, next to the
+    modulator one that contains the beam"""
+    import numpy as np
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+    from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg
+
+    headless = pg.HeadlessApp(pg.make_shaper(width=64, height=64, pixel_size=8., modulator_type='amplitude'))
+    algo = pg.create_algorithm(pg.reload_algorithm('Parallel Lee'), headless)
+    pg.set_fields(algo, pg.load_field('GaussianIntensity', None, headless),
+                  pg.load_field('LaguerreGaussian', None, headless))
+    pg.run_algorithm(algo)
+
+    app = AlgoApp(dockarea, shaper=headless.shaper)
+    app._algorithm = algo
+    app.save(tmp_path / 'file.h5')
+    with DataLoader(tmp_path / 'file.h5') as loader:
+        origins = {}
+        for node in loader.walk_nodes('/RawData/Algorithm/Data2D/'):
+            if 'ARRAY' in node.attrs['CLASS']:
+                origins[(node.attrs.get('origin', ''), node.title)] = loader.load_data(node.path)[0]
+    assert set(np.unique(origins[('slm', 'amplitude')])) <= {0., 1.}
+    assert not np.allclose(origins[('modulator', 'amplitude')], origins[('slm', 'amplitude')])
+    assert np.allclose(origins[('modulator', 'amplitude')], algo._input_field.amplitude * origins[('slm', 'amplitude')])

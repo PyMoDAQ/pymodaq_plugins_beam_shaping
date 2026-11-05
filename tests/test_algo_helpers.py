@@ -53,18 +53,68 @@ def test_efficiency_is_the_output_power_over_the_incident_power_filter_included(
     assert algo.efficiency == pytest.approx(1.)
     assert algo.input_power == pytest.approx(algo._input_field.intensity.sum())
 
-    # a binary hologram: the mirrors that are off and the filter of the intermediate plane lose power
+    # a binary hologram: the mirrors that are off and the filter of the intermediate plane lose power. The input beam
+    # is in the modulator field, so the incident power is the one of the input field
     app, algo = prepare('Parallel Lee', 'amplitude')
     pg.run_algorithm(algo, verbose=False)
-    n_pixels = np.prod(algo.shape)
-    assert algo.input_power == n_pixels
+    power = algo._input_field.intensity.sum()
+    assert algo.input_power == pytest.approx(power)
     unfiltered = algo.efficiency
-    assert unfiltered == pytest.approx(algo.output_field.intensity.sum() / n_pixels)
-    assert unfiltered == pytest.approx(algo.modulator_field.intensity.sum() / n_pixels)  # nothing filtered yet
+    assert unfiltered == pytest.approx(algo.output_field.intensity.sum() / power)
+    assert unfiltered == pytest.approx(algo.modulator_field.intensity.sum() / power)  # nothing filtered yet
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo, verbose=False)
     assert algo.efficiency < unfiltered
-    assert algo.efficiency == pytest.approx(algo.output_field.intensity.sum() / n_pixels)
+    assert algo.efficiency == pytest.approx(algo.output_field.intensity.sum() / power)
+
+
+def test_the_amplitude_pattern_sent_to_the_slm_is_binary_and_the_modulator_field_has_the_beam(qapp):
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    pg.run_algorithm(algo, verbose=False)
+    pattern = algo.slm_field.amplitude
+    assert algo.slm_amplitude is pattern or np.array_equal(algo.slm_amplitude, pattern)
+    assert set(np.unique(pattern)) <= {0., 1.}
+    assert np.allclose(algo.modulator_field.amplitude, algo._input_field.amplitude * pattern)
+
+
+def test_the_input_beam_is_compensated_for_the_amplitude_modulators(qapp):
+    """The output of a binary hologram is the target and not the target times the beam profile (compensation on)"""
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    ny, nx = algo.shape
+    y, x = np.indices((ny, nx))
+    algo._input_field.amplitude = np.exp(-(((y - ny / 2) / (ny / 3)) ** 2 + ((x - nx / 2) / (nx / 3)) ** 2))  # not flat
+    sizes = pg.regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)
+    half = np.hypot(*algo.order_frequency()) / 3
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE,  # around the filtered order, in um from the center
+                tuple(slice((freq - half) * size, (freq + half) * size)
+                      for freq, size in zip(algo.order_frequency(), sizes)))
+    pg.set_parameters(algo, {'binarize': False, 'compensate_input': False})
+    pg.run_algorithm(algo, verbose=False)
+    raw = algo.output_field.amplitude.copy()
+    pg.set_parameters(algo, {'compensate_input': True})
+    pg.run_algorithm(algo, verbose=False)
+    compensated = algo.output_field.amplitude
+    target = algo._target_field.amplitude
+
+    def correlation(output):
+        inside = target > 0.2 * target.max()
+        return np.corrcoef(output[inside], target[inside])[0, 1]
+    assert correlation(compensated) > correlation(raw)
+    assert algo.unreachable_mask is not None
+    # the pixels below the minimum input level are off, those of the mask of unreachable pixels
+    level = algo.settings['min_input_level'] * algo._input_field.amplitude.max()
+    assert np.array_equal(algo.unreachable_mask, algo._input_field.amplitude < level)
+    pg.set_parameters(algo, {'binarize': True})  # a mirror cannot be grey: the unreachable ones are off
+    pg.run_algorithm(algo, verbose=False)
+    assert np.all(algo.slm_amplitude[algo.unreachable_mask] == 0)
+
+
+def test_compensation_can_be_switched_off(qapp):
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    pg.set_parameters(algo, {'compensate_input': False})
+    pg.run_algorithm(algo, verbose=False)
+    assert algo.unreachable_mask is None
+    assert algo.unreachable_fraction == 0.
 
 
 def test_back_propagate_amplitude_sets_a_phase_of_the_modulator(qapp):
@@ -80,3 +130,15 @@ def test_the_centered_grid_is_centered(qapp):
     app, algo = prepare('Gerchberg-Saxton', 'phase')
     xx, yy = algo.compute_grid()
     assert xx.shape == algo.shape and np.isclose(xx.mean(), 0) and np.isclose(yy.mean(), 0)
+
+
+def test_the_slm_field_holds_the_phase_without_correction_and_the_pattern(qapp):
+    app, algo = prepare('Gerchberg-Saxton', 'both')
+    pg.run_algorithm(algo, 1, verbose=False)
+    slm = algo.slm_field
+    assert np.allclose(slm.phase, algo.modulator_field.phase)  # the phase sent, nothing added to it
+    assert np.all(slm.amplitude == 1)  # a phase algorithm does not shape the amplitude
+    assert 'slm/amplitude' in [dwa.get_full_name() for dwa in algo.get_fields_to_plot()]
+    app, algo = prepare('Gerchberg-Saxton', 'phase')
+    pg.run_algorithm(algo, 1, verbose=False)
+    assert 'slm/amplitude' not in [dwa.get_full_name() for dwa in algo.get_fields_to_plot()]
