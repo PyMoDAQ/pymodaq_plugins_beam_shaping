@@ -300,7 +300,8 @@ The *Run* cell can save the output of each iteration: ``SAVE_FIELDS`` (``True`` 
 phase of the output and modulator planes and the intensity of the intermediate one, or the names of some of them such
 as ``('modulator/phase',)``) and ``SAVE_METRICS``, both off by default. The format is the one of the continuous saving
 of the extension: a group ``/RawData/ShapingXXX`` per run, holding the data enlarged along a ``step`` axis, with the
-settings of the algorithm. ``SAVE_FILE`` gives the file (created if needed, the runs being added to it); with ``None``
+settings of the run, saved as in the extension: the name of the algorithm, the number of iterations, the initial phase
+and its parameters, the masks (applied or not, type and slices) and the parameters of the algorithm. ``SAVE_FILE`` gives the file (created if needed, the runs being added to it); with ``None``
 a file is created in the PyMoDAQ data folder at the first saved run and holds the next ones. Its path is printed (``algo.saved_h5file``).
 
 The last cells run the algorithm, plot an overview as in the extension, then the output field and the intermediate

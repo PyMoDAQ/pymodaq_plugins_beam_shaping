@@ -298,6 +298,42 @@ def test_fields_and_metrics_saved_at_each_iteration(qapp, tmp_path, fields, metr
         assert np.allclose(saved['modulator/phase'][0][-1], algo.modulator_field.phase)
 
 
+def saved_settings(path, group='/RawData/Shaping000'):
+    """ The settings saved with the run, as {dotted path: value}"""
+    import xml.etree.ElementTree as ET
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    with DataLoader(path) as loader:
+        text = loader.get_node(group).attrs['settings']
+    values = {}
+
+    def browse(element, prefix):
+        for child in element:
+            name = f'{prefix}{child.tag}'
+            if child.get('type') == 'group':
+                browse(child, f'{name}/')
+            else:
+                values[name] = child.text or ''
+    browse(ET.fromstring(text), '')
+    return values
+
+
+def test_settings_of_the_run_are_saved_with_the_algorithm_ones(qapp, tmp_path):
+    app, algo = prepare('Gerchberg-Saxton')
+    pg.set_mask(app, ApplyMaskTo.TARGET, ((-100, 100), (-50, 50)), 'square')
+    path = tmp_path / 'run.h5'
+    pg.run_algorithm(algo, 3, 'RandomPhase', dict(fixed_seed=True, seed=7), save_metrics=True, h5file=path)
+    values = saved_settings(path)
+    assert values['algorithm/name'] == 'Gerchberg-Saxton'
+    assert values['settings/n_iterations'] == '3'
+    assert values['settings/ini_phase_group/ini_phase_factory'] == 'RandomPhase'
+    assert values['settings/ini_phase_group/phase_params/RandomPhase/seed'] == '7'
+    assert values['settings/ini_phase_group/phase_params/RandomPhase/fixed_seed'] == '1'
+    assert values[f'settings/{ApplyMaskTo.TARGET}/apply_mask'] == '1'
+    assert values[f'settings/{ApplyMaskTo.TARGET}/mask_type'] == 'square'
+    assert values[f'settings/{ApplyMaskTo.TARGET}/slices'] == '(slice(-100, 100, None), slice(-50, 50, None))'
+    assert values[f'settings/{ApplyMaskTo.INTERMEDIATE}/apply_mask'] == '0'
+
+
 def test_intermediate_field_saved(qapp, tmp_path):
     app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     pg.run_algorithm(algo, save_fields=True, h5file=tmp_path / 'run.h5')

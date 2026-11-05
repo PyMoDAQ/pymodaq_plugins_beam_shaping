@@ -142,6 +142,14 @@ def select_data_to_save(dte: DataToExport, fields: Union[bool, Iterable[str]] = 
     return DataToExport('tosave', data=[dte.get_data_from_full_name(name).deepcopy() for name in names])
 
 
+def algorithm_name_settings(algorithm_name: str):
+    """ A settings group holding the name of the algorithm, to be saved with the other settings of a run (the
+    settings of the algorithm do not tell which algorithm it is)"""
+    from pyqtgraph.parametertree import Parameter
+    return Parameter.create(name='algorithm', title='Algorithm', type='group', children=[
+        {'name': 'name', 'title': 'Name', 'type': 'str', 'value': algorithm_name or ''}])
+
+
 def configure_h5saver(h5saver: H5Saver, base_name: str = 'Shaping') -> H5Saver:
     """ Set a H5Saver as the continuous saving needs it: custom save type (a file named after the date and time, not
     a scan folder), file name starting with ``base_name``, the irrelevant settings hidden"""
