@@ -283,8 +283,8 @@ cells one after the other, editing the settings on the way:
   target by default. Each field is plotted once loaded (the target with the axes of the modulator plane, the algorithm
   scales it to the target plane: ``pg.plot_field(pg.get_target_field(algo))`` shows it after the next cell);
 * *Algorithm*: ``ALGORITHM`` and ``ALGORITHM_PARAMS``, the name of the algorithm as shown in the extension and the
-  values of its parameters, given by name (``'carrier_factor'``), with dots for parameters in a group
-  (``'phase.load'``). An unknown name raises an error listing the possible ones. ``N_ITERATIONS`` completes the run, and
+  values of its parameters, given by name (``'carrier_factor'``), with ``/`` for parameters in a group
+  (``'phase/load'``). An unknown name raises an error listing the possible ones. ``N_ITERATIONS`` completes the run, and
   ``INITIAL_PHASE`` / ``INITIAL_PHASE_PARAMS`` give the initial phase as chosen in the extension, from the initial
   phases factory (``'FlatPhase'``, ``'RandomPhase'``, ``'QuadraticPhase'``...) with its parameters, or a 2D array of the
   shape of the fields;
@@ -346,7 +346,7 @@ The cells of the script are thin wrappers around the helpers of ``headless_algor
 own script to run an algorithm many times with all the settings fixed but a few ones that change from one run to the
 next (a parameter, the seed of the random initial phase, the target...). The shaper and the fields are loaded once, and
 only the algorithm is created again for each run, which is cheap compared to an iteration (a few tens of ms against
-some hundreds of ms for a 1024 x 1024 shaper). Parameters are given as in the script, by name, with dots for groups:
+some hundreds of ms for a 1024 x 1024 shaper). Parameters are given as in the script, by name, with ``/`` for groups:
 
 .. code-block:: python
 
@@ -355,7 +355,7 @@ some hundreds of ms for a 1024 x 1024 shaper). Parameters are given as in the sc
    # what stays fixed: loaded once
    app = pg.HeadlessApp(pg.make_shaper())
    input_field = pg.load_field('GaussianIntensity', {}, app)
-   target_field = pg.load_field('ImageFiles', {'phase.load': False}, app)
+   target_field = pg.load_field('ImageFiles', {'phase/load': False}, app)
    algo_class = pg.reload_algorithm('Gerchberg-Saxton')
 
 

@@ -34,11 +34,11 @@ def ensure_qapp():
 def set_parameters(manager, values: dict):
     """ Set the values of the parameters of an algorithm or a loader, without using the Parameter objects.
 
-    Keys are the names of the parameters, dotted for groups: ``'phase.load'``. Unknown names raise a KeyError
+    Keys are the names of the parameters, separated by ``/`` for groups: ``'phase/load'``. Unknown names raise a KeyError
     listing the possible ones.
     """
     for key, value in values.items():
-        path = key.split('.')
+        path = key.split('/')
         try:
             manager.settings.child(*path).setValue(value)
         except Exception as e:
@@ -47,14 +47,14 @@ def set_parameters(manager, values: dict):
 
 
 def parameter_names(manager) -> list[str]:
-    """ The dotted names of the parameters that can be set"""
+    """ The names of the parameters, with ``/`` between groups, that can be set"""
     names = []
 
     def browse(param, prefix=''):
         for child in param.children():
             name = f'{prefix}{child.name()}'
             if child.hasChildren():
-                browse(child, f'{name}.')
+                browse(child, f'{name}/')
             else:
                 names.append(name)
 

@@ -38,14 +38,14 @@ pg.plot_field(input_field, 'input', log=False, clim=None, xlim=None, ylim=None, 
 
 # %% Target field: the field to obtain after the shaper
 TARGET_LOADER = 'ImageFiles'
-TARGET_PARAMS = {'phase.load': False}  # only the amplitude of the default image (set 'amplitude.file' to use yours)
+TARGET_PARAMS = {'phase/load': False}  # only the amplitude of the default image (set 'amplitude/file' to use yours)
 
 target_field = pg.load_field(TARGET_LOADER, TARGET_PARAMS, app)
 # as loaded, with the axes of the modulator plane
 pg.plot_field(target_field, 'target', log=False, clim=None, xlim=None, ylim=None, backend=PLOT_BACKEND)
 
 # %% Algorithm
-# Its parameters (dotted names for groups) and the number of iterations (iterative algorithms only)
+# Its parameters (names separated by / for groups) and the number of iterations (iterative algorithms only)
 ALGORITHM = 'Gerchberg-Saxton'
 ALGORITHM_PARAMS = dict()  # e.g. for 'Parallel Lee': dict(carrier_factor=1., remove_carrier=True)
 N_ITERATIONS = 1
@@ -53,7 +53,7 @@ N_ITERATIONS = 1
 # 'QuadraticPhase'...) with its parameters, or a 2D array of the shape of the fields. For 'RandomPhase', set
 # dict(fixed_seed=True, seed=1) to get the same pattern at each run, and change the seed to get another one
 INITIAL_PHASE = 'FlatPhase'
-INITIAL_PHASE_PARAMS = dict()  # e.g. for 'QuadraticPhase': {'quadratic.auto': False, 'quadratic.x_quad': 0.5}
+INITIAL_PHASE_PARAMS = dict()  # e.g. for 'QuadraticPhase': {'quadratic/auto': False, 'quadratic/x_quad': 0.5}
 
 # Reload the module of the algorithm to use its current code: always do it, even the first time, so that after editing
 # the algorithm one only has to run this cell and the following ones (not the ones loading the fields).
