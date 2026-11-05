@@ -71,7 +71,8 @@ def test_efficiency_is_the_output_power_over_the_incident_power_filter_included(
 def test_the_amplitude_pattern_sent_to_the_slm_is_binary_and_the_modulator_field_has_the_beam(qapp):
     app, algo = prepare('Parallel Lee', 'amplitude')
     pg.run_algorithm(algo, verbose=False)
-    pattern = algo.slm_amplitude
+    pattern = algo.slm_field.amplitude
+    assert algo.slm_amplitude is pattern or np.array_equal(algo.slm_amplitude, pattern)
     assert set(np.unique(pattern)) <= {0., 1.}
     assert np.allclose(algo.modulator_field.amplitude, algo._input_field.amplitude * pattern)
 
@@ -129,3 +130,15 @@ def test_the_centered_grid_is_centered(qapp):
     app, algo = prepare('Gerchberg-Saxton', 'phase')
     xx, yy = algo.compute_grid()
     assert xx.shape == algo.shape and np.isclose(xx.mean(), 0) and np.isclose(yy.mean(), 0)
+
+
+def test_the_slm_field_holds_the_phase_without_correction_and_the_pattern(qapp):
+    app, algo = prepare('Gerchberg-Saxton', 'both')
+    pg.run_algorithm(algo, 1, verbose=False)
+    slm = algo.slm_field
+    assert np.allclose(slm.phase, algo.modulator_field.phase)  # the phase sent, nothing added to it
+    assert np.all(slm.amplitude == 1)  # a phase algorithm does not shape the amplitude
+    assert 'slm/amplitude' in [dwa.get_full_name() for dwa in algo.get_fields_to_plot()]
+    app, algo = prepare('Gerchberg-Saxton', 'phase')
+    pg.run_algorithm(algo, 1, verbose=False)
+    assert 'slm/amplitude' not in [dwa.get_full_name() for dwa in algo.get_fields_to_plot()]

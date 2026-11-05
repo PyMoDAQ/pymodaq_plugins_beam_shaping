@@ -77,11 +77,15 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         self._target_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self._input_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self.intermediate_field: Optional[Field] = None
-        self._slm_amplitude: Optional[np.ndarray] = None  # what is sent to an amplitude modulator, see slm_amplitude
         self._unreachable_mask: Optional[np.ndarray] = None  # where the target cannot be reached, see subclasses
 
         self._modulator_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
         self._modulator_field.calibrate_axes(self._input_field.pixels_sizes)
+        # what has to be sent to the modulator: its phase (without any correction, added when sending) and its
+        # amplitude pattern (0 and 1 for a DMD). Not the modulator field, which contains the input beam
+        self._slm_field = Field('slm', amplitude=np.ones(self._modulator_field.shape),
+                                phase=np.zeros(self._modulator_field.shape),
+                                pixel_sizes=self._input_field.pixels_sizes)
         self._output_field = Field(amplitude=np.zeros(sizing.get_effective_needed_field_size(self.shaper)))
 
         self.update_mask = True
@@ -236,16 +240,36 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         The pattern is what is sent to the modulator (see :attr:`slm_amplitude`) whereas the amplitude of the modulator
         field, the field just after the modulator used to compute the output, is the input amplitude times the pattern
         """
-        self._slm_amplitude = np.array(amplitude, dtype=float)
-        self._modulator_field.amplitude = self._input_field.amplitude * self._slm_amplitude
+        pattern = np.array(amplitude, dtype=float)
+        self._slm_field = Field('slm', amplitude=pattern,
+                                phase=self._slm_phase_or_zeros(pattern.shape),
+                                pixel_sizes=self._input_field.pixels_sizes)
+        self._modulator_field.amplitude = self._input_field.amplitude * pattern
+
+    def _slm_phase_or_zeros(self, shape) -> np.ndarray:
+        return self._slm_field.phase.copy() if self._slm_field.phase.shape == tuple(shape) else np.zeros(shape)
+
+    @property
+    def slm_field(self) -> Field:
+        """ The field to send to the modulator: the phase set by :meth:`set_phase_in_modulator_plane` (wrapped,
+        with crosstalk... but without any correction, added when sending) and the amplitude pattern set by
+        :meth:`set_amplitude_in_modulator_plane`, 1 everywhere if there is none. It is not the modulator field, the
+        field just after the modulator, which is the input field times the SLM field and is used to compute the
+        output"""
+        modulator_type = ModulatorType(self.shaper.modulator_type)
+        if modulator_type == ModulatorType.BOTH:
+            return self._slm_field
+        field = self._slm_field.deepcopy()
+        if modulator_type == ModulatorType.PHASE:  # nothing is shaped in amplitude
+            field.amplitude = np.ones(field.shape)
+        else:  # an amplitude modulator has no phase
+            field.phase = np.zeros(field.shape)
+        return field
 
     @property
     def slm_amplitude(self) -> np.ndarray:
-        """ The amplitude pattern to send to the modulator (not including the input beam): the one set by
-        :meth:`set_amplitude_in_modulator_plane`, 1 everywhere if the algorithm did not set any"""
-        if self._slm_amplitude is None or self._slm_amplitude.shape != self._modulator_field.shape:
-            return np.ones(self._modulator_field.shape)
-        return self._slm_amplitude
+        """ The amplitude pattern to send to an amplitude modulator, without the input beam"""
+        return self.slm_field.amplitude
 
     @property
     def unreachable_mask(self) -> Optional[np.ndarray]:
@@ -272,6 +296,9 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
                 phase = gaussian_filter(phase, self.crosstalk.value)
 
             self._modulator_field.phase = phase
+            self._slm_field = Field('slm', amplitude=self._slm_field.amplitude if
+                                    self._slm_field.amplitude.shape == phase.shape else np.ones(phase.shape),
+                                    phase=phase, pixel_sizes=self._input_field.pixels_sizes)
             self._modulator_field.amplitude = (
                     self._input_field.amplitude.copy() *
                     (induced_amplitude if induced_amplitude is not None else 1))
@@ -393,9 +420,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             self.modulator_field.amplitude_as_dwa('modulator'),
             self.modulator_field.phase_as_dwa('modulator'),
         ])
-        if self._slm_amplitude is not None:
-            dte.append(Field('slm', amplitude=self.slm_amplitude,
-                             pixel_sizes=self._modulator_field.pixels_sizes).amplitude_as_dwa('slm'))
+        if self.shaper.modulator_type != ModulatorType.PHASE:  # an amplitude is sent to the modulator
+            dte.append(self.slm_field.amplitude_as_dwa('slm'))
         if self._unreachable_mask is not None:
             dte.append(Field('unreachable', amplitude=self._unreachable_mask.astype(float),
                              pixel_sizes=self._modulator_field.pixels_sizes).amplitude_as_dwa('unreachable'))
