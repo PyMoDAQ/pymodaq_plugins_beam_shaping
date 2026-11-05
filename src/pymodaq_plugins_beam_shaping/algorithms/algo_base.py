@@ -306,11 +306,18 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
                 np.sum(self._target_field.phase[tuple(slices)] ** 4)))
 
     @property
-    def efficiency(self) -> float:
-        """ Compute efficiency as the ratio between output_field intensity within a given region
-        and total intensity
+    def input_power(self) -> float:
+        """ The power incident on the modulator, the reference of the efficiency: the sum of the intensity of the input
+        field. To be subclassed if the algorithm models another illumination"""
+        return float(np.sum(self._input_field.intensity))
 
-        Meaningfully only for algorithm using a Target defined mask
+    @property
+    def efficiency(self) -> float:
+        """ Compute the efficiency as the ratio between the output_field intensity within a given region (the target
+        mask if applied, else the whole field) and the power incident on the modulator, see :attr:`input_power`
+
+        The losses of the setup are therefore counted: the ones of the modulator (the mirrors of a DMD that are off) and
+        the ones of the filter in the intermediate plane of a 4f setup, which the output field already went through.
 
         To be subclassed if the given implementation below is not correct for your algorithm"""
         if self.apply_mask(ApplyMaskTo.TARGET):
@@ -318,8 +325,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         else:
             slices = (...,)
 
-        return (np.sum(self._output_field.intensity[tuple(slices)]) /
-                np.sum(self._output_field.intensity))
+        return float(np.sum(self._output_field.intensity[tuple(slices)]) / self.input_power)
 
     def fitness_as_dwa(self):
         return DataRaw('fitness', data=[np.array([self.fitness])],
