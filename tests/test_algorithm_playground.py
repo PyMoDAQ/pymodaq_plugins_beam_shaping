@@ -272,6 +272,19 @@ def check_enlarged_nodes(path, n_steps, group='/RawData/Shaping000'):
         assert list(axis.read()) == list(range(n_steps))
 
 
+def test_iterations_and_metrics_are_printed_for_iterative_algorithms(qapp, capsys):
+    app, algo = prepare('Gerchberg-Saxton')
+    pg.run_algorithm(algo, 3)
+    lines = [line for line in capsys.readouterr().out.splitlines() if line.startswith('iteration')]
+    assert len(lines) == 3
+    assert lines[0].startswith('iteration 1/3: fitness = ') and 'efficiency = ' in lines[2]
+    pg.run_algorithm(algo, 2, verbose=False)
+    assert 'iteration' not in capsys.readouterr().out
+    app, direct = prepare('Direct')
+    pg.run_algorithm(direct)
+    assert 'iteration' not in capsys.readouterr().out  # not iterative: a single step
+
+
 def test_no_saving_by_default(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     pg.run_algorithm(algo, 2)

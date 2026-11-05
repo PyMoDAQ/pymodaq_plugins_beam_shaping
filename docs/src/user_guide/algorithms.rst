@@ -304,6 +304,8 @@ settings of the run, saved as in the extension: the name of the algorithm, the n
 and its parameters, the masks (applied or not, type and slices) and the parameters of the algorithm. ``SAVE_FILE`` gives the file (created if needed, the runs being added to it); with ``None``
 a file is created in the PyMoDAQ data folder at the first saved run and holds the next ones. Its path is printed (``algo.saved_h5file``).
 
+During the run of an iterative algorithm, the index of the iteration and the metrics (fitness and efficiency) are printed after each iteration (``verbose=False`` in ``pg.run_algorithm`` to silence it).
+
 The last cells run the algorithm, plot an overview as in the extension, then the output field and the intermediate
 plane of 4f setups (its intensity in log scale), and give the results as ``Field`` objects. The overview shows the
 output, modulator and intermediate planes with their amplitude and phase, and the metrics: with ``'qt'`` a dock per field

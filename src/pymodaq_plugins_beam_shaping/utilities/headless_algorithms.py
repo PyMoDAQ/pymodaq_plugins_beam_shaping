@@ -297,8 +297,11 @@ _data_folder_saver = None  # saves the runs without a given file
 
 def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
                   ini_phase_params: Optional[dict] = None, save_fields: Union[bool, Iterable[str]] = False,
-                  save_metrics: bool = False, h5file: Union[None, str, Path] = None):
+                  save_metrics: bool = False, h5file: Union[None, str, Path] = None, verbose: bool = True):
     """ Run the algorithm (iterations only for the iterative ones), the results are in its fields
+
+    With ``verbose`` (default), the index of the iteration and the metrics (fitness, efficiency) are printed after each
+    iteration of an iterative algorithm.
 
     The initial phase is the name of a phase of the factory with its parameters, or an array.
 
@@ -328,10 +331,14 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
         if algo.INI_PHASE:
             algo.define_input_phase(phase)
         algo.compute_forward_fft(update_plots=False)
-        for index in range(n_iterations if algo.ITERATIVE else 1):
+        n_steps = n_iterations if algo.ITERATIVE else 1
+        for index in range(n_steps):
             algo.start()
             algo.compute_phase_and_or_amplitude(do_step=True, ini_phase=phase if index == 0 else None)
             algo.stop()
+            if verbose and algo.ITERATIVE:
+                print(f'iteration {index + 1}/{n_steps}: fitness = {algo.fitness:.4g}, '
+                      f'efficiency = {algo.efficiency:.4g}')
             if saver is not None:
                 saver.add(algo.get_fields_to_plot())
     finally:
