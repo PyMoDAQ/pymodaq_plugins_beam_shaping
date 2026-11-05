@@ -95,8 +95,9 @@ in the review but not available.
   mirrors multiply the amplitude of the input beam, so the amplitude to encode is the target divided by the input
   amplitude, scaled so that no mirror has to give more than the input (4f setups: the magnification only changes the
   axes, the arrays keep their shape). Where the input is below the minimum level (a fraction of its maximum) the
-  mirrors are off and the target cannot be obtained: this region is shown in the ``unreachable`` data (and its fraction
-  of the target is ``unreachable_fraction``). Unchecked, the output is the target times the beam profile. For *Superpixel*
+  mirrors are off and the target cannot be obtained: this region is outlined in red on the target and output views of
+  the extension (the same pixels in 4f, only the axes are scaled), is in the ``unreachable`` data of the algorithm and
+  its fraction of the target is ``unreachable_fraction``. Unchecked, the output is the target times the beam profile. For *Superpixel*
   the input is averaged over each superpixel.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 * ``Order position``: a read-only text, updated with the periods, giving the position of the order to filter, and the
