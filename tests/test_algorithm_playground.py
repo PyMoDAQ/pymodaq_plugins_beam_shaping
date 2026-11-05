@@ -16,7 +16,7 @@ def prepare(algorithm: str, algo_params=None, **shaper_params):
     shaper = pg.make_shaper(width=128, height=128, pixel_size=8., **shaper_params)
     app = pg.HeadlessApp(shaper)
     algo = pg.create_algorithm(pg.reload_algorithm(algorithm), app, algo_params)
-    pg.set_fields(algo, pg.load_field('ImageFiles', {'phase.load': False}, app),
+    pg.set_fields(algo, pg.load_field('ImageFiles', {'phase/load': False}, app),
                   pg.load_field('LaguerreGaussian', None, app))
     return app, algo
 
@@ -161,7 +161,7 @@ def test_plot_with_the_qt_viewers(qapp):
 
 
 @pytest.mark.parametrize('phase, params', [('FlatPhase', {'phase_value': 0.5}), ('RandomPhase', None),
-                                           ('QuadraticPhase', {'quadratic.auto': False, 'shift.auto': False})])
+                                           ('QuadraticPhase', {'quadratic/auto': False, 'shift/auto': False})])
 def test_initial_phase_from_the_factory(qapp, phase, params):
     app, algo = prepare('Gerchberg-Saxton')
     ini = pg.initial_phase(algo, phase, params)
