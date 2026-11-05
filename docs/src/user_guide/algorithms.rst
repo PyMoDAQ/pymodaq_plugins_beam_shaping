@@ -291,7 +291,7 @@ cells one after the other, editing the settings on the way:
 * *Snap*: ``pg.snap`` runs one step of the algorithm without any mask and plots the intermediate plane of 4f setups
   (intensity in log scale), to see where the mask has to be placed;
 * *Masks*: set ``APPLY_TARGET_MASK`` or ``APPLY_INTERMEDIATE_MASK`` to ``True`` to apply a mask (algorithms such as
-  *Binary Threshold*, *Parallel Lee* and *Superpixel* need the one of the intermediate plane), its region being given in um around the center of the field (``None``: the default region
+  *Binary Threshold*, *Parallel Lee* and *Superpixel* need the one of the intermediate plane), its region being given in um around the center of the field as the slices shown by the field loader and the extension, along y then along x, that can be pasted as is (``(slice(-100, 100, None), slice(-50, 50, None))``, as text or not; ``((-100, 100), (-50, 50))`` is accepted too) (``None``: the default region
   of the extension, centered and covering 2/3 of the effective area of the SLM in the plane, printed to be edited). The cell
   draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
   again until the mask is right.

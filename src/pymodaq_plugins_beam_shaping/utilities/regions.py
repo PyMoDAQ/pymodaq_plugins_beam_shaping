@@ -73,6 +73,24 @@ def parse_slices(text: str) -> Optional[tuple[slice, slice]]:
     return None
 
 
+def as_slices(region) -> Optional[tuple[slice, slice]]:
+    """ Slices in um from what a user may give: the text of the slices as shown by the field loader and the extension
+    (``'(slice(-100, 100, None), slice(-50, 50, None))'``), a tuple of two slices or a tuple of two (start, stop).
+    None gives None"""
+    if region is None:
+        return None
+    if isinstance(region, str):
+        slices = parse_slices(region)
+        if slices is None:
+            raise ValueError(f'{region!r} is not valid slices, expected for instance '
+                             f'"(slice(-100, 100, None), slice(-50, 50, None))"')
+        return slices
+    slices = tuple(_slice if isinstance(_slice, slice) else slice(*_slice) for _slice in region)
+    if len(slices) != 2 or any(_slice.start is None or _slice.stop is None for _slice in slices):
+        raise ValueError(f'{region!r} is not valid slices, two (start, stop) are needed, along y then along x')
+    return slices
+
+
 def slices_to_str(slices: Sequence[slice]) -> str:
     """ String representation (to be stored in the settings) with a resolution of 1 um, below the pixel size"""
     return str(tuple(slice(int(round(_slice.start)), int(round(_slice.stop))) for _slice in slices))

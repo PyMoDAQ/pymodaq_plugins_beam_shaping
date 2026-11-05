@@ -52,6 +52,22 @@ def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
     assert np.allclose(image_axes[1].get_ylim(), (-20, 30))
 
 
+def test_masks_are_given_as_the_slices_shown_by_the_app_or_as_pairs(qapp):
+    from pymodaq_plugins_beam_shaping.utilities import regions
+    app, algo = prepare('Parallel Lee', modulator_type='amplitude')
+    expected = (slice(-100, 100), slice(-50, 50))
+    for given in ('(slice(-100, 100, None), slice(-50, 50, None))',  # pasted from the field loader or the extension
+                  (slice(-100, 100, None), slice(-50, 50, None)), ((-100, 100), (-50, 50))):
+        pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, given)
+        assert app.masks[str(ApplyMaskTo.INTERMEDIATE)][0] == expected
+    default = pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE)
+    assert regions.parse_slices(pg.mask_to_str(default)) == default  # what is printed can be pasted back
+    with pytest.raises(ValueError, match='slice'):
+        pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, 'not slices')
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, None)
+    assert not app.apply_mask(ApplyMaskTo.INTERMEDIATE)
+
+
 def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp):
     app, algo = prepare('Parallel Lee', modulator_type='amplitude')
     mask = ((-100., 100.), (-100., 100.))
@@ -103,7 +119,8 @@ def test_default_masks_cover_two_thirds_of_the_effective_area_around_the_center(
                                   (ApplyMaskTo.TARGET, algo._target_field.pixels_sizes)):
         region = pg.default_mask(algo, apply_to)
         _, size = regions.get_effective_area(algo.shaper, pixel_sizes)
-        for (start, stop), full in zip(region, size):
+        for _slice, full in zip(region, size):
+            start, stop = _slice.start, _slice.stop
             assert start == pytest.approx(-stop, abs=1)
             assert stop - start == pytest.approx(full * 2 / 3, abs=2)
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
