@@ -7,6 +7,7 @@ from pymodaq_data.h5modules.data_saving import DataSaverLoader, DataLoader
 from pymodaq_gui.parameter import Parameter
 from pymodaq_gui.parameter.ioxml import parameter_to_xml_string
 
+from pymodaq_plugins_beam_shaping.utilities.h5saving import add_plugin_version
 from pymodaq_plugins_beam_shaping.field.field import Field
 
 MAX_SETTINGS_SIZE = 60000  # size limit for any object header (including all the other attributes) is 64kb
@@ -38,6 +39,7 @@ def save_field_to_h5(field: Field, fname: Union[str, Path], settings: Iterable[P
         group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_to_xml(settings),
                                      group_name=group_name)
         saver.add_data(group, dwa)
+        add_plugin_version(saver)
 
 
 def load_field_from_h5(fname: Union[str, Path], path: str = '/RawData/Field/Data00', name: str = 'Image') -> Field:

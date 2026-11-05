@@ -102,6 +102,17 @@ class ShapingSaver(ModuleSaver):
         self.add_data(data.dte, axis_values=data.axis_values)
 
 
+VERSION_ATTRIBUTE = 'pymodaq_plugins_beam_shaping_version'
+
+
+def add_plugin_version(saver) -> None:
+    """ Write the version of this plugin in the attributes of the root of the file of a saver (an H5Saver, or a data
+    saver holding one), next to the versions of PyMoDAQ that it writes itself"""
+    from pymodaq_plugins_beam_shaping import __version__
+    h5saver = saver if hasattr(saver, 'root') else (getattr(saver, 'h5saver', None) or saver._h5saver)
+    h5saver.root().attrs[VERSION_ATTRIBUTE] = __version__
+
+
 FIELDS_SAVED_BY_THE_APP = ('modulator/phase',)  # default fields of the continuous saving of the AlgoApp
 
 
@@ -251,6 +262,7 @@ class ContinuousSaver:
         self._started = True
         self._step = 0
         self.h5saver.settings.child('N_saved').setValue(0)
+        add_plugin_version(self.h5saver)
         self.module_saver.get_set_node(new=True, settings_as_xml=settings_as_xml)
 
     def add(self, dte: DataToExport):

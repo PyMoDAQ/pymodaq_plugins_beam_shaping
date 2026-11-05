@@ -33,6 +33,7 @@ from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.region_outline import RegionOutline
+from pymodaq_plugins_beam_shaping.utilities.h5saving import add_plugin_version
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper
@@ -298,6 +299,7 @@ class BeamShaping(CustomExt):
             with DataToExportSaver(fname, metadata={'settings': plugin_config.to_xml_string()}) as h5saver:
                 group = h5saver.add_data_group('/RawData', DataDim.Data2D, title='SLM Phases', group_name='SLM')
                 h5saver.add_data(group, dte)
+                add_plugin_version(h5saver)
 
             self._input_field_loader.save_field(fname, where='/RawData', group_name='Input', title='Input Field')
             self._target_field_loader.save_field(fname, where='/RawData', group_name='Target', title='Target Field')
