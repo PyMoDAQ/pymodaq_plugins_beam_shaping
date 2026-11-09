@@ -471,6 +471,10 @@ def test_input_and_target_saved_with_the_settings_of_their_loaders(qapp, tmp_pat
             settings = settings.decode() if isinstance(settings, bytes) else settings
             assert loader_name in settings  # the settings of the loader that produced the field
             assert 'needed_size' in settings
+            assert 'LoaderSettings' in settings  # the settings of the loader itself are there too
+            # all the settings of the loader app, as the extension saves them
+            for entry in ('ini_size', 'utils', 'smoothing', 'normalisation', 'masking', 'roi_select'):
+                assert entry in settings, entry
     # in the format of the field files: readable by load_field_from_h5, as the Input and Target groups of the extension
     from pymodaq_plugins_beam_shaping.field.h5 import load_field_from_h5
     saved_input = load_field_from_h5(path, f'{run}/Input/Data00')

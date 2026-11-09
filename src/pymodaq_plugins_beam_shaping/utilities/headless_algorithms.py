@@ -91,7 +91,7 @@ class HeadlessApp:
     def __init__(self, shaper: Shaper):
         self.shaper = shaper
         self.algorithm = None
-        self.loaded_fields = []  # (field, loader) of the fields loaded with load_field, to save the loader settings
+        self.loaded_fields = []  # (field, loader, shape before fitting) of the fields loaded with load_field
         self.field_loaders = {'input': None, 'target': None}  # the loaders of the fields given to the algorithm
         self.masks = {str(ApplyMaskTo.TARGET): None, str(ApplyMaskTo.INTERMEDIATE): None}
         shape = sizing.get_effective_needed_field_size(shaper)
@@ -198,22 +198,34 @@ def load_field(loader_name: str, params: Optional[dict], app: HeadlessApp):
     loader = LoaderFactory.get_loader(loader_name)(parent=app)
     set_parameters(loader, params or {})
     field = loader.load_field(notify=False)
+    ini_shape = tuple(field.shape)
     shape = sizing.get_effective_needed_field_size(app.shaper)
     pixel_size = Q_(sizing.get_effective_slm_pixel_size(app.shaper), 'um')
     field = fit_to_shape(field, shape, (pixel_size, pixel_size))
-    app.loaded_fields.append((field, loader))
+    app.loaded_fields.append((field, loader, ini_shape))
     return field
 
 
-def loader_settings(app: HeadlessApp, loader) -> list:
-    """ The settings of a loader to save with the field it produced, laid out as the field loader app of the extension
-    does when it saves a field: its settings (loader name, needed size) and the ones of the loader"""
+def loader_settings(app: HeadlessApp, field, loader, ini_shape: tuple) -> list:
+    """ The settings of a loader to save with the field it produced, laid out as the loader app of the extension does
+    when it saves a field: all its settings (those of ``FieldLoaderApp.params``) and the ones of the loader
+
+    The loader app does not exist here: its settings are created from the same definition, and set to what the script
+    did (the loader, the size of the file and the needed size, the scaling to fit the field), the other ones (flips,
+    smoothing, normalisation, masking, ROI) are not used by the script and keep their default value"""
+    import copy
     from pyqtgraph.parametertree import Parameter
-    loader_app = Parameter.create(name='LoaderAppSettings', type='group', children=[
-        {'name': 'loader', 'title': 'Loader', 'type': 'str', 'value': type(loader).LOADER_NAME}])
-    loader_app.addChild(Parameter.create(name='needed_size', title='Needed size', type='group', children=[
-        {'name': child.name(), 'title': child.title(), 'type': child.type(), 'value': child.value()}
-        for child in app.settings.child('needed_size').children()]))
+    from pymodaq_plugins_beam_shaping.field.field_loader_app import FieldLoaderApp
+    loader_app = Parameter.create(name=FieldLoaderApp.settings_name, type='group',
+                                  children=copy.deepcopy(FieldLoaderApp.params))
+    needed = app.settings.child('needed_size')
+    values = {('loader',): type(loader).LOADER_NAME,
+              ('ini_size', 'height'): int(ini_shape[0]), ('ini_size', 'width'): int(ini_shape[1]),
+              ('utils', 'sizing', 'height'): int(field.shape[0]), ('utils', 'sizing', 'width'): int(field.shape[1]),
+              ('utils', 'sizing', 'scaling'): float(min(np.array(field.shape) / np.array(ini_shape)))}
+    values.update({('needed_size', child.name()): child.value() for child in needed.children()})
+    for path, value in values.items():
+        loader_app.child(*path).setValue(value)
     return [loader_app, loader.settings]
 
 
@@ -221,7 +233,8 @@ def set_fields(algo, input_field, target_field):
     """ Give the input and target fields to the algorithm, as the app does (the target is scaled by the algo)"""
     app = algo.parent_app
     for role, field in (('input', input_field), ('target', target_field)):  # keep the loader of each, to save it
-        app.field_loaders[role] = next((loader for loaded, loader in app.loaded_fields if loaded is field), None)
+        app.field_loaders[role] = next(((field, loader, ini_shape) for loaded, loader, ini_shape in app.loaded_fields
+                                        if loaded is field), None)
     algo.set_modulator_field(input_field.deepcopy())
     algo.set_input_field(input_field)
     algo.set_target_field(algo.scale_target_with_geometry(target_field))
@@ -357,7 +370,7 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
         app = algo.parent_app
         saver.add_loaded_fields(
             algo._input_field, algo._target_field,
-            *[loader_settings(app, app.field_loaders[role]) if app.field_loaders[role] is not None else ()
+            *[loader_settings(app, *app.field_loaders[role]) if app.field_loaders[role] is not None else ()
               for role in ('input', 'target')])
     try:
         algo.do_things_after_init()
