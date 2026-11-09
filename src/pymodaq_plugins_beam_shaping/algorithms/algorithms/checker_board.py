@@ -71,8 +71,9 @@ class OL2014(AlgoBase):
         # the modulator multiplies the input beam: the amplitude to ask to it is the target divided by the beam (max 1)
         amplitude = self.compensate_target(calculated_field.amplitude / np.max(calculated_field.amplitude))
         beta = np.arccos(np.clip(amplitude / np.max(amplitude) / self.settings['divider'], -1., 1.))
-        theta_field = Field('theta', phase=calculated_field.phase + beta)
-        alpha_field = Field('alpha', phase=calculated_field.phase - beta)
+        phase = self.target_phase()  # minus the input phase if it is compensated
+        theta_field = Field('theta', phase=phase + beta)
+        alpha_field = Field('alpha', phase=phase - beta)
 
         theta_field.phase *= odd_mask
         alpha_field.phase *= even_mask

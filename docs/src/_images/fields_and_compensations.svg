@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 360" font-family="sans-serif" font-size="13">
+<rect width="760" height="360" fill="#ffffff"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8c959f"/></marker></defs>
+<text x="24" y="30" font-size="15" font-weight="600" fill="#1f2328">The output always includes the input phase; the SLM field never does</text>
+<rect x="24" y="64" width="128" height="96" rx="8" fill="none" stroke="#8c959f" stroke-width="1.25"/>
+<text x="88.0" y="90" text-anchor="middle" font-weight="600" fill="#1f2328">Input field</text>
+<text x="88.0" y="110" text-anchor="middle" font-size="11.5" fill="#57606a">amplitude and</text>
+<text x="88.0" y="126" text-anchor="middle" font-size="11.5" fill="#57606a">phase of the beam</text>
+<path d="M152 112.0H168" stroke="#8c959f" stroke-width="1.25" fill="none" marker-end="url(#a)"/>
+<rect x="168" y="64" width="128" height="96" rx="8" fill="none" stroke="#8c959f" stroke-width="1.25"/>
+<text x="232.0" y="90" text-anchor="middle" font-weight="600" fill="#1f2328">Algorithm</text>
+<text x="232.0" y="110" text-anchor="middle" font-size="11.5" fill="#57606a">sees the true</text>
+<text x="232.0" y="126" text-anchor="middle" font-size="11.5" fill="#57606a">input field</text>
+<path d="M296 112.0H312" stroke="#8c959f" stroke-width="1.25" fill="none" marker-end="url(#a)"/>
+<rect x="312" y="64" width="128" height="96" rx="8" fill="none" stroke="#8c959f" stroke-width="1.25"/>
+<text x="376.0" y="90" text-anchor="middle" font-weight="600" fill="#1f2328">SLM field</text>
+<text x="376.0" y="110" text-anchor="middle" font-size="11.5" fill="#57606a">what is sent:</text>
+<text x="376.0" y="126" text-anchor="middle" font-size="11.5" fill="#57606a">SLM phase, no</text>
+<text x="376.0" y="142" text-anchor="middle" font-size="11.5" fill="#57606a">input phase</text>
+<path d="M440 112.0H456" stroke="#8c959f" stroke-width="1.25" fill="none" marker-end="url(#a)"/>
+<rect x="456" y="64" width="128" height="96" rx="8" fill="#ddf4ff" stroke="#0969da" stroke-width="2"/>
+<text x="520.0" y="90" text-anchor="middle" font-weight="600" fill="#1f2328">Modulator field</text>
+<text x="520.0" y="110" text-anchor="middle" font-size="11.5" fill="#57606a">input × SLM field</text>
+<text x="520.0" y="126" text-anchor="middle" font-size="11.5" fill="#57606a">phase: input</text>
+<text x="520.0" y="142" text-anchor="middle" font-size="11.5" fill="#57606a">+ SLM phase</text>
+<path d="M584 112.0H600" stroke="#8c959f" stroke-width="1.25" fill="none" marker-end="url(#a)"/>
+<rect x="600" y="64" width="128" height="96" rx="8" fill="#ddf4ff" stroke="#0969da" stroke-width="2"/>
+<text x="664.0" y="90" text-anchor="middle" font-weight="600" fill="#1f2328">Output field</text>
+<text x="664.0" y="110" text-anchor="middle" font-size="11.5" fill="#57606a">propagated from the</text>
+<text x="664.0" y="126" text-anchor="middle" font-size="11.5" fill="#57606a">modulator field</text>
+<path d="M160.0 160V200" stroke="#8c959f" stroke-dasharray="4 4" fill="none"/>
+<path d="M232.0 160V184H420V200" stroke="#8c959f" stroke-dasharray="4 4" fill="none"/>
+<rect x="24" y="200" width="344" height="104" rx="8" fill="none" stroke="#8c959f" stroke-width="1.25"/>
+<text x="40" y="224" font-weight="600" fill="#1f2328">Amplitude compensation (list)</text>
+<text x="40" y="246" font-size="11.5" fill="#57606a">Divide by input: target ÷ input amplitude</text>
+<text x="40" y="262" font-size="11.5" fill="#57606a">Min input level sets the unreachable region</text>
+<text x="40" y="278" font-size="11.5" fill="#57606a">Lee, Superpixel, OL2014</text>
+<rect x="392" y="200" width="344" height="104" rx="8" fill="none" stroke="#8c959f" stroke-width="1.25"/>
+<text x="408" y="224" font-weight="600" fill="#1f2328">Compensate input phase (checkbox, on)</text>
+<text x="408" y="246" font-size="11.5" fill="#57606a">Encoded phase: target phase − input phase,</text>
+<text x="408" y="262" font-size="11.5" fill="#57606a">so the output has the target phase.</text>
+<text x="408" y="278" font-size="11.5" fill="#57606a">Shown when ALGOTYPE is not AMPLITUDE:</text>
+<text x="408" y="294" font-size="11.5" fill="#57606a">Direct, Threshold, Lee, Superpixel, OL2014</text>
+<text x="24" y="336" font-size="11.5" fill="#1f2328">Intensity-only algorithms (GS, Projections) have no checkbox but always see the input phase.</text>
+</svg>

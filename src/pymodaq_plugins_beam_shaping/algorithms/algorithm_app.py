@@ -135,6 +135,10 @@ class AlgoApp(CustomApp):
               'value': Compensations.DivideByInput.value,
               'limits': compensation_factory.compensations},
              {'title': 'Compensation Parameters', 'name': 'compensation_params', 'type': 'group', 'children': []},
+             {'title': 'Compensate input phase:', 'name': 'compensate_input_phase', 'type': 'bool', 'value': True,
+              'tip': 'The phase of the input beam is removed from the target phase, so that the modulator field '
+                     '(input times SLM field) has the target phase. Shown for the algorithms that control the output '
+                     'phase'},
          ]},
         {'title': 'Stopping Criteria:', 'name': 'stopping', 'expanded': True, 'type': 'group',
          'children': [
@@ -407,7 +411,12 @@ class AlgoApp(CustomApp):
             plugin_config.save()
 
             self.settings.child('ini_phase_group').show(self._algorithm.INI_PHASE)
-            self.settings.child('compensation_group').show(self._algorithm.INPUT_COMPENSATION is not None)
+            amplitude_compensation = self._algorithm.INPUT_COMPENSATION is not None
+            phase_compensation = self._algorithm.can_compensate_input_phase
+            self.settings.child('compensation_group').show(amplitude_compensation or phase_compensation)
+            for name in ('compensation_factory', 'compensation_params'):
+                self.settings.child('compensation_group', name).show(amplitude_compensation)
+            self.settings.child('compensation_group', 'compensate_input_phase').show(phase_compensation)
             self.settings.child(str(ApplyMaskTo.INTERMEDIATE)).show(self._algorithm.SETUP_TYPE == LensSetup.FourF)
             self.settings.child('stopping').show(self._algorithm.ITERATIVE == True)
 
@@ -457,6 +466,11 @@ class AlgoApp(CustomApp):
         name = self.settings['compensation_group', 'compensation_factory']
         return compensation_factory.get_compensation(name)(
             self.settings.child('compensation_group', 'compensation_params', name))
+
+    @property
+    def compensate_input_phase(self) -> bool:
+        """ The input phase is removed from the target phase (for the algorithms that control the output phase)"""
+        return self.settings['compensation_group', 'compensate_input_phase']
 
     @property
     def ini_stopping_criteria(self) -> StoppingBase:
