@@ -98,3 +98,10 @@ def test_the_enum_and_the_registered_compensations_agree(factory):
     CompensationFactory.check_enum()
     assert Compensations.DivideByInput == 'DivideByInput'  # a StrEnum: still usable as the name
     assert factory.get_compensation(Compensations.NoCompensation).__name__ == 'NoCompensation'
+
+
+def test_make_compensation_sets_parameters_in_groups_and_names_the_valid_ones():
+    from pymodaq_plugins_beam_shaping.utilities.headless_algorithms import make_compensation
+    assert make_compensation('DivideByInput', {'min_input_level': 0.4}).settings['min_input_level'] == 0.4
+    with pytest.raises(KeyError, match='min_input_level'):
+        make_compensation('DivideByInput', {'unknown': 1})

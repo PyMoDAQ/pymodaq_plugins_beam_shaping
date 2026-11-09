@@ -42,9 +42,9 @@ def make_compensation(name: str = Compensations.DivideByInput, params: Optional[
     register_compensations()
     compensation_class = CompensationFactory.get_compensation(name)
     settings = Parameter.create(name=name, type='group', children=compensation_class.params)
-    for key, value in (params or {}).items():
-        settings.child(key).setValue(value)
-    return compensation_class(settings)
+    compensation = compensation_class(settings)
+    set_parameters(compensation, params or {})  # names separated by '/' for the parameters in a group
+    return compensation
 
 
 def set_compensation(app, name: str = Compensations.DivideByInput, params: Optional[dict] = None):
