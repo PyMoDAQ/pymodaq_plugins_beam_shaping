@@ -281,9 +281,13 @@ def test_algo_app_saves_the_pattern_of_an_amplitude_modulator_in_the_slm_node(qt
     app.save(tmp_path / 'file.h5')
     with DataLoader(tmp_path / 'file.h5') as loader:
         origins = {}
-        for node in loader.walk_nodes('/RawData/Algorithm/Data2D/'):
+        for node in loader.walk_nodes('/RawData/Shaping/Final/Data2D/'):
             if 'ARRAY' in node.attrs['CLASS']:
                 origins[(node.attrs.get('origin', ''), node.title)] = loader.load_data(node.path)[0]
+    with DataLoader(tmp_path / 'file.h5') as loader:  # the layout of the Save: Shaping, not indexed, with its sub groups
+        assert 'Shaping' in loader.h5saver.get_children(loader.h5saver.get_node('/RawData'))
+        assert 'Final' in loader.h5saver.get_children(loader.h5saver.get_node('/RawData/Shaping'))
+        assert loader.get_node('/RawData/Shaping').attrs['settings']
     assert set(np.unique(origins[('slm', 'amplitude')])) <= {0., 1.}
     assert not np.allclose(origins[('modulator', 'amplitude')], origins[('slm', 'amplitude')])
     assert np.allclose(origins[('modulator', 'amplitude')], algo._input_field.amplitude * origins[('slm', 'amplitude')])

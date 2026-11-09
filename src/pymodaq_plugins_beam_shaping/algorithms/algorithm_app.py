@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractproperty
-from typing import Union
+from typing import Callable, Union
 import numpy as np
 
 from qtpy import QtWidgets, QtCore, QtGui
@@ -43,7 +43,6 @@ from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
 from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, RunSaver, FIELDS_SAVED_BY_THE_APP,
                                                               configure_h5saver, fields_of_modulator, algorithm_name_settings,
-                                                              add_algorithm_group,
                                                               add_plugin_version)
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
@@ -262,16 +261,20 @@ class AlgoApp(CustomApp):
         if self.save_settings:
             self.config_saver_loader.save_config()
 
-    def save(self, fname: H5Saver | Path = None, where: str = '/RawData',
-             group_name: str = 'Algorithm', title: str = ''):
-        """ Save the fields, algorithm settings  into a hdf5 file
+    def save(self, fname: Path = None, add_to_group: Callable[[ShapingSaver], None] = None, metadata: dict = None):
+        """ Save the fields and the settings of the algorithm into a hdf5 file
+
+        The layout of a saved run: a group ``Shaping`` with the settings (algorithm name, app and algorithm settings)
+        and, in it, the sub group ``Final`` with all the fields (the Save of the extension adds the input, the target...)
 
         Parameters
         ----------
         fname : Path
             If specified, add the field in the existing (or new) file. Otherwise open a File dialog to enter a file name
-        where: str
-            the node where the data will be saved
+        add_to_group: callable
+            called with the saver of the group while the file is open, to add other groups to it
+        metadata: dict
+            the metadata of the file
         """
         if fname is None:
             fname = select_file(start_path=config('data', 'data_saving','h5file', 'save_path'),
@@ -279,15 +282,18 @@ class AlgoApp(CustomApp):
         if fname != '':
             new_file = not fname.exists()
 
-
             settings_str = settings_to_xml((algorithm_name_settings(self.algorithm.ALGO_NAME), self.settings,
                                             self.algorithm.settings))
 
-            with DataToExportSaver(fname, new_file=new_file, save_type=SaveType.custom) as saver:
-                add_algorithm_group(saver, self.algorithm.get_fields_to_plot(), where, group_name, title,
-                                    settings_as_xml=settings_str)
+            with DataToExportSaver(fname, new_file=new_file, save_type=SaveType.custom,
+                                   metadata=metadata) as saver:
+                shaping_saver = ShapingSaver(indexed=False)
+                shaping_saver.h5saver = saver.h5saver
+                shaping_saver.get_set_node(new=True, settings_as_xml=settings_str)
+                shaping_saver.add_final_data(self.algorithm.get_fields_to_plot())
+                if add_to_group is not None:
+                    add_to_group(shaping_saver)
                 add_plugin_version(saver)
-
 
     @property
     def current_phase(self) -> np.ndarray:

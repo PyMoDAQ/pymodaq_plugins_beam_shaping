@@ -81,10 +81,18 @@ class ShapingSaver(ModuleSaver):
     input and target fields (``Input``, ``Target``)"""
     group_type = GroupModuleType.SHAPING
 
-    def __init__(self):
+    def __init__(self, indexed: bool = True):
+        """
+        Parameters
+        ----------
+        indexed: bool
+            the group of a run is named ShapingXXX with the next index (several runs in a file), otherwise Shaping
+            (a file saved at once, as the Save of the extension)
+        """
         self._module = None
         self._module_group: GROUP = None
         self._h5saver: H5Saver = None
+        self.indexed = indexed
 
         self.enl_axis_names = ('step',)
         self.enl_axis_units = ('',)
@@ -135,8 +143,13 @@ class ShapingSaver(ModuleSaver):
             where = self._h5saver.raw_group
 
 
-        return self._h5saver.add_incremental_group(self.group_type, where, title='BeamShaping',
-                                                   settings_as_xml=settings_as_xml, metadata=metadata)
+        if self.indexed:
+            return self._h5saver.add_incremental_group(self.group_type, where, title='BeamShaping',
+                                                       settings_as_xml=settings_as_xml, metadata=metadata)
+        group = self._h5saver.add_group('Shaping', self.group_type.name, where, title='BeamShaping',
+                                        metadata=metadata)
+        self._h5saver.set_attr(group, 'settings', settings_as_xml)
+        return group
 
 
     def _child_node(self, child: ShapingChildSaver) -> GROUP:
@@ -164,13 +177,19 @@ class ShapingSaver(ModuleSaver):
             raise ValueError('The data are saved in the sub group of a child saver: fields, metrics or final')
         child.add_data(self._child_node(child), dte, axis_values=axis_values)
 
-    def add_final_data(self, dte: DataToExport):
-        """ Save data once in the ``Final`` sub group of the current run, so that they share its settings and
-        attributes with the data saved at each step, e.g. all the fields at the end of a run (as the Save of the
-        extension does, with the same code: :func:`add_algorithm_group`)"""
+    def add_group_data(self, dte: DataToExport, group_name: str, title: str = '', settings_as_xml=''):
+        """ Save data once in the sub group ``group_name`` of the current run (as the control modules save theirs in the
+        group of an extension), so that they share its settings and attributes, whatever is saved at each step
+
+        The data and the group are saved by the code shared with the Save of the extension, see
+        :func:`add_algorithm_group`"""
         saver = DataToExportSaver(self._h5saver)  # not as a context manager: it closes the file
         return add_algorithm_group(saver, dte, where=self.get_last_node(self._h5saver.raw_group),
-                                   group_name='Final', title='Final Fields')
+                                   group_name=group_name, title=title or group_name, settings_as_xml=settings_as_xml)
+
+    def add_final_data(self, dte: DataToExport):
+        """ Save all the fields once in the ``Final`` sub group of the current run, e.g. at the end of a run"""
+        return self.add_group_data(dte, 'Final', 'Final Fields')
 
     def add_loaded_field(self, field: 'Field', settings: Iterable = (), group_name: str = 'Input'):
         """ Save once a field (its amplitude and phase) in the sub group ``group_name`` of the current run, with the
