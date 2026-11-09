@@ -101,7 +101,8 @@ in the review but not available.
 What is sent to the modulator is the *SLM field* (``slm_field`` of the algorithm, ``slm`` data): the amplitude pattern
 (0 and 1 for a DMD, 1 for a phase-only modulator) and the phase (0 for an amplitude-only modulator), without the
 corrections that the extension adds when sending. It is not the *modulator field*, the field just after the modulator:
-this one is the input beam times the SLM field, and is the one used to compute the output.
+this one is the input beam times the SLM field, and is the one used to compute the output. The fields of the
+algorithm hold ``slm/phase`` for every type of modulator and ``slm/amplitude`` when an amplitude is sent.
 
 The two first orders of the grating carry opposite phases, and this is physical: the order at ``+ν`` carries the phase
 ``-φ`` of the target, the one at ``-ν`` (the order (-1, 0) of the review) carries ``+φ``. Select the order that carries
