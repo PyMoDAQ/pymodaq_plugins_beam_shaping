@@ -23,7 +23,8 @@ app = pg.HeadlessApp(shaper)
 
 # The plots: 'matplotlib' (figures returned, to customize further) or 'qt' (the interactive viewers of PyMoDAQ: zoom,
 # levels, ROI..., in Spyder set Preferences > IPython console > Graphics > Backend to Qt or Automatic)
-# The axes of the plots are in um, their origin at the center of the field, as for the masks.
+# The axes of the plots are in um, their origin at the center of the field (the masks are given from the corner of the
+# field, as in the extension, and their outline is drawn at the right place).
 # Each plot_field below takes: log (intensity in log10 instead of the amplitude), clim and phase_clim (min, max of the
 # colors), xlim and ylim (zoom, (min, max) in um). With 'qt' they give the starting state of the viewers.
 PLOT_BACKEND = 'matplotlib'
@@ -70,9 +71,9 @@ if snapped_intermediate is not None:
     snap_plot = pg.plot_field(snapped_intermediate, 'intermediate (snap, no mask)', log=True, clim=None, xlim=None,
                               ylim=None, backend=PLOT_BACKEND)
 
-# %% Masks: slices in um, along y then along x, around the center of the field, as shown by the field loader and the
-# extension: they can be pasted as is, e.g. TARGET_MASK = (slice(-100, 100, None), slice(-50, 50, None)), as text or as
-# ((-100, 100), (-50, 50)).
+# %% Masks: slices in um, along y then along x, in the frame of the extension (origin at the corner of the field): they
+# can be pasted as is, e.g. TARGET_MASK = (slice(1073, 5365, None), slice(1073, 5365, None)), as text or as
+# ((1073, 5365), (1073, 5365)).
 # None: the default region of the extension, centered and covering 2/3 of the effective area of the SLM in the plane
 # (printed below, copy and edit it). Run this cell again to adjust the intermediate mask: its outline is drawn on the
 # plot of the snap, which is updated

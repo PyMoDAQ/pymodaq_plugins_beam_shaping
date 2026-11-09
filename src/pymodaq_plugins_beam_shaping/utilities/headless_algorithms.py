@@ -120,11 +120,8 @@ class HeadlessApp:
         else:
             pixel_sizes = self.algorithm._target_field.pixels_sizes
         shape = sizing.get_effective_needed_field_size(self.shaper)
-        # like in the app the user gives the region around the center of the field: shift it to array coordinates
-        pxl = regions.pixel_sizes_in_um(pixel_sizes)
-        shifted = tuple(slice(_slice.start + shape[dim] * pxl[dim] / 2, _slice.stop + shape[dim] * pxl[dim] / 2)
-                        for dim, _slice in enumerate(slices_um))
-        return regions.slices_to_indexes(shifted, pixel_sizes, shape)
+        # as in the app, the region is given in the frame of the extension: its origin is the corner of the field
+        return regions.slices_to_indexes(slices_um, pixel_sizes, shape)
 
     def algo_settings_changed(self):
         pass
@@ -218,7 +215,11 @@ def get_target_field(algo):
 
 
 def set_mask(app: HeadlessApp, apply_to: ApplyMaskTo, slices_um, mask_type: str = 'elliptical'):
-    """ Apply a mask given by its region in um around the center of the field, None to remove it.
+    """ Apply a mask given by its region in um, None to remove it.
+
+    The region is in the frame of the extension, where the origin is the corner of the field (the slices shown by the
+    extension and by its mask settings can be pasted as is). The plots of this module are centered on the field, their
+    outline of the mask is shifted accordingly.
 
     The region is given as the slices shown by the field loader and the extension, as text or not
     (``'(slice(-100, 100, None), slice(-50, 50, None))'``, along y then along x), so that they can be copied and pasted,
@@ -235,16 +236,14 @@ def mask_to_str(slices_um) -> str:
 
 def default_mask(algo, apply_to: ApplyMaskTo, fraction: float = 2 / 3) -> tuple:
     """ The default region of a mask, as in the extension: centered and covering 2/3 of the effective area of the SLM
-    in the plane (target or intermediate), given as slices along y then along x in um around the center of the field,
-    rounded to the um, as shown by the field loader and the extension"""
+    in the plane (target or intermediate), given as slices along y then along x in um in the frame of the extension
+    (origin at the corner of the field), rounded to the um, as shown by the extension"""
     if str(apply_to) == str(ApplyMaskTo.INTERMEDIATE):
         pixel_sizes = algo.intermediate_pixel_sizes
     else:
         pixel_sizes = algo._target_field.pixels_sizes
-    shape = sizing.get_effective_needed_field_size(algo.shaper)
-    half_field = np.array(shape) * regions.pixel_sizes_in_um(pixel_sizes) / 2
     slices = regions.default_slices(algo.shaper, pixel_sizes, fraction)
-    return tuple(slice(round(_slice.start - half), round(_slice.stop - half)) for _slice, half in zip(slices, half_field))
+    return tuple(slice(round(_slice.start), round(_slice.stop)) for _slice in slices)
 
 
 def _phase_settings(phase_class):
@@ -432,8 +431,24 @@ def center_axes(dte):
     return dte
 
 
+def mask_in_plot_frame(dte, mask):
+    """ The mask ((slices in the frame of the extension, type) as given to :func:`set_mask`) in the frame of the plots,
+    centered on the field (see :func:`center_axes`, to be called first)"""
+    if mask is None:
+        return None
+    slices, mask_type = mask
+    dwa = next(dwa for dwa in dte if dwa.dim.name == 'Data2D')
+    centered = []
+    for dim, _slice in enumerate(regions.as_slices(slices)):
+        axis = dwa.get_axis_from_index(dim)[0]
+        half_um = Q_(-axis.offset, axis.units or 'um').m_as('um')  # center_axes puts the origin at the center
+        centered.append(slice(_slice.start - half_um, _slice.stop - half_um))
+    return tuple(centered), mask_type
+
+
 def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'um', color: str = 'red'):
-    """ Draw the outline of a mask (slices in um around the center of the field, see :func:`set_mask`) on the 2D data of a matplotlib figure (axes in ``units``, um for the plots of this module)"""
+    """ Draw the outline of a mask (slices in um around the center of the field, as the plots of this module, see
+    :func:`mask_in_plot_frame`) on the 2D data of a matplotlib figure (axes in ``units``)"""
     from matplotlib.patches import Ellipse, Rectangle
     (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in (_slice.start, _slice.stop)]
                           for _slice in regions.as_slices(slices_um)]
@@ -509,6 +524,7 @@ def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool 
     """
     center_axes(dte)
     units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'um'
+    mask = mask_in_plot_frame(dte, mask)
     if backend == 'qt':
         ensure_qapp()
         viewer = dte.plot('qt', viewer=figure)

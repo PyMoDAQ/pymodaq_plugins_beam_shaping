@@ -29,6 +29,13 @@ def test_run_and_plot_an_algorithm(qapp):
     assert pg.plot(algo, show=False) is not None
 
 
+def around_center(algo, apply_to: ApplyMaskTo, half: float = 100.):
+    """ A mask of 2 x half um around the center of the field, in the frame of the extension (origin at the corner)"""
+    default = pg.default_mask(algo, apply_to)
+    return tuple(((_slice.start + _slice.stop) / 2 - half, (_slice.start + _slice.stop) / 2 + half)
+                 for _slice in default)
+
+
 def test_plot_input_and_target_fields(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     target = pg.get_target_field(algo)
@@ -38,7 +45,7 @@ def test_plot_input_and_target_fields(qapp):
 
 def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
     app, algo = prepare('Parallel Lee', modulator_type='amplitude')
-    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, around_center(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
     log = pg.log_intensity(algo.intermediate_field, decades=4)
     assert log.data[0].max() - log.data[0].min() <= 4 + 1e-9
@@ -70,7 +77,7 @@ def test_masks_are_given_as_the_slices_shown_by_the_app_or_as_pairs(qapp):
 
 def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp):
     app, algo = prepare('Parallel Lee', modulator_type='amplitude')
-    mask = ((-100., 100.), (-100., 100.))
+    mask = around_center(algo, ApplyMaskTo.INTERMEDIATE)
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, mask)
     snapped = pg.snap(algo)
     assert app.apply_mask(ApplyMaskTo.INTERMEDIATE)  # restored for the next runs
@@ -80,8 +87,8 @@ def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp
     figure = pg.plot_field(snapped, 'snap', log=True, mask=(mask, 'elliptical'), show=False)
     axes = pg._image_axes(figure)
     assert all(len(ax.patches) == 1 for ax in axes)
-    # the axes are centered, as the masks: the outline is around the origin
-    assert axes[0].patches[0].center == pytest.approx((0., 0.))
+    # the plots are centered on the field, the mask is given from its corner: the outline is shifted to the origin
+    assert axes[0].patches[0].center == pytest.approx((0., 0.), abs=1.)  # um, the default mask is rounded
     x = axes[0].collections[0].get_coordinates()[0, :, 0]
     assert x[0] < 0 < x[-1]
 
@@ -118,10 +125,10 @@ def test_default_masks_cover_two_thirds_of_the_effective_area_around_the_center(
     for apply_to, pixel_sizes in ((ApplyMaskTo.INTERMEDIATE, algo.intermediate_pixel_sizes),
                                   (ApplyMaskTo.TARGET, algo._target_field.pixels_sizes)):
         region = pg.default_mask(algo, apply_to)
-        _, size = regions.get_effective_area(algo.shaper, pixel_sizes)
-        for _slice, full in zip(region, size):
+        pos, size = regions.get_effective_area(algo.shaper, pixel_sizes)
+        for _slice, full, origin in zip(region, size, pos):
             start, stop = _slice.start, _slice.stop
-            assert start == pytest.approx(-stop, abs=1)
+            assert (start + stop) / 2 == pytest.approx(origin + full / 2, abs=1)  # extension frame, centered
             assert stop - start == pytest.approx(full * 2 / 3, abs=2)
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
@@ -207,7 +214,7 @@ def test_unknown_initial_phase_parameter_lists_the_possible_ones(qapp):
 
 def test_parameters_are_set_without_widgets_and_masks_applied(qapp):
     app, algo = prepare('Parallel Lee', dict(carrier_factor=0.5), modulator_type='amplitude')
-    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, around_center(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
     assert algo.settings['carrier_factor'] == 0.5
     assert algo.apply_mask(ApplyMaskTo.INTERMEDIATE)
@@ -406,3 +413,14 @@ def test_final_saving_alone(qapp, tmp_path):
     with h5py.File(path, 'r') as f:
         assert 'Final' in f['RawData/Shaping000']
         assert 'Data2D' not in f['RawData/Shaping000']  # nothing saved at each iteration
+
+
+def test_masks_are_in_the_extension_frame_and_selected_the_same_region_in_the_arrays(qapp):
+    """ The slices of the extension (origin at the corner of the field) select the region where they point"""
+    app, algo = prepare('Gerchberg-Saxton')
+    mask = around_center(algo, ApplyMaskTo.TARGET, half=150.)
+    pg.set_mask(app, ApplyMaskTo.TARGET, mask, 'square')
+    slices = app.get_mask_as_slices(ApplyMaskTo.TARGET)
+    shape = algo.shape
+    for _slice, size in zip(slices, shape):
+        assert _slice.start < size / 2 < _slice.stop  # around the center of the array, not shifted to a corner
