@@ -12,16 +12,25 @@ settings of the algorithm app, in the modules of the package ``compensations``. 
 from abc import ABC, abstractmethod
 from importlib import import_module
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 import numpy as np
 
 from pymodaq_gui.parameter import Parameter
+from pymodaq_utils.enums import StrEnum
 from pymodaq_utils.logger import set_logger, get_module_name
 
 logger = set_logger(get_module_name(__file__))
 
-NO_COMPENSATION = 'NoCompensation'  # name of the compensation that does nothing
+class Compensations(StrEnum):
+    """ The names of the compensations of the input beam: the name of their class in the package ``compensations``
+
+    A new compensation is added here as well as in its module (``test_compensation`` checks that both agree)."""
+    NoCompensation = 'NoCompensation'  # the output is the target times the profile of the input beam
+    DivideByInput = 'DivideByInput'  # the target is divided by the profile of the input beam
+
+
+NO_COMPENSATION = Compensations.NoCompensation
 
 
 def register_compensations(parent_module_name: str = 'pymodaq_plugins_beam_shaping'):
@@ -106,7 +115,7 @@ class CompensationFactory:
         return inner_wrapper
 
     @classmethod
-    def get_compensation(cls, name: str) -> type[CompensationBase]:
+    def get_compensation(cls, name: Union[str, Compensations]) -> type[CompensationBase]:
         if name not in cls._registry:
             raise ValueError(f'{name} is not a supported compensation of the input beam.')
         return cls._registry[name]
@@ -115,3 +124,10 @@ class CompensationFactory:
     def compensations(self) -> list[str]:
         """ The names of the compensations, the one that does nothing first"""
         return sorted(self._registry, key=lambda name: (name != NO_COMPENSATION, name))
+
+    @classmethod
+    def check_enum(cls) -> None:
+        """ Raise if the enum and the registered compensations do not list the same names"""
+        names, registered = {c.value for c in Compensations}, set(cls._registry)
+        if names != registered:
+            raise ValueError(f'Compensations and registered classes differ: {sorted(names ^ registered)}')

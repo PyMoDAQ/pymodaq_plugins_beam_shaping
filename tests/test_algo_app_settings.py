@@ -3,36 +3,9 @@ own settings of the algorithm. Tested on a fake config in memory, not the one of
 import pytest
 from qtpy import QtWidgets
 
-from pymodaq_utils.config import ConfigError
 from pymodaq_gui.utils.dock import DockArea
 
 OL2014 = 'OL2014 - Amplitude-Phase Checkerboard'
-
-
-class FakeConfig:
-    """ What the ConfigSaverLoader asks to a config: a call with the path, item assignment, save"""
-
-    def __init__(self):
-        self.data = {}
-
-    def __call__(self, *path):
-        if tuple(path) not in self.data:
-            raise ConfigError(path)
-        return self.data[tuple(path)]
-
-    def __setitem__(self, path, value):
-        self.data[tuple(path)] = value
-
-    def save(self):
-        pass
-
-
-@pytest.fixture
-def config(monkeypatch):
-    from pymodaq_plugins_beam_shaping.algorithms import algorithm_app
-    fake = FakeConfig()
-    monkeypatch.setattr(algorithm_app, 'algo_config', fake)
-    return fake
 
 
 @pytest.fixture

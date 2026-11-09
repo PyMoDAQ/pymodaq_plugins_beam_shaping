@@ -91,3 +91,10 @@ def test_an_input_of_another_shape_is_not_compensated_and_says_so(factory, caplo
         transmission, unreachable = make(factory, 'DivideByInput').compensate(target, gaussian())
     assert np.array_equal(transmission, target) and unreachable is None
     assert 'compensat' in caplog.text
+
+
+def test_the_enum_and_the_registered_compensations_agree(factory):
+    from pymodaq_plugins_beam_shaping.algorithms.compensation import Compensations
+    CompensationFactory.check_enum()
+    assert Compensations.DivideByInput == 'DivideByInput'  # a StrEnum: still usable as the name
+    assert factory.get_compensation(Compensations.NoCompensation).__name__ == 'NoCompensation'

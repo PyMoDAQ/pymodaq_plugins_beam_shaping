@@ -29,6 +29,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
+from pymodaq_plugins_beam_shaping.algorithms.compensation import Compensations
 from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
@@ -64,7 +65,7 @@ class BinaryHologram(AlgoBase):
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
     INI_PHASE = False  # an amplitude modulator has no phase to initialize
-    INPUT_COMPENSATION = 'DivideByInput'  # the target is divided by the input beam, see encoded_amplitude
+    INPUT_COMPENSATION = Compensations.DivideByInput  # the target is divided by the input beam, see encoded_amplitude
     RECOMPUTE_ON_CHANGE = True
 
     _params_carrier = [

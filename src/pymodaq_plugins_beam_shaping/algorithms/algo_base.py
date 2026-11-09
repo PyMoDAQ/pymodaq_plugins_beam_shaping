@@ -16,7 +16,7 @@ from pymodaq_gui.managers.parameter_manager import ParameterManager
 from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, AlgoStatus, ApplyMaskTo,
                                                            LensSetup, CrossTalk, PhaseManipulation)
 from pymodaq_plugins_beam_shaping.field import Field
-from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationBase
+from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationBase, Compensations
 from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 
@@ -53,7 +53,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     # the modulators the algorithm can compute a mask for (a shaper modulating both accepts any algorithm)
     MODULATOR_TYPES: tuple[ModulatorType] = (ModulatorType.PHASE, )
     INI_PHASE = True  # if True, the algorithm will init an initial phase
-    INPUT_COMPENSATION: Optional[str] = None  # name of the compensation of the input beam the algorithm starts
+    INPUT_COMPENSATION: Optional[Compensations] = None  # name of the compensation of the input beam the algorithm starts
     # with (the app lets the user change it), None if the algorithm does not use one
     ITERATIVE = False
     MANUAL_LOOP = True

@@ -17,7 +17,7 @@ import numpy as np
 from pymodaq_plugins_beam_shaping.field.factory import LoaderFactory, register_loaders
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory, register_algorithms
 from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, register_phases
-from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationFactory, register_compensations
+from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationFactory, Compensations, register_compensations
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
@@ -36,7 +36,7 @@ def ensure_qapp():
     return mkQApp('AlgorithmPlayground')
 
 
-def make_compensation(name: str = 'DivideByInput', params: Optional[dict] = None):
+def make_compensation(name: str = Compensations.DivideByInput, params: Optional[dict] = None):
     """ A compensation of the input beam (see :mod:`algorithms.compensations`) with its parameters set"""
     from pyqtgraph.parametertree import Parameter
     register_compensations()
@@ -47,7 +47,7 @@ def make_compensation(name: str = 'DivideByInput', params: Optional[dict] = None
     return compensation_class(settings)
 
 
-def set_compensation(app, name: str = 'DivideByInput', params: Optional[dict] = None):
+def set_compensation(app, name: str = Compensations.DivideByInput, params: Optional[dict] = None):
     """ Choose the compensation of the input beam of the app (as the settings of the AlgoApp do): ``'NoCompensation'``
     or ``'DivideByInput'`` with the parameter ``min_input_level``"""
     app.compensation = make_compensation(name, params)

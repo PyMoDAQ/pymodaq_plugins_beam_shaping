@@ -1,6 +1,7 @@
 """Helpers of AlgoBase shared by the algorithms (4f propagation, projection step...)"""
 import numpy as np
 import pytest
+from pymodaq_plugins_beam_shaping.algorithms.compensation import Compensations
 
 from pymodaq_data import Q_
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
@@ -248,5 +249,5 @@ def test_the_default_compensation_of_the_algorithm_is_used_without_the_app(qapp,
     app, algo = prepare('Parallel Lee', 'amplitude')
     app.compensation = None  # the app has not chosen
     assert type(algo.compensation).__name__ == 'DivideByInput'
-    monkeypatch.setattr(type(algo), 'INPUT_COMPENSATION', 'NoCompensation')
+    monkeypatch.setattr(type(algo), 'INPUT_COMPENSATION', Compensations.NoCompensation)
     assert type(algo.compensation).__name__ == 'NoCompensation'

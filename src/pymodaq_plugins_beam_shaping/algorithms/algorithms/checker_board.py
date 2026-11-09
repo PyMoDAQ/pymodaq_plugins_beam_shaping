@@ -16,6 +16,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
+from pymodaq_plugins_beam_shaping.algorithms.compensation import Compensations
 from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
@@ -45,7 +46,7 @@ class OL2014(AlgoBase):
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
-    INPUT_COMPENSATION = 'DivideByInput'  # cos(beta) is the amplitude of the target to divide by the input beam
+    INPUT_COMPENSATION = Compensations.DivideByInput  # cos(beta) is the amplitude of the target to divide by the input beam
     RECOMPUTE_ON_CHANGE = True
 
     params = [

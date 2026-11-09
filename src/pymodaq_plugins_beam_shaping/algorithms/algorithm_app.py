@@ -36,7 +36,7 @@ from pymodaq_gui.utils.status_palette import Status, StatusPalette
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
 from pymodaq_plugins_beam_shaping.algorithms.algo_base import AlgoBase
 from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, PhaseBase
-from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationFactory, CompensationBase
+from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationFactory, CompensationBase, Compensations
 from pymodaq_plugins_beam_shaping.algorithms.stopping import StoppingFactory, StoppingBase
 from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoStatus, ApplyMaskTo, LensSetup, CrossTalk,
                                                            PhaseManipulation)
@@ -132,8 +132,7 @@ class AlgoApp(CustomApp):
                 'modulator from the target (they use it, the others do not show this group)',
          'children': [
              {'title': 'Compensation:', 'name': 'compensation_factory', 'type': 'list',
-              'value': 'DivideByInput' if 'DivideByInput' in compensation_factory.compensations
-              else compensation_factory.compensations[0],
+              'value': Compensations.DivideByInput.value,
               'limits': compensation_factory.compensations},
              {'title': 'Compensation Parameters', 'name': 'compensation_params', 'type': 'group', 'children': []},
          ]},
