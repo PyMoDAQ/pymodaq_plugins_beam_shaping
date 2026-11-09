@@ -366,7 +366,10 @@ class AlgoApp(CustomApp):
             plugin_config.save()
 
             self.settings.child('ini_phase_group').show(self._algorithm.INI_PHASE)
-            self.settings.child('compensation_group').show(self._algorithm.INPUT_COMPENSATION)
+            self.settings.child('compensation_group').show(self._algorithm.INPUT_COMPENSATION is not None)
+            if self._algorithm.INPUT_COMPENSATION is not None:  # what the user saved for this algorithm is loaded after
+                self.settings.child('compensation_group', 'compensation_factory').setValue(
+                    self._algorithm.INPUT_COMPENSATION)
             self.settings.child(str(ApplyMaskTo.INTERMEDIATE)).show(self._algorithm.SETUP_TYPE == LensSetup.FourF)
             self.settings.child('stopping').show(self._algorithm.ITERATIVE == True)
 

@@ -288,6 +288,21 @@ def test_algo_app_saves_the_pattern_of_an_amplitude_modulator_in_the_slm_node(qt
     assert np.allclose(origins[('modulator', 'amplitude')], algo._input_field.amplitude * origins[('slm', 'amplitude')])
 
 
+def test_algo_app_starts_with_the_default_compensation_of_the_algorithm(qtbot, dockarea, monkeypatch):
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+    from pymodaq_plugins_beam_shaping.algorithms.algorithms.binary_holograms import ParallelLee
+
+    app = AlgoApp(dockarea)
+    monkeypatch.setattr(app, 'set_settings_values', lambda *args: None)  # not the values saved by other runs
+    factory = app.settings.child('compensation_group', 'compensation_factory')
+    monkeypatch.setattr(ParallelLee, 'INPUT_COMPENSATION', 'NoCompensation')
+    app.set_algorithm('Parallel Lee')
+    assert factory.value() == 'NoCompensation'
+    monkeypatch.setattr(ParallelLee, 'INPUT_COMPENSATION', 'DivideByInput')
+    app.set_algorithm('Parallel Lee')
+    assert factory.value() == 'DivideByInput'
+
+
 def test_algo_app_compensation_of_the_input_beam(qtbot, dockarea):
     """ The compensation is chosen in the settings of the app like the initial phase, for the algorithms that use it"""
     from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp

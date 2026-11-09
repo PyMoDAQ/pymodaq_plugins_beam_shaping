@@ -109,7 +109,7 @@ class HeadlessApp:
     def __init__(self, shaper: Shaper):
         self.shaper = shaper
         self.algorithm = None
-        self.compensation = make_compensation()  # the compensation of the input beam, see set_compensation
+        self.compensation = None  # the compensation of the input beam, see set_compensation (None: the default one)
         self.masks = {str(ApplyMaskTo.TARGET): None, str(ApplyMaskTo.INTERMEDIATE): None}
         shape = sizing.get_effective_needed_field_size(shaper)
         pixel_size = sizing.get_effective_slm_pixel_size(shaper)

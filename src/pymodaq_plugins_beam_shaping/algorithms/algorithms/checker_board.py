@@ -45,7 +45,7 @@ class OL2014(AlgoBase):
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
-    INPUT_COMPENSATION = True  # cos(beta) is the amplitude of the target to divide by the input beam
+    INPUT_COMPENSATION = 'DivideByInput'  # cos(beta) is the amplitude of the target to divide by the input beam
     RECOMPUTE_ON_CHANGE = True
 
     params = [

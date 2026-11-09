@@ -53,7 +53,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     # the modulators the algorithm can compute a mask for (a shaper modulating both accepts any algorithm)
     MODULATOR_TYPES: tuple[ModulatorType] = (ModulatorType.PHASE, )
     INI_PHASE = True  # if True, the algorithm will init an initial phase
-    INPUT_COMPENSATION = False  # if True, the algorithm uses the compensation of the input beam chosen in the app
+    INPUT_COMPENSATION: Optional[str] = None  # name of the compensation of the input beam the algorithm starts
+    # with (the app lets the user change it), None if the algorithm does not use one
     ITERATIVE = False
     MANUAL_LOOP = True
     RECOMPUTE_ON_CHANGE = False  # if True, the algorithm is run again when one of its settings changes
@@ -289,12 +290,12 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     @property
     def compensation(self) -> Optional[CompensationBase]:
         """ The compensation of the input beam chosen in the app, None if this algorithm does not use one"""
-        if not self.INPUT_COMPENSATION:
+        if self.INPUT_COMPENSATION is None:
             return None
         compensation = getattr(self.parent_app, 'compensation', None)
-        if compensation is None:  # no app: the default compensation
+        if compensation is None:  # not chosen in an app: the default one of the algorithm
             from pymodaq_plugins_beam_shaping.utilities.headless_algorithms import make_compensation
-            compensation = make_compensation()
+            compensation = make_compensation(self.INPUT_COMPENSATION)
         return compensation
 
     @property

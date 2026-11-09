@@ -214,7 +214,7 @@ def test_the_unreachable_region_is_known_before_any_run(qapp):
 def test_an_algorithm_without_compensation_has_no_unreachable_region(qapp):
     """ Gerchberg-Saxton propagates the beam: the compensation does not apply to it, whatever the app says"""
     app, algo = prepare('Gerchberg-Saxton', 'phase')
-    assert not algo.INPUT_COMPENSATION
+    assert algo.INPUT_COMPENSATION is None  # no default compensation: it does not use one
     assert algo.preview_unreachable() is None
 
 
@@ -241,3 +241,12 @@ def test_the_phase_sent_to_the_slm_is_in_the_fields_for_every_modulator_type(qap
         assert np.all(phase[0] == 0)  # an amplitude modulator has no phase
     else:
         assert np.allclose(phase[0], algo.modulator_field.phase)
+
+
+def test_the_default_compensation_of_the_algorithm_is_used_without_the_app(qapp, monkeypatch):
+    """ INPUT_COMPENSATION is the name of the compensation the algorithm starts with (None: it does not use one)"""
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    app.compensation = None  # the app has not chosen
+    assert type(algo.compensation).__name__ == 'DivideByInput'
+    monkeypatch.setattr(type(algo), 'INPUT_COMPENSATION', 'NoCompensation')
+    assert type(algo.compensation).__name__ == 'NoCompensation'

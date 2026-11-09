@@ -64,7 +64,7 @@ class BinaryHologram(AlgoBase):
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
     INI_PHASE = False  # an amplitude modulator has no phase to initialize
-    INPUT_COMPENSATION = True  # the target is divided by the input beam, see encoded_amplitude
+    INPUT_COMPENSATION = 'DivideByInput'  # the target is divided by the input beam, see encoded_amplitude
     RECOMPUTE_ON_CHANGE = True
 
     _params_carrier = [
@@ -221,7 +221,7 @@ class BinaryThreshold(BinaryHologram):
     STATUS = AlgoStatus.TESTED
     STATUS_NOTE = STATUS_NOTE_CODE_ONLY
     ALGOTYPE = AlgoType.PHASE
-    INPUT_COMPENSATION = False  # a phase hologram: no amplitude to encode
+    INPUT_COMPENSATION = None  # a phase hologram: no amplitude to encode
 
     params = (
         BinaryHologram._params_period +

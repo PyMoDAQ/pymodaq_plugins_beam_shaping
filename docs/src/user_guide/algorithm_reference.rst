@@ -267,5 +267,6 @@ extension. It is in the ``unreachable`` data of the algorithm and its fraction o
 
 A compensation is a class of the package ``algorithms/compensations``, registered with
 ``CompensationFactory.register_compensation()``, with its own ``params``, like an initial phase: another type (for
-instance for a 2f setup) is added by writing one more module. An algorithm that uses it sets ``INPUT_COMPENSATION = True``
-and calls ``self.compensate_target(amplitude)``.
+instance for a 2f setup) is added by writing one more module. An algorithm that uses it sets ``INPUT_COMPENSATION`` to the name of its
+default compensation (``'DivideByInput'`` for the algorithms above, ``None`` for an algorithm that does not use one: the
+group is then hidden) and calls ``self.compensate_target(amplitude)``.
