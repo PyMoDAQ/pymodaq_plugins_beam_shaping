@@ -257,7 +257,7 @@ shaping for the MRAF algorithm using different initial phase type and mixing par
 
 .. note::
    The metrics (NRMSE, Fidelity, Efficiency) are **automatically saved** in the ``.h5beam`` file under
-   ``/RawData/Algorithm/``. See :ref:`h5beam-structure` for details.
+   ``/RawData/Shaping/Final/``. See :ref:`h5beam-structure` for details.
 
 Algorithms provided by other packages
 -------------------------------------
@@ -291,18 +291,20 @@ cells one after the other, editing the settings on the way:
 * *Snap*: ``pg.snap`` runs one step of the algorithm without any mask and plots the intermediate plane of 4f setups
   (intensity in log scale), to see where the mask has to be placed;
 * *Masks*: set ``APPLY_TARGET_MASK`` or ``APPLY_INTERMEDIATE_MASK`` to ``True`` to apply a mask (algorithms such as
-  *Binary Threshold*, *Parallel Lee* and *Superpixel* need the one of the intermediate plane), its region being given in um around the center of the field as the slices shown by the field loader and the extension, along y then along x, that can be pasted as is (``(slice(-100, 100, None), slice(-50, 50, None))``, as text or not; ``((-100, 100), (-50, 50))`` is accepted too) (``None``: the default region
+  *Binary Threshold*, *Parallel Lee* and *Superpixel* need the one of the intermediate plane), its region being given in um as the slices shown by the extension, in its frame (the origin is the corner of the field), along y then along x, that can be pasted as is (``(slice(1073, 5365, None), slice(1073, 5365, None))``, as text or not; ``((1073, 5365), (1073, 5365))`` is accepted too) (``None``: the default region
   of the extension, centered and covering 2/3 of the effective area of the SLM in the plane, printed to be edited). The cell
   draws the outline of the intermediate mask on the plot of the snap, which is updated (not created again): run it
   again until the mask is right.
 
 The *Run* cell can save the output of each iteration: ``SAVE_FIELDS`` (``True`` for all the fields, the amplitude and
 phase of the output and modulator planes and the intensity of the intermediate one, or the names of some of them such
-as ``('modulator/phase',)``) and ``SAVE_METRICS``, both off by default. The format is the one of the continuous saving
-of the extension: a group ``/RawData/ShapingXXX`` per run, holding the data enlarged along a ``step`` axis, with the
-settings of the run, saved as in the extension: the name of the algorithm, the number of iterations, the initial phase
+as ``('modulator/phase',)``) and ``SAVE_METRICS``, both off by default. ``SAVE_FINAL`` saves once, at the end of the run, all the fields and the metrics of the last iteration, as the *Save* action of the extension does, whatever is saved at each iteration. The format is the one of the continuous saving
+of the extension: a group ``/RawData/ShapingXXX`` per run, with the settings of the run, holding one sub group for each kind of data: ``Fields`` (the fields saved at each iteration) and ``Metrics`` (the metrics), each enlarged along its own ``step`` navigation axis, ``Final`` (the fields saved once at the end, without navigation axis, as in the extension's *Save*, whose main group is the same ``Shaping`` group, without index) and the ``Input`` and ``Target`` groups (the fields as used by the algorithm, with the settings of their loaders, as the *Input* and *Target* groups of the extension's *Save*, readable with the same function). The sub groups of the data per iteration and ``Final`` are only created if requested. The settings of the run are saved
+as in the extension: the name of the algorithm, the number of iterations, the initial phase
 and its parameters, the masks (applied or not, type and slices) and the parameters of the algorithm. ``SAVE_FILE`` gives the file (created if needed, the runs being added to it); with ``None``
 a file is created in the PyMoDAQ data folder at the first saved run and holds the next ones. Its path is printed (``algo.saved_h5file``).
+
+The script ``scripts/plot_convergence.py`` plots the convergence of the saved metrics (one panel per metric against the iteration) from the ``Metrics`` group of a saved run.
 
 During the run of an iterative algorithm, the index of the iteration and the metrics (fitness and efficiency) are printed after each iteration (``verbose=False`` in ``pg.run_algorithm`` to silence it).
 

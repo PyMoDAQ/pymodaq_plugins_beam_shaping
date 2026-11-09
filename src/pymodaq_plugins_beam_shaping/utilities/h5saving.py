@@ -4,6 +4,7 @@ from typing import Callable, Union, List, Tuple, TYPE_CHECKING, Iterable
 import xml.etree.ElementTree as ET
 
 from pymodaq_data.h5modules.backends import GROUP, Node
+from pymodaq_data.data import DataDim
 import numpy as np
 
 from pymodaq_data.h5modules.data_saving import (DataToExportEnlargeableSaver, DataToExport, DataToExportSaver,
@@ -20,25 +21,90 @@ from pymodaq_gui.h5modules.saving import H5Saver
 
 from pymodaq_plugins_beam_shaping.utilities.shaper import ModulatorType
 
-extend_enum(GroupModuleType, 'SHAPING')
+if TYPE_CHECKING:
+    from pymodaq_plugins_beam_shaping.field.field import Field
+
+# SHAPING: the group of a run or of a saved session; FIELDS, METRICS: the sub groups of the group of a run saved at each
+# step, each one by its own ModuleSaver
+for _name in ('SHAPING', 'FIELDS', 'METRICS'):
+    if _name not in GroupModuleType.__members__:  # a module reload (ipython autoreload) must not extend it again
+        extend_enum(GroupModuleType, _name)
+
+
+class ShapingChildSaver(ModuleSaver):
+    """ Saver of one sub group of the group of a run (the current fields, the metrics, the final fields...)
+
+    As the savers of the control modules in the group of an extension: it owns its group, and the data saver adapted
+    to it, enlargeable (with its own navigation axis) or not
+
+    Parameters
+    ----------
+    group_type: GroupModuleType
+        the type of the sub group (FIELDS, METRICS or FINAL), its name is derived from it
+    enlargeable: bool
+        the data are enlarged at each step along a navigation axis, otherwise saved once
+    """
+    def __init__(self, group_type: GroupModuleType, enlargeable: bool = True,
+                 enl_axis_names=('step',), enl_axis_units=('',)):
+        self.group_type = group_type
+        self.title = group_type.name.capitalize()
+        self.enlargeable = enlargeable
+        self.enl_axis_names = enl_axis_names
+        self.enl_axis_units = enl_axis_units
+        self._module = self  # the title of the module is the one of the group
+        self._module_group: GROUP = None
+        self._h5saver: H5Saver = None
+        self._datatoexport_saver: Union[DataToExportEnlargeableSaver, DataToExportSaver] = None
+
+    def update_after_h5changed(self):
+        if self.enlargeable:
+            self._datatoexport_saver = DataToExportEnlargeableSaver(
+                self.h5saver, self.enl_axis_names, self.enl_axis_units)
+        else:
+            self._datatoexport_saver = DataToExportSaver(self.h5saver)
+
+    def _add_module(self, where: Union[Node, str] = None, metadata=None) -> Node:
+        # not indexed: there is one per run, in the group of the run
+        return self._h5saver.add_group(self.title, self.group_type.name, where, title=self.title,
+                                       metadata=metadata or {})
+
+    def add_data(self, where: Union[Node, str], dte: DataToExport,
+                 axis_values: List[Union[float, np.ndarray]] = None, **kwargs):
+        if self.enlargeable:
+            self._datatoexport_saver.add_data(where, dte, axis_values=axis_values)
+        else:
+            self._datatoexport_saver.add_data(where, dte)
 
 
 class ShapingSaver(ModuleSaver):
+    """ Saver of the group of a run (ShapingXXX) with the savers of its sub groups: the fields and the metrics at each
+    step (``fields``, ``metrics``, each enlarged along its own step axis), the fields saved once at the end (``Final``) and the
+    input and target fields (``Input``, ``Target``)"""
     group_type = GroupModuleType.SHAPING
 
-    def __init__(self):
+    def __init__(self, indexed: bool = True):
+        """
+        Parameters
+        ----------
+        indexed: bool
+            the group of a run is named ShapingXXX with the next index (several runs in a file), otherwise Shaping
+            (a file saved at once, as the Save of the extension)
+        """
         self._module = None
         self._module_group: GROUP = None
         self._h5saver: H5Saver = None
+        self.indexed = indexed
 
         self.enl_axis_names = ('step',)
         self.enl_axis_units = ('',)
 
-        self._datatoexport_saver: DataToExportEnlargeableSaver = None
+        self.fields = ShapingChildSaver(GroupModuleType.FIELDS)
+        self.metrics = ShapingChildSaver(GroupModuleType.METRICS)
+        self.children = (self.fields, self.metrics)
 
     def update_after_h5changed(self):
-        self._datatoexport_saver = DataToExportEnlargeableSaver(
-            self.h5saver, self.enl_axis_names, self.enl_axis_units)
+        for child in self.children:
+            child.h5saver = self.h5saver
 
     def get_set_node(self, where: Union[Node, str] = None, new=False,
                      settings_as_xml= None, common_data: DataToExport = None) -> GROUP:
@@ -78,12 +144,23 @@ class ShapingSaver(ModuleSaver):
             where = self._h5saver.raw_group
 
 
-        return self._h5saver.add_incremental_group(self.group_type, where, title='BeamShaping',
-                                                   settings_as_xml=settings_as_xml, metadata=metadata)
+        if self.indexed:
+            return self._h5saver.add_incremental_group(self.group_type, where, title='BeamShaping',
+                                                       settings_as_xml=settings_as_xml, metadata=metadata)
+        group = self._h5saver.add_group('Shaping', self.group_type.name, where, title='BeamShaping',
+                                        metadata=metadata)
+        self._h5saver.set_attr(group, 'settings', settings_as_xml)
+        return group
 
 
-    def add_data(self, dte: DataToExport, axis_values: List[Union[float, np.ndarray]] = None, **kwargs):
-        """ Append data to the last group, as the next step of the enlargeable arrays
+    def _child_node(self, child: ShapingChildSaver) -> GROUP:
+        """ The group of a child saver in the group of the current run, created at first use"""
+        return child.get_set_node(self.get_last_node(self._h5saver.raw_group), name=child.title)
+
+    def add_data(self, dte: DataToExport, axis_values: List[Union[float, np.ndarray]] = None,
+                 child: ShapingChildSaver = None, **kwargs):
+        """ Append data as the next step of the enlargeable arrays, in the sub group of ``child`` (by default
+        the group of the run)
 
         Parameters
         ----------
@@ -92,14 +169,55 @@ class ShapingSaver(ModuleSaver):
         axis_values: list of float
             the value of the 'step' axis for these data. By default, the number of data already saved
             (the N_saved setting of the H5Saver)
+        child: ShapingChildSaver
+            ``fields`` or ``metrics``: the sub group where to append the data, with its own step axis
         """
         if axis_values is None:
             axis_values = (self.h5saver.settings['N_saved'],)
-        self._datatoexport_saver.add_data(self.get_last_node(self._h5saver.raw_group), dte,
-                                          axis_values=axis_values)
+        if child is None:
+            raise ValueError('The data are saved in the sub group of a child saver: fields, metrics or final')
+        child.add_data(self._child_node(child), dte, axis_values=axis_values)
+
+    def add_group_data(self, dte: DataToExport, group_name: str, title: str = '', settings_as_xml=''):
+        """ Save data once in the sub group ``group_name`` of the current run (as the control modules save theirs in the
+        group of an extension), so that they share its settings and attributes, whatever is saved at each step
+
+        The data and the group are saved by the code shared with the Save of the extension, see
+        :func:`add_algorithm_group`"""
+        saver = DataToExportSaver(self._h5saver)  # not as a context manager: it closes the file
+        return add_algorithm_group(saver, dte, where=self.get_last_node(self._h5saver.raw_group),
+                                   group_name=group_name, title=title or group_name, settings_as_xml=settings_as_xml)
+
+    def add_final_data(self, dte: DataToExport):
+        """ Save all the fields once in the ``Final`` sub group of the current run, e.g. at the end of a run"""
+        return self.add_group_data(dte, 'Final', 'Final Fields')
+
+    def add_loaded_field(self, field: 'Field', settings: Iterable = (), group_name: str = 'Input'):
+        """ Save once a field (its amplitude and phase) in the sub group ``group_name`` of the current run, with the
+        settings of the loader that produced it as the metadata of the group.
+
+        The same group (``Input`` and ``Target``) and format as the save of the extension, shared code
+        (:func:`add_field_group`): it can be read with :func:`load_field_from_h5`"""
+        from pymodaq_data.h5modules.data_saving import DataSaverLoader
+        from pymodaq_plugins_beam_shaping.field.h5 import add_field_group
+        add_field_group(DataSaverLoader(self._h5saver), field, settings,  # not as a context manager: it closes the file
+                        where=self.get_last_node(self._h5saver.raw_group), group_name=group_name,
+                        title=f'{group_name} Field')
 
     def add_data_bundle(self, data: DataBundle):
         self.add_data(data.dte, axis_values=data.axis_values)
+
+
+def add_algorithm_group(saver: DataToExportSaver, dte: DataToExport, where: Union[Node, str] = '/RawData',
+                        group_name: str = 'Algorithm', title: str = '', settings_as_xml: Union[bytes, str] = ''):
+    """ Add to an opened file a group holding the fields of an algorithm (the output of ``get_fields_to_plot``) and,
+    optionally, the settings that produced them
+
+    Shared by the Save of the extension (the ``Algorithm`` group) and by the saved runs (the ``Final`` group)"""
+    group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_as_xml,
+                                 group_name=group_name)
+    saver.add_data(group, dte)
+    return group
 
 
 VERSION_ATTRIBUTE = 'pymodaq_plugins_beam_shaping_version'
@@ -174,7 +292,7 @@ def configure_h5saver(h5saver: H5Saver, base_name: str = 'Shaping') -> H5Saver:
     return h5saver
 
 
-class ContinuousSaver:
+class RunSaver:
     """ Save the output of an algorithm at each iteration in a h5 file
 
     The format of the continuous saving of the AlgoApp: a group /RawData/ShapingXXX (ShapingSaver) per run, holding the
@@ -270,10 +388,31 @@ class ContinuousSaver:
         data = select_data_to_save(dte, self.fields, self.metrics)
         if len(data) == 0:
             return
-        self.module_saver.add_data(data, axis_values=[self._step])
+        # the metrics and the fields in their own sub group, each with its own step axis
+        saver = self.module_saver
+        for child, selected in ((saver.metrics, [dwa for dwa in data if dwa.name == 'metrics']),
+                                (saver.fields, [dwa for dwa in data if dwa.name != 'metrics'])):
+            if selected:
+                self.module_saver.add_data(DataToExport('tosave', data=selected), axis_values=[self._step],
+                                           child=child)
         self._step += 1
         self.h5saver.settings.child('N_saved').setValue(self._step)
         self.h5saver.flush()  # the content of the file is up to date at each step, e.g. to browse it while paused
+
+    def add_loaded_fields(self, input_field: 'Field' = None, target_field: 'Field' = None,
+                          input_settings: Iterable = (), target_settings: Iterable = ()):
+        """ Save the input and the target fields of a run, each in its sub group (``Input``, ``Target``) of the group of
+        the current run, with the settings of the loaders as the metadata of the group (as the extension does)"""
+        for name, field, settings in (('Input', input_field, input_settings), ('Target', target_field, target_settings)):
+            if field is not None:
+                self.module_saver.add_loaded_field(field, settings, name)
+        self.h5saver.flush()
+
+    def add_final(self, dte: DataToExport):
+        """ Save all the data of the output of an algorithm (every field, the metrics, the unreachable region...) once,
+        in the ``Final`` sub group of the group of the current run, whatever the data saved at each step"""
+        self.module_saver.add_final_data(dte.deepcopy())
+        self.h5saver.flush()
 
     def finalize(self):
         """ Make the file consistent: end the SWMR mode if it was activated

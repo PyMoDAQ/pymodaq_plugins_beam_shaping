@@ -32,7 +32,10 @@ for name in ALGORITHMS:
     pg.set_fields(algo, input_field, target_field)
     # the order to filter, as given by the algorithm, in um from the center of the intermediate plane
     y, x = np.array(algo.order_frequency()) * regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)
-    mask = ((y - MASK_HALF_SIZE, y + MASK_HALF_SIZE), (x - MASK_HALF_SIZE, x + MASK_HALF_SIZE))
+    center_y, center_x = np.array(algo.shape) * regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes) / 2
+    # in the frame of the extension: the origin is the corner of the field
+    mask = ((center_y + y - MASK_HALF_SIZE, center_y + y + MASK_HALF_SIZE),
+            (center_x + x - MASK_HALF_SIZE, center_x + x + MASK_HALF_SIZE))
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, mask, 'elliptical')
     pg.run_algorithm(algo)
     output = algo.output_field

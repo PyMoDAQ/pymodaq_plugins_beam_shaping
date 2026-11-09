@@ -59,3 +59,11 @@ def test_algorithm_file_of_the_app_has_the_version(qtbot, dockarea, tmp_path):
     app._algorithm = algo
     app.save(tmp_path / 'algo.h5')
     check_version(tmp_path / 'algo.h5')
+
+
+def test_saving_module_can_be_reloaded():
+    """ The group types are extended only once (reloading the module, as ipython autoreload does, must not fail)"""
+    import importlib
+    from pymodaq_plugins_beam_shaping.utilities import h5saving
+    importlib.reload(h5saving)
+    assert {'SHAPING', 'FIELDS', 'METRICS'} <= set(h5saving.GroupModuleType.__members__)
