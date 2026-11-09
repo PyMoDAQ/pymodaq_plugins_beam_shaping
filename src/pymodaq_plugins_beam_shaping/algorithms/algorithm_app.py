@@ -41,8 +41,9 @@ from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.algorithms.algo_config import AlgoConfig
-from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, ContinuousSaver, FIELDS_SAVED_BY_THE_APP,
+from pymodaq_plugins_beam_shaping.utilities.h5saving import (ShapingSaver, RunSaver, FIELDS_SAVED_BY_THE_APP,
                                                               configure_h5saver, fields_of_modulator, algorithm_name_settings,
+                                                              add_algorithm_group,
                                                               add_plugin_version)
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 
@@ -109,7 +110,7 @@ def status_text(algo_class: type[AlgoBase]) -> str:
 class AlgoApp(CustomApp):
     save_settings = True
     ALGORITHM_COMBO_TIP = 'select the algorithm to compute the phase'
-    h5_base_group_name = ContinuousSaver.base_name  # the name of the files of the H5Manager
+    h5_base_group_name = RunSaver.base_name  # the name of the files of the H5Manager
     show_h5file_statusbar_widgets = True  # the LED of the state of the h5 file (and SWMR) of the H5Manager
     params = [
 
@@ -175,7 +176,7 @@ class AlgoApp(CustomApp):
         self._current_phase: np.ndarray = None  # cached phase to be used for subsequent optimizations
 
         # the continuous saving writes in the file of the H5Manager of the app (CustomApp.h5_manager)
-        self._continuous_saver = ContinuousSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True,
+        self._run_saver = RunSaver(fields=FIELDS_SAVED_BY_THE_APP, metrics=True,
                                                  h5saver_provider=self._get_h5saver)
         self._h5saver_configured = False
 
@@ -201,7 +202,7 @@ class AlgoApp(CustomApp):
     def _configure_h5saver(self):
         """ Set the H5Saver of the H5Manager for the continuous saving, before its first file is created"""
         if not self._h5saver_configured:
-            configure_h5saver(self.h5_manager.get_h5saver(create_new_file=False), ContinuousSaver.base_name)
+            configure_h5saver(self.h5_manager.get_h5saver(create_new_file=False), RunSaver.base_name)
             self._h5saver_configured = True
 
     def _get_h5saver(self) -> H5Saver:
@@ -210,13 +211,13 @@ class AlgoApp(CustomApp):
         return self.h5_manager.h5saver
 
     @property
-    def continuous_saver(self) -> ContinuousSaver:
-        return self._continuous_saver
+    def run_saver(self) -> RunSaver:
+        return self._run_saver
 
     @property
     def module_and_data_saver(self) -> Union[ShapingSaver, None]:
         """ The saver of the continuous saving, None until it is used"""
-        return self._continuous_saver.module_saver if self._continuous_saver.is_set else None
+        return self._run_saver.module_saver if self._run_saver.is_set else None
 
     @property
     def h5saver(self) -> H5Saver:
@@ -228,8 +229,8 @@ class AlgoApp(CustomApp):
 
     def _finalize_saving(self):
         """ Make the file consistent (SWMR ended, shapes up to date): on pause, stop and before closing it"""
-        if self._continuous_saver.is_set:
-            self._continuous_saver.finalize()
+        if self._run_saver.is_set:
+            self._run_saver.finalize()
             self.h5_manager.update_file_status_led()
 
     def do_save_continuous(self, dosave: bool = True):
@@ -241,14 +242,14 @@ class AlgoApp(CustomApp):
             if self._algorithm is not None:
                 settings = [algorithm_name_settings(self._algorithm.ALGO_NAME)] + settings + [self._algorithm.settings]
             # what is sent to the shaper: the phase for a phase modulator, the amplitude for an amplitude one...
-            self._continuous_saver.fields = fields_of_modulator(self.shaper.modulator_type)
-            self._continuous_saver.start(settings_as_xml=settings_to_xml(settings))
+            self._run_saver.fields = fields_of_modulator(self.shaper.modulator_type)
+            self._run_saver.start(settings_as_xml=settings_to_xml(settings))
 
     def save_continuous(self, dte: DataToExport):
         """ Save the part of the output of the algorithm chosen in the continuous saver (modulator phase and metrics)
         """
-        if self._continuous_saver.is_set:
-            self._continuous_saver.add(dte)
+        if self._run_saver.is_set:
+            self._run_saver.add(dte)
 
     def quit_fun(self):
         super().quit_fun()
@@ -283,9 +284,8 @@ class AlgoApp(CustomApp):
                                             self.algorithm.settings))
 
             with DataToExportSaver(fname, new_file=new_file, save_type=SaveType.custom) as saver:
-                group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_str,
-                                             group_name=group_name)
-                saver.add_data(group, self.algorithm.get_fields_to_plot())
+                add_algorithm_group(saver, self.algorithm.get_fields_to_plot(), where, group_name, title,
+                                    settings_as_xml=settings_str)
                 add_plugin_version(saver)
 
 

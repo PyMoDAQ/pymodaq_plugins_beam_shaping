@@ -385,10 +385,10 @@ def test_runs_added_to_the_same_file(qapp, tmp_path):
 
 def test_saving_resumed_after_a_pause_in_the_same_group(qapp, tmp_path):
     """ finalize (pause) makes the attributes of the file right, the next steps are appended to the same group"""
-    from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver
+    from pymodaq_plugins_beam_shaping.utilities.h5saving import RunSaver
     app, algo = prepare('Gerchberg-Saxton')
     pg.run_algorithm(algo)
-    saver = ContinuousSaver(fields=('modulator/phase',), metrics=True)
+    saver = RunSaver(fields=('modulator/phase',), metrics=True)
     saver.open_file(tmp_path / 'pause.h5')
     saver.start()
     for _ in range(2):
@@ -408,10 +408,10 @@ def test_all_fields_saved_once_at_the_end_in_the_group_of_the_run(qapp, tmp_path
     pg.run_algorithm(algo, 3, save_metrics=True, save_final=True, h5file=path)
     with h5py.File(path, 'r') as f:
         run = f['RawData/Shaping000']
-        assert set(run) >= {'Final000', 'Metrics000'}  # no per step fields were asked for
+        assert set(run) >= {'Final', 'Metrics000'}  # no per step fields were asked for
         assert 'Fields000' not in run
         assert 'settings' in run.attrs  # the settings of the run are those of the group holding the final data
-        arrays = [d for d in f['RawData/Shaping000/Final000/Data2D'].values()]
+        arrays = [d for d in f['RawData/Shaping000/Final/Data2D'].values()]
         assert len(arrays) == 4  # output and modulator amplitude and phase
         amp = [a for a in arrays if a.attrs['origin'] == 'output'][0]
         assert any(np.allclose(ds[...], algo.output_field.amplitude) for ds in amp.values() if hasattr(ds, 'shape')
@@ -427,7 +427,7 @@ def test_final_saving_alone(qapp, tmp_path):
     path = tmp_path / 'final_only.h5'
     pg.run_algorithm(algo, 2, save_final=True, h5file=path)
     with h5py.File(path, 'r') as f:
-        assert 'Final000' in f['RawData/Shaping000']
+        assert 'Final' in f['RawData/Shaping000']
         assert 'Fields000' not in f['RawData/Shaping000'] and 'Metrics000' not in f['RawData/Shaping000']
 
 
@@ -450,9 +450,32 @@ def test_fields_and_metrics_each_in_their_sub_group_with_their_step_axis(qapp, t
                      h5file=path)
     with h5py.File(path, 'r') as f:
         run = f['RawData/Shaping000']
-        assert set(run) >= {'Fields000', 'Metrics000', 'Final000'}
+        assert set(run) >= {'Fields000', 'Metrics000', 'Final'}
         for name in ('Fields000', 'Metrics000'):
             assert run[name]['NavAxes']['Axis00'].shape == (3,)
-        assert 'NavAxes' not in run['Final000']
+        assert 'NavAxes' not in run['Final']
         assert run['Fields000']['Data2D']['CH00']['EnlData00'].shape[0] == 3
         assert 'Data0D' not in run['Fields000'] and 'Data2D' not in run['Metrics000']
+
+
+def test_input_and_target_saved_with_the_settings_of_their_loaders(qapp, tmp_path):
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'loaders.h5'
+    pg.run_algorithm(algo, 2, save_metrics=True, h5file=path)
+    with DataLoader(path) as loader:
+        run = '/RawData/Shaping000'
+        for name, loader_name in (('Input', 'ImageFiles'), ('Target', 'LaguerreGaussian')):
+            node = loader.get_node(f'{run}/{name}')
+            settings = node.attrs['settings']
+            settings = settings.decode() if isinstance(settings, bytes) else settings
+            assert loader_name in settings  # the settings of the loader that produced the field
+            assert 'needed_size' in settings
+    # in the format of the field files: readable by load_field_from_h5, as the Input and Target groups of the extension
+    from pymodaq_plugins_beam_shaping.field.h5 import load_field_from_h5
+    saved_input = load_field_from_h5(path, f'{run}/Input/Data00')
+    saved_target = load_field_from_h5(path, f'{run}/Target/Data00')
+    assert np.allclose(saved_input.amplitude, algo._input_field.amplitude)
+    assert np.allclose(saved_target.amplitude, algo._target_field.amplitude)  # as used by the algorithm
+    # they are saved once (no step axis) and not part of the data saved at each iteration
+    assert 'input/amplitude' not in load_saved(path)

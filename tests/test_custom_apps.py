@@ -79,7 +79,7 @@ def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
         app.save_continuous(algo.get_fields_to_plot())
         assert len(flushed) > n_flushes
     del app.h5saver.flush
-    assert app.continuous_saver.file_path == tmp_path / 'continuous.h5'
+    assert app.run_saver.file_path == tmp_path / 'continuous.h5'
     app._finalize_saving()  # as when the algorithm is paused: the attributes of the arrays are up to date
     from test_algorithm_playground import check_enlarged_nodes
     check_enlarged_nodes(tmp_path / 'continuous.h5', 2)

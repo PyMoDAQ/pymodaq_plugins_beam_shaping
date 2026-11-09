@@ -22,10 +22,9 @@ from pymodaq_gui.h5modules.saving import H5Saver
 from pymodaq_plugins_beam_shaping.utilities.shaper import ModulatorType
 
 extend_enum(GroupModuleType, 'SHAPING')
-# the sub groups of the group of a run, each one saved by its own ModuleSaver (named Fields000, Metrics000, Final000)
+# the sub groups of the group of a run saved at each step, each one by its own ModuleSaver (Fields000, Metrics000)
 extend_enum(GroupModuleType, 'FIELDS')
 extend_enum(GroupModuleType, 'METRICS')
-extend_enum(GroupModuleType, 'FINAL')
 
 
 class ShapingChildSaver(ModuleSaver):
@@ -74,7 +73,8 @@ class ShapingChildSaver(ModuleSaver):
 
 class ShapingSaver(ModuleSaver):
     """ Saver of the group of a run (ShapingXXX) with the savers of its sub groups: the fields and the metrics at each
-    step (``fields``, ``metrics``, each enlarged along its own step axis) and the fields saved once (``final``)"""
+    step (``fields``, ``metrics``, each enlarged along its own step axis), the fields saved once at the end (``Final``) and the
+    input and target fields (``Input``, ``Target``)"""
     group_type = GroupModuleType.SHAPING
 
     def __init__(self):
@@ -87,8 +87,7 @@ class ShapingSaver(ModuleSaver):
 
         self.fields = ShapingChildSaver(GroupModuleType.FIELDS)
         self.metrics = ShapingChildSaver(GroupModuleType.METRICS)
-        self.final = ShapingChildSaver(GroupModuleType.FINAL, enlargeable=False)
-        self.children = (self.fields, self.metrics, self.final)
+        self.children = (self.fields, self.metrics)
 
     def update_after_h5changed(self):
         for child in self.children:
@@ -163,11 +162,38 @@ class ShapingSaver(ModuleSaver):
 
     def add_final_data(self, dte: DataToExport):
         """ Save data once in the ``Final`` sub group of the current run, so that they share its settings and
-        attributes with the data saved at each step, e.g. all the fields at the end of a run"""
-        self.final.add_data(self._child_node(self.final), dte)
+        attributes with the data saved at each step, e.g. all the fields at the end of a run (as the Save of the
+        extension does, with the same code: :func:`add_algorithm_group`)"""
+        saver = DataToExportSaver(self._h5saver)  # not as a context manager: it closes the file
+        return add_algorithm_group(saver, dte, where=self.get_last_node(self._h5saver.raw_group),
+                                   group_name='Final', title='Final Fields')
+
+    def add_loaded_field(self, field: 'Field', settings: Iterable = (), group_name: str = 'Input'):
+        """ Save once a field (its amplitude and phase) in the sub group ``group_name`` of the current run, with the
+        settings of the loader that produced it as the metadata of the group.
+
+        The same group (``Input`` and ``Target``) and format as the save of the extension, shared code
+        (:func:`add_field_group`): it can be read with :func:`load_field_from_h5`"""
+        from pymodaq_data.h5modules.data_saving import DataSaverLoader
+        from pymodaq_plugins_beam_shaping.field.h5 import add_field_group
+        add_field_group(DataSaverLoader(self._h5saver), field, settings,  # not as a context manager: it closes the file
+                        where=self.get_last_node(self._h5saver.raw_group), group_name=group_name,
+                        title=f'{group_name} Field')
 
     def add_data_bundle(self, data: DataBundle):
         self.add_data(data.dte, axis_values=data.axis_values)
+
+
+def add_algorithm_group(saver: DataToExportSaver, dte: DataToExport, where: Union[Node, str] = '/RawData',
+                        group_name: str = 'Algorithm', title: str = '', settings_as_xml: Union[bytes, str] = ''):
+    """ Add to an opened file a group holding the fields of an algorithm (the output of ``get_fields_to_plot``) and,
+    optionally, the settings that produced them
+
+    Shared by the Save of the extension (the ``Algorithm`` group) and by the saved runs (the ``Final`` group)"""
+    group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_as_xml,
+                                 group_name=group_name)
+    saver.add_data(group, dte)
+    return group
 
 
 VERSION_ATTRIBUTE = 'pymodaq_plugins_beam_shaping_version'
@@ -242,7 +268,7 @@ def configure_h5saver(h5saver: H5Saver, base_name: str = 'Shaping') -> H5Saver:
     return h5saver
 
 
-class ContinuousSaver:
+class RunSaver:
     """ Save the output of an algorithm at each iteration in a h5 file
 
     The format of the continuous saving of the AlgoApp: a group /RawData/ShapingXXX (ShapingSaver) per run, holding the
@@ -348,6 +374,15 @@ class ContinuousSaver:
         self._step += 1
         self.h5saver.settings.child('N_saved').setValue(self._step)
         self.h5saver.flush()  # the content of the file is up to date at each step, e.g. to browse it while paused
+
+    def add_loaded_fields(self, input_field: 'Field' = None, target_field: 'Field' = None,
+                          input_settings: Iterable = (), target_settings: Iterable = ()):
+        """ Save the input and the target fields of a run, each in its sub group (``Input``, ``Target``) of the group of
+        the current run, with the settings of the loaders as the metadata of the group (as the extension does)"""
+        for name, field, settings in (('Input', input_field, input_settings), ('Target', target_field, target_settings)):
+            if field is not None:
+                self.module_saver.add_loaded_field(field, settings, name)
+        self.h5saver.flush()
 
     def add_final(self, dte: DataToExport):
         """ Save all the data of the output of an algorithm (every field, the metrics, the unreachable region...) once,

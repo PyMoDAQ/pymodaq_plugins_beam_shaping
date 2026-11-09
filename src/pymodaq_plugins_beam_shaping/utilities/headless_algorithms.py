@@ -20,7 +20,7 @@ from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, regi
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
-from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver, algorithm_name_settings
+from pymodaq_plugins_beam_shaping.utilities.h5saving import RunSaver, algorithm_name_settings
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 from pymodaq_data import Q_
@@ -91,6 +91,8 @@ class HeadlessApp:
     def __init__(self, shaper: Shaper):
         self.shaper = shaper
         self.algorithm = None
+        self.loaded_fields = []  # (field, loader) of the fields loaded with load_field, to save the loader settings
+        self.field_loaders = {'input': None, 'target': None}  # the loaders of the fields given to the algorithm
         self.masks = {str(ApplyMaskTo.TARGET): None, str(ApplyMaskTo.INTERMEDIATE): None}
         shape = sizing.get_effective_needed_field_size(shaper)
         pixel_size = sizing.get_effective_slm_pixel_size(shaper)
@@ -198,11 +200,28 @@ def load_field(loader_name: str, params: Optional[dict], app: HeadlessApp):
     field = loader.load_field(notify=False)
     shape = sizing.get_effective_needed_field_size(app.shaper)
     pixel_size = Q_(sizing.get_effective_slm_pixel_size(app.shaper), 'um')
-    return fit_to_shape(field, shape, (pixel_size, pixel_size))
+    field = fit_to_shape(field, shape, (pixel_size, pixel_size))
+    app.loaded_fields.append((field, loader))
+    return field
+
+
+def loader_settings(app: HeadlessApp, loader) -> list:
+    """ The settings of a loader to save with the field it produced, laid out as the field loader app of the extension
+    does when it saves a field: its settings (loader name, needed size) and the ones of the loader"""
+    from pyqtgraph.parametertree import Parameter
+    loader_app = Parameter.create(name='LoaderAppSettings', type='group', children=[
+        {'name': 'loader', 'title': 'Loader', 'type': 'str', 'value': type(loader).LOADER_NAME}])
+    loader_app.addChild(Parameter.create(name='needed_size', title='Needed size', type='group', children=[
+        {'name': child.name(), 'title': child.title(), 'type': child.type(), 'value': child.value()}
+        for child in app.settings.child('needed_size').children()]))
+    return [loader_app, loader.settings]
 
 
 def set_fields(algo, input_field, target_field):
     """ Give the input and target fields to the algorithm, as the app does (the target is scaled by the algo)"""
+    app = algo.parent_app
+    for role, field in (('input', input_field), ('target', target_field)):  # keep the loader of each, to save it
+        app.field_loaders[role] = next((loader for loaded, loader in app.loaded_fields if loaded is field), None)
     algo.set_modulator_field(input_field.deepcopy())
     algo.set_input_field(input_field)
     algo.set_target_field(algo.scale_target_with_geometry(target_field))
@@ -324,16 +343,22 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
     if save_fields or save_metrics or save_final:
         global _data_folder_saver
         if h5file is not None:
-            saver = ContinuousSaver()
+            saver = RunSaver()
             saver.open_file(h5file)
         else:  # one file in the data folder for the session (the file name has a one second resolution)
             if _data_folder_saver is None:
-                _data_folder_saver = ContinuousSaver()
+                _data_folder_saver = RunSaver()
             saver = _data_folder_saver
         saver.fields, saver.metrics = save_fields, save_metrics
         saver.start(settings_as_xml=settings_to_xml((
             algorithm_name_settings(type(algo).ALGO_NAME),
             run_settings(algo, algo.parent_app, ini_phase, ini_phase_params, n_iterations), algo.settings)))
+        # the input and target fields as used by the algorithm, with the settings of their loaders
+        app = algo.parent_app
+        saver.add_loaded_fields(
+            algo._input_field, algo._target_field,
+            *[loader_settings(app, app.field_loaders[role]) if app.field_loaders[role] is not None else ()
+              for role in ('input', 'target')])
     try:
         algo.do_things_after_init()
         if algo.INI_PHASE:
