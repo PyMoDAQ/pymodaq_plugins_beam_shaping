@@ -34,6 +34,7 @@ from pymodaq_gui.utils.status_palette import Status, StatusPalette
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
 from pymodaq_plugins_beam_shaping.algorithms.algo_base import AlgoBase
 from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, PhaseBase
+from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationFactory, CompensationBase
 from pymodaq_plugins_beam_shaping.algorithms.stopping import StoppingFactory, StoppingBase
 from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoStatus, ApplyMaskTo, LensSetup, CrossTalk,
                                                            PhaseManipulation)
@@ -53,6 +54,7 @@ logger = set_logger(get_module_name(__file__))
 
 algo_factory = AlgorithmFactory()
 phase_factory = PhaseFactory()
+compensation_factory = CompensationFactory()
 stopping_factory = StoppingFactory()
 algo_config = AlgoConfig()
 
@@ -120,6 +122,16 @@ class AlgoApp(CustomApp):
               'limits': phase_factory.phases},
              {'title': 'Phase Parameters', 'name': 'phase_params', 'type': 'group', 'children': []},
          ]},
+        {'title': 'Input Compensation', 'name': 'compensation_group', 'type': 'group',
+         'tip': 'Compensation of the profile of the input beam, for the algorithms that compute the pattern of the '
+                'modulator from the target (they use it, the others do not show this group)',
+         'children': [
+             {'title': 'Compensation:', 'name': 'compensation_factory', 'type': 'list',
+              'value': 'DivideByInput' if 'DivideByInput' in compensation_factory.compensations
+              else compensation_factory.compensations[0],
+              'limits': compensation_factory.compensations},
+             {'title': 'Compensation Parameters', 'name': 'compensation_params', 'type': 'group', 'children': []},
+         ]},
         {'title': 'Stopping Criteria:', 'name': 'stopping', 'expanded': True, 'type': 'group',
          'children': [
              {'title': 'Stopping Type', 'name': 'stopping_type', 'type': 'list',
@@ -158,6 +170,7 @@ class AlgoApp(CustomApp):
     command_runner = QtCore.Signal(ThreadCommand)
     slm_field_signal = QtCore.Signal(Field)
     algo_changed = QtCore.Signal(AlgoBase)
+    compensation_changed = QtCore.Signal()  # the compensation of the input beam or one of its parameters changed
     fields_to_plot = QtCore.Signal(DataToExport)
 
     def __init__(self, dockarea, toolbar: QtWidgets.QToolBar=None, shaper: Shaper = None):
@@ -191,6 +204,12 @@ class AlgoApp(CustomApp):
                 {'title': phase, 'name': phase, 'type': 'group',
                  'visible': self.settings['ini_phase_group', 'ini_phase_factory'] == phase,
                  'children': phase_factory.get_phase(phase).params})
+
+        for compensation in compensation_factory.compensations:
+            self.settings.child('compensation_group', 'compensation_params').addChild(
+                {'title': compensation, 'name': compensation, 'type': 'group',
+                 'visible': self.settings['compensation_group', 'compensation_factory'] == compensation,
+                 'children': compensation_factory.get_compensation(compensation).params})
 
         for stop in stopping_factory.stops:
             self.settings.child('stopping').addChild(
@@ -347,6 +366,7 @@ class AlgoApp(CustomApp):
             plugin_config.save()
 
             self.settings.child('ini_phase_group').show(self._algorithm.INI_PHASE)
+            self.settings.child('compensation_group').show(self._algorithm.INPUT_COMPENSATION)
             self.settings.child(str(ApplyMaskTo.INTERMEDIATE)).show(self._algorithm.SETUP_TYPE == LensSetup.FourF)
             self.settings.child('stopping').show(self._algorithm.ITERATIVE == True)
 
@@ -384,6 +404,13 @@ class AlgoApp(CustomApp):
             self.settings.child('ini_phase_group', 'phase_params',
                                 self.settings['ini_phase_group', 'ini_phase_factory']),
         self.algorithm)
+
+    @property
+    def compensation(self) -> CompensationBase:
+        """ The compensation of the input beam chosen in the settings"""
+        name = self.settings['compensation_group', 'compensation_factory']
+        return compensation_factory.get_compensation(name)(
+            self.settings.child('compensation_group', 'compensation_params', name))
 
     @property
     def ini_stopping_criteria(self) -> StoppingBase:
@@ -670,6 +697,11 @@ class AlgoApp(CustomApp):
         if param.name() == 'ini_phase_factory':
             for param_child in self.settings.child('ini_phase_group', 'phase_params').children():
                 param_child.show(param.value() == param_child.name() and param_child.hasChildren())
+        elif 'compensation_group' in putils.get_param_path(param):
+            if param.name() == 'compensation_factory':
+                for param_child in self.settings.child('compensation_group', 'compensation_params').children():
+                    param_child.show(param.value() == param_child.name() and param_child.hasChildren())
+            self.compensation_changed.emit()
         elif 'crosstalk' in putils.get_param_path(param):
             self._algorithm.crosstalk = CrossTalk(self.settings['crosstalk', 'apply'],
                                                   self.settings['crosstalk', 'value'], )

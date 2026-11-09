@@ -614,6 +614,12 @@ class BeamShaping(CustomExt):
         self._input_field_loader.field_signal.connect(self._algorithm.set_input_field)
         self._target_field_loader.field_signal.connect(self._algorithm.set_target_field)
         self._target_field_loader.field_signal.connect(lambda field: self.show_set_target_roi_select())
+        # the unreachable region is known without a run: from the input beam, the algorithm and its compensation
+        # (connected after the algorithm got the fields)
+        self._input_field_loader.field_signal.connect(lambda field: self.update_unreachable_preview())
+        self._target_field_loader.field_signal.connect(lambda field: self.update_unreachable_preview())
+        self._algorithm.algo_changed.connect(lambda algo: self.update_unreachable_preview())
+        self._algorithm.compensation_changed.connect(self.update_unreachable_preview)
 
         self.set_menu(self._algorithm.menu)  #adds this to the menu dict (automatically added in the sharedUI)
 
@@ -693,6 +699,11 @@ class BeamShaping(CustomExt):
         BeamShaping.show_region(self, unreachable)
         self.metrics_viewer.show_data(metrics.split_as_dte('Metrics'))
         self.other_viewers.show_data(dte)
+
+    def update_unreachable_preview(self):
+        """ Outline the region the next run will not reach, before any run"""
+        algo = self._algorithm._algorithm if self._algorithm is not None else None  # not created by this call
+        self.show_region(algo.preview_unreachable() if algo is not None else None)
 
     def show_region(self, unreachable):
         """ Outline the region the target cannot be obtained in (None: no region) on the views of the planes it has a

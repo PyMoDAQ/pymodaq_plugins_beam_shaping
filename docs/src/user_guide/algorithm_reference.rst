@@ -49,6 +49,8 @@ by encoding the complex field on a checkerboard (:cite:t:`mendoza-yero_encoding_
 *Settings*:
 
 * ``Mask block size (pxls)`` (default 5): size of the blocks of the checkerboard.
+* The input beam is compensated (see *Input compensation* below): the amplitude of the target is divided by the one of
+  the beam before the angles of the checkerboard are computed.
 * ``amplitude divider`` (default 1).
 
 .. _sec-algo-amplitude-modulation:
@@ -91,14 +93,7 @@ in the review but not available.
 * ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
   the grey levels of the pattern are kept (the grey off-axis hologram, an ideal modulation not feasible on a DMD, to
   see what the binarization costs).
-* ``Compensate input`` (default checked, *Parallel Lee* and *Superpixel*) and ``Min input level`` (default 0.2: the transmission needed is at most 5 times the one at the peak of the beam, a lower level leaves little to the centre): the
-  mirrors multiply the amplitude of the input beam, so the amplitude to encode is the target divided by the input
-  amplitude, scaled so that no mirror has to give more than the input (4f setups: the magnification only changes the
-  axes, the arrays keep their shape). Where the input is below the minimum level (a fraction of its maximum) the
-  mirrors are off and the target cannot be obtained: this region is outlined in red on the target, modulator and output views of
-  the extension (the same pixels in 4f, only the axes are scaled), is in the ``unreachable`` data of the algorithm and
-  its fraction of the target is ``unreachable_fraction``. Unchecked, the output is the target times the beam profile. For *Superpixel*
-  the input is averaged over each superpixel.
+* The compensation of the input beam is not a setting of the algorithm: see *Input compensation* below.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 * ``Order position``: a read-only text, updated with the periods, giving the position of the order to filter, and the
   slices of a mask around it that can be copied to the slices of the *Intermediate Masking*.
@@ -245,3 +240,31 @@ Minimize and TorchOptim
 
 *Minimize* only: ``Method`` of the minimizer (default l-bfgs): bfgs, l-bfgs, cg, newton-cg, newton-exact, dogleg,
 trust-ncg, trust-exact or trust-krylov.
+
+
+Input compensation
+------------------
+
+The algorithms that compute the pattern of the modulator from the target (*Parallel Lee*, *Superpixel* and the
+checkerboard *OL2014*) give, without compensation, a target multiplied by the amplitude profile of the input beam. The
+group ``Input Compensation`` of the settings of the algorithm app (shown for these algorithms only, like the initial
+phase for the algorithms that have one) chooses what is done:
+
+* ``NoCompensation``: the output is the target times the profile of the beam.
+* ``DivideByInput`` (default): the amplitude to encode is the target divided by the input amplitude, scaled so that no
+  pixel has to give more than the input. ``Min input level`` (default 0.2: the transmission needed is at most 5 times
+  the one at the peak of the beam, a lower level leaves little to the centre) is the fraction of the maximum of the
+  input amplitude below which the target cannot be obtained: this *unreachable* region is off (null transmission). For
+  *Superpixel* the input is averaged over each superpixel. 4f setups: the magnification only changes the axes, the
+  arrays keep their shape.
+
+The unreachable region is outlined in red, **as soon as the compensation is chosen** and without running the algorithm,
+on the input and target loaders and on the target views; after a run also on the modulator and output views of the
+extension. It is in the ``unreachable`` data of the algorithm and its fraction of the target is
+``unreachable_fraction``. In a script, ``set_compensation(app, 'DivideByInput', {'min_input_level': 0.3})`` of
+``headless_algorithms`` chooses the compensation and ``algo.preview_unreachable()`` gives the region.
+
+A compensation is a class of the package ``algorithms/compensations``, registered with
+``CompensationFactory.register_compensation()``, with its own ``params``, like an initial phase: another type (for
+instance for a 2f setup) is added by writing one more module. An algorithm that uses it sets ``INPUT_COMPENSATION = True``
+and calls ``self.compensate_target(amplitude)``.

@@ -223,3 +223,48 @@ def test_the_extension_sends_the_region_to_the_field_loaders(qtbot):
         output_viewers=types.SimpleNamespace(viewers=[]), region_outline=RegionOutline(),
         _target_field_loader=loader, _input_field_loader=loader), mask)
     assert len(regions) == 2 and all(region is mask for region in regions)
+
+
+def _visible_outlines(viewers):
+    found = []
+    for viewer in viewers:
+        image = viewer.view.data_displayer.get_image('red')
+        found.extend(child for child in image.childItems() if isinstance(child, pg.IsocurveItem) and child.isVisible())
+    return found
+
+
+def test_the_extension_shows_the_unreachable_region_as_soon_as_the_compensation_is_on(qtbot):
+    """ Before any run: the region follows the input beam, the algorithm and the compensation chosen in the app"""
+    from pymodaq.dashboard import create_load_dashboard
+    from pymodaq.utils.gui_utils.loader_utils import create_extension
+    from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
+
+    _, dashboard = create_load_dashboard()
+    win_ext, extension = create_extension(dashboard, BeamShaping)
+    try:
+        algo_app = extension._algorithm
+        algo_app.set_algorithm('Parallel Lee')
+        algo_app.settings.child('compensation_group', 'compensation_factory').setValue('DivideByInput')  # saved settings
+        loaders = (extension._input_field_loader, extension._target_field_loader)
+        for loader in loaders:
+            loader.load_field()
+        viewers = [viewer for loader in loaders for viewer in (loader.amp_viewer, loader.phase_viewer)]
+
+        ny, nx = extension.input_field.amplitude.shape
+        y, x = np.indices((ny, nx))
+        input_loader = extension._input_field_loader
+        input_loader.field.amplitude = np.exp(-(((y - ny / 2) / (ny / 6)) ** 2 + ((x - nx / 2) / (nx / 6)) ** 2))
+        input_loader.field_signal.emit(input_loader.field)  # a new input beam
+        assert len(_visible_outlines(viewers)) == 4  # input and target loaders, amplitude and phase views
+        assert len(_visible_outlines(extension.target_viewers.viewers)) == 3  # intensity, amplitude, phase
+
+        algo_app.settings.child('compensation_group', 'compensation_factory').setValue('NoCompensation')
+        assert _visible_outlines(viewers) == []
+
+        algo_app.settings.child('compensation_group', 'compensation_factory').setValue('DivideByInput')
+        assert len(_visible_outlines(viewers)) == 4
+
+        algo_app.set_algorithm('Gerchberg-Saxton')  # does not use the compensation
+        assert _visible_outlines(viewers) == []
+    finally:
+        extension.quit_fun()

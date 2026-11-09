@@ -286,3 +286,26 @@ def test_algo_app_saves_the_pattern_of_an_amplitude_modulator_in_the_slm_node(qt
     assert set(np.unique(origins[('slm', 'amplitude')])) <= {0., 1.}
     assert not np.allclose(origins[('modulator', 'amplitude')], origins[('slm', 'amplitude')])
     assert np.allclose(origins[('modulator', 'amplitude')], algo._input_field.amplitude * origins[('slm', 'amplitude')])
+
+
+def test_algo_app_compensation_of_the_input_beam(qtbot, dockarea):
+    """ The compensation is chosen in the settings of the app like the initial phase, for the algorithms that use it"""
+    from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
+    from pymodaq_plugins_beam_shaping.algorithms.compensations.divide_by_input import DivideByInput
+
+    app = AlgoApp(dockarea)
+    group = app.settings.child('compensation_group')
+    assert isinstance(app.compensation, DivideByInput)  # on by default
+    assert app.compensation.settings['min_input_level'] == 0.2
+
+    changes = []
+    app.compensation_changed.connect(lambda: changes.append(1))
+    app.settings.child('compensation_group', 'compensation_params', 'DivideByInput', 'min_input_level').setValue(0.4)
+    assert app.compensation.settings['min_input_level'] == 0.4 and len(changes) == 1
+    group.child('compensation_factory').setValue('NoCompensation')
+    assert type(app.compensation).__name__ == 'NoCompensation' and len(changes) == 2
+
+    app.set_algorithm('Gerchberg-Saxton')
+    assert not group.opts['visible']  # it does not use the compensation
+    app.set_algorithm('Parallel Lee')
+    assert group.opts['visible']

@@ -30,6 +30,7 @@ close to the template so that it can be updated); this file is what is specific 
 | `algorithms/factory.py` | `AlgorithmFactory`, `register_algorithms()` and the entry point group `pymodaq_plugins_beam_shaping.algorithms` for third party algorithms. |
 | `algorithms/algorithms/` | The **algorithms**, one module per family (see below). |
 | `algorithms/ini_phases/`, `stoppings/`, `loss.py` | Initial phases, stopping criteria and loss functions used by iterative algorithms. |
+| `algorithms/compensation.py`, `compensations/` | Compensation of the input beam profile (factory like the initial phases, chosen in the AlgoApp settings); an algorithm sets `INPUT_COMPENSATION = True` and calls `compensate_target`. |
 | `algorithms/algorithm_app.py` | `AlgoApp`: the widget running an algorithm, owning the masks, the shaper and the fields. |
 | `algorithms/utils.py` | Enums (`AlgoStatus`, `AlgoType`, `ApplyMaskTo`, `LensSetup`). |
 | `utilities/shaper.py` | `Shaper` and `ModulatorType` (phase, amplitude, both), defined in `pymodaq_plugins_utils`; `get_default_shaper()` reads the config. |

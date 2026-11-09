@@ -45,6 +45,7 @@ class OL2014(AlgoBase):
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
+    INPUT_COMPENSATION = True  # cos(beta) is the amplitude of the target to divide by the input beam
     RECOMPUTE_ON_CHANGE = True
 
     params = [
@@ -66,7 +67,9 @@ class OL2014(AlgoBase):
 
         calculated_field: Field = deepcopy(self._target_field)
 
-        beta = np.arccos(calculated_field.amplitude / np.max(calculated_field.amplitude) / self.settings['divider'])
+        # the modulator multiplies the input beam: the amplitude to ask to it is the target divided by the beam (max 1)
+        amplitude = self.compensate_target(calculated_field.amplitude / np.max(calculated_field.amplitude))
+        beta = np.arccos(np.clip(amplitude / np.max(amplitude) / self.settings['divider'], -1., 1.))
         theta_field = Field('theta', phase=calculated_field.phase + beta)
         alpha_field = Field('alpha', phase=calculated_field.phase - beta)
 

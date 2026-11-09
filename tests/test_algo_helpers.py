@@ -88,10 +88,11 @@ def test_the_input_beam_is_compensated_for_the_amplitude_modulators(qapp):
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE,  # around the filtered order, in um from the center
                 tuple(slice((freq - half) * size, (freq + half) * size)
                       for freq, size in zip(algo.order_frequency(), sizes)))
-    pg.set_parameters(algo, {'binarize': False, 'compensate_input': False})
+    pg.set_parameters(algo, {'binarize': False})
+    pg.set_compensation(app, 'NoCompensation')
     pg.run_algorithm(algo, verbose=False)
     raw = algo.output_field.amplitude.copy()
-    pg.set_parameters(algo, {'compensate_input': True})
+    pg.set_compensation(app, 'DivideByInput')
     pg.run_algorithm(algo, verbose=False)
     compensated = algo.output_field.amplitude
     target = algo._target_field.amplitude
@@ -102,7 +103,7 @@ def test_the_input_beam_is_compensated_for_the_amplitude_modulators(qapp):
     assert correlation(compensated) > correlation(raw)
     assert algo.unreachable_mask is not None
     # the pixels below the minimum input level are off, those of the mask of unreachable pixels
-    level = algo.settings['min_input_level'] * algo._input_field.amplitude.max()
+    level = app.compensation.settings['min_input_level'] * algo._input_field.amplitude.max()
     assert np.array_equal(algo.unreachable_mask, algo._input_field.amplitude < level)
     pg.set_parameters(algo, {'binarize': True})  # a mirror cannot be grey: the unreachable ones are off
     pg.run_algorithm(algo, verbose=False)
@@ -111,7 +112,7 @@ def test_the_input_beam_is_compensated_for_the_amplitude_modulators(qapp):
 
 def test_compensation_can_be_switched_off(qapp):
     app, algo = prepare('Parallel Lee', 'amplitude')
-    pg.set_parameters(algo, {'compensate_input': False})
+    pg.set_compensation(app, 'NoCompensation')
     pg.run_algorithm(algo, verbose=False)
     assert algo.unreachable_mask is None
     assert algo.unreachable_fraction == 0.
@@ -166,3 +167,60 @@ def test_a_target_not_on_the_shape_of_the_input_is_not_compensated_and_says_so(q
         encoded = algo.encoded_amplitude()
     assert encoded.shape == algo._target_field.amplitude.shape and algo.unreachable_mask is None
     assert 'compensat' in caplog.text
+
+
+def flat_target_through_a_gaussian_beam(algo):
+    ny, nx = algo.shape
+    y, x = np.indices((ny, nx))
+    algo._input_field.amplitude = np.exp(-(((y - ny / 2) / (ny / 3)) ** 2 + ((x - nx / 2) / (nx / 3)) ** 2))
+    algo._target_field.amplitude = np.ones(algo.shape)
+
+
+def test_the_checkerboard_uses_the_compensation_too(qapp):
+    """ The phases of the checkerboard give an amplitude cos(beta) multiplied by the beam: the output is the target
+    only for a target divided by the beam"""
+    app, algo = prepare('OL2014 - Amplitude/Phase Checkerboard', 'phase')
+    flat_target_through_a_gaussian_beam(algo)
+    inside = algo._input_field.amplitude > 0.5 * algo._input_field.amplitude.max()
+    sizes = pg.regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, tuple(slice(-3 * size, 3 * size) for size in sizes))  # around the zero order
+
+    def flatness():
+        pg.run_algorithm(algo, verbose=False)
+        output = algo.output_field.amplitude[inside]
+        return output.std() / output.mean()
+
+    pg.set_compensation(app, 'NoCompensation')
+    raw = flatness()
+    assert algo.unreachable_mask is None
+    pg.set_compensation(app, 'DivideByInput')
+    compensated = flatness()
+    assert algo.unreachable_mask is not None and algo.unreachable_mask.any()
+    assert compensated < raw / 2
+
+
+def test_the_unreachable_region_is_known_before_any_run(qapp):
+    """ What the app shows as soon as the compensation is chosen: the region of the run, without a run"""
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    flat_target_through_a_gaussian_beam(algo)
+    preview = algo.preview_unreachable()
+    assert preview is not None and preview.any()
+    pg.run_algorithm(algo, verbose=False)
+    assert np.array_equal(preview, algo.unreachable_mask)
+    pg.set_compensation(app, 'NoCompensation')
+    assert algo.preview_unreachable() is None
+
+
+def test_an_algorithm_without_compensation_has_no_unreachable_region(qapp):
+    """ Gerchberg-Saxton propagates the beam: the compensation does not apply to it, whatever the app says"""
+    app, algo = prepare('Gerchberg-Saxton', 'phase')
+    assert not algo.INPUT_COMPENSATION
+    assert algo.preview_unreachable() is None
+
+
+def test_the_superpixel_preview_follows_its_blocks(qapp):
+    app, algo = prepare('Superpixel', 'amplitude')
+    flat_target_through_a_gaussian_beam(algo)
+    n = algo.settings['px']
+    preview = algo.preview_unreachable()
+    assert np.all(preview[:n, :n] == preview[0, 0])  # one value per superpixel
