@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 from pathlib import Path
 import numpy as np
 from qtpy import QtWidgets, QtCore
@@ -28,6 +28,7 @@ from pymodaq_gui.parameter.ioxml import parameter_to_xml_string
 from pymodaq_plugins_beam_shaping import config as plugin_config
 from pymodaq_plugins_beam_shaping.field import Field, Q_, LoaderFactory, FieldLoader
 from pymodaq_plugins_beam_shaping.field.h5 import save_field_to_h5
+from pymodaq_plugins_beam_shaping.utilities.region_outline import RegionOutline
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
@@ -141,6 +142,8 @@ class FieldLoaderApp(CustomApp):
         self.phase_viewer: Viewer2D = None
 
         self.mask: RectROI = None
+        self._region: Optional[np.ndarray] = None  # region outlined on the viewers, see set_region
+        self._region_outline = RegionOutline()
 
         self._field_loader: FieldLoader = None
 
@@ -355,6 +358,18 @@ class FieldLoaderApp(CustomApp):
         self.phase_viewer.roi_target.setVisible(show)
         self.slm_size_roi_phase.setVisible(show)
 
+    def set_region(self, region: Optional[np.ndarray]):
+        """ Outline a region (a boolean array of the shape of the field, None for none) on the amplitude and phase
+        viewers, for instance where the target cannot be obtained"""
+        self._region = region
+        self._outline_region()
+
+    def _outline_region(self):
+        region = self._region
+        if region is not None and region.shape != self.field.amplitude.shape:
+            region = None  # the field changed since: not the same pixels
+        self._region_outline.show([self.amp_viewer, self.phase_viewer], region)
+
     def update_viewers(self):
         needed_shape = (self.settings['needed_size', 'height'],
                         self.settings['needed_size', 'width'],
@@ -362,6 +377,7 @@ class FieldLoaderApp(CustomApp):
         if self.field is not None:
             self.amp_viewer.show_data(self.field.amplitude_as_dwa())
             self.phase_viewer.show_data(self.field.phase_as_dwa())
+            self._outline_region()
 
             pixels_magnitude = np.array([pixel.to_base_units().magnitude for pixel in self.field.pixels_sizes])
             self.amp_viewer.move_roi_target(

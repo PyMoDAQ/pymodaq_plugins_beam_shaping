@@ -110,7 +110,9 @@ def test_the_extension_outlines_the_unreachable_region_on_the_target_and_the_out
         modulator_viewers=ViewerDispatcher(area, title='Modulator'), other_viewers=ViewerDispatcher(area, title='Other'),
         metrics_viewer=ViewerDispatcher(area, title='Metrics'), intermediate_viewer=types.SimpleNamespace(
             show_data=lambda dwa: None),
-        is_action_checked=lambda name: True, region_outline=RegionOutline(), _unreachable=None)
+        is_action_checked=lambda name: True, region_outline=RegionOutline(), _unreachable=None,
+        _target_field_loader=types.SimpleNamespace(set_region=lambda region: None),
+        _input_field_loader=types.SimpleNamespace(set_region=lambda region: None))
     BeamShaping.plot_target(extension, algo._target_field)
     BeamShaping.plot_fields(extension, algo.get_fields_to_plot())
 
@@ -170,6 +172,54 @@ def test_plot_fields_without_intermediate_nor_unreachable_data(qtbot):
         modulator_viewers=ViewerDispatcher(area, title='Modulator'), other_viewers=ViewerDispatcher(area, title='Other'),
         metrics_viewer=ViewerDispatcher(area, title='Metrics'),
         intermediate_viewer=types.SimpleNamespace(show_data=shown.append),
-        is_action_checked=lambda name: True, region_outline=RegionOutline(), _unreachable=None)
+        is_action_checked=lambda name: True, region_outline=RegionOutline(), _unreachable=None,
+        _target_field_loader=types.SimpleNamespace(set_region=lambda region: None),
+        _input_field_loader=types.SimpleNamespace(set_region=lambda region: None))
     BeamShaping.plot_fields(extension, dte)
     assert shown == [] and extension._unreachable is None
+
+
+def _loader_outlines(app):
+    found = []
+    for viewer in (app.amp_viewer, app.phase_viewer):
+        image = viewer.view.data_displayer.get_image('red')
+        found.append([child for child in image.childItems() if isinstance(child, pg.IsocurveItem)])
+    return found
+
+
+def test_the_field_loader_outlines_a_region_on_its_amplitude_and_phase_viewers(qtbot):
+    from pymodaq_plugins_beam_shaping.field.field_loader_app import FieldLoaderApp
+
+    area = DockArea()
+    qtbot.addWidget(area)
+    area.show()
+    app = FieldLoaderApp(area, title='loader')
+    app.settings.child('loader').setValue('GaussianIntensity')
+    app.load_field()
+    mask = disk(app.field.amplitude.shape)
+    app.set_region(mask)
+    for viewer_items in _loader_outlines(app):
+        assert len(viewer_items) == 1 and viewer_items[0].isVisible()
+        assert np.array_equal(viewer_items[0].data, mask.astype(float))
+
+    app.load_field()  # the field is shown again: the region stays
+    for viewer_items in _loader_outlines(app):
+        assert len(viewer_items) == 1 and viewer_items[0].isVisible()
+
+    app.set_region(None)
+    for viewer_items in _loader_outlines(app):
+        assert all(not item.isVisible() for item in viewer_items)
+
+
+def test_the_extension_sends_the_region_to_the_field_loaders(qtbot):
+    import types
+    from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
+
+    regions = []
+    loader = types.SimpleNamespace(set_region=regions.append)
+    mask = disk()
+    BeamShaping.show_region(types.SimpleNamespace(
+        target_viewers=types.SimpleNamespace(viewers=[]), modulator_viewers=types.SimpleNamespace(viewers=[]),
+        output_viewers=types.SimpleNamespace(viewers=[]), region_outline=RegionOutline(),
+        _target_field_loader=loader, _input_field_loader=loader), mask)
+    assert len(regions) == 2 and all(region is mask for region in regions)

@@ -688,14 +688,21 @@ class BeamShaping(CustomExt):
         # the region the target cannot be obtained in: an outline on the target, the modulator and the output, not an image
         dwa_unreachable = pop_data(dte, 'unreachable/amplitude')
         unreachable = dwa_unreachable[0] > 0.5 if dwa_unreachable is not None else None
-        self._unreachable = unreachable
-        self.region_outline.show(self.target_viewers, unreachable)
         self.modulator_viewers.show_data(dte_modulator)
-        self.region_outline.show(self.modulator_viewers, unreachable)
         self.output_viewers.show_data(dte_output)
-        self.region_outline.show(self.output_viewers, unreachable)
+        BeamShaping.show_region(self, unreachable)
         self.metrics_viewer.show_data(metrics.split_as_dte('Metrics'))
         self.other_viewers.show_data(dte)
+
+    def show_region(self, unreachable):
+        """ Outline the region the target cannot be obtained in (None: no region) on the views of the planes it has a
+        meaning in: the input and the target loaders, the target, the modulator and the output views (not the
+        intermediate plane)"""
+        self._unreachable = unreachable
+        for viewers in (self.target_viewers, self.modulator_viewers, self.output_viewers):
+            self.region_outline.show(viewers, unreachable)
+        for loader in (self._target_field_loader, self._input_field_loader):
+            loader.set_region(unreachable)
 
     def show_corrections(self, show=True):
         self._corrections_dockarea.setVisible(show)

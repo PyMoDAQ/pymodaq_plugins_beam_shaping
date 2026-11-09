@@ -27,10 +27,10 @@ class RegionOutline:
         self._items: 'WeakKeyDictionary' = WeakKeyDictionary()
 
     def show(self, dispatcher, mask: Optional[np.ndarray]):
-        """ Draw the outline of the mask on all the 2D viewers of the dispatcher, hide it if there is no mask or if the
-        mask is empty"""
+        """ Draw the outline of the mask on all the 2D viewers of the dispatcher (or of the list of viewers), hide it
+        if there is no mask or if the mask is empty"""
         has_region = mask is not None and bool(np.any(mask))
-        for viewer in dispatcher.viewers:
+        for viewer in getattr(dispatcher, 'viewers', dispatcher):
             image = self._image_item(viewer)
             if image is None:
                 continue
