@@ -5,6 +5,7 @@ import pyqtgraph as pg
 from qtpy import QtWidgets
 
 from pymodaq_data import DataToExport
+from pymodaq_data.data import DataRaw
 from pymodaq_gui.plotting.data_viewers.viewer import ViewerDispatcher
 from pymodaq_gui.utils.dock import DockArea
 
@@ -140,3 +141,35 @@ def test_the_target_keeps_its_outline_when_it_is_plotted_after_the_fields(qtbot)
     BeamShaping.plot_target(extension, field)  # the target is plotted again, with new image items
     for viewer_items in outlines(extension.target_viewers):
         assert len(viewer_items) == 1 and viewer_items[0].isVisible()
+
+
+def test_plot_fields_without_intermediate_nor_unreachable_data(qtbot):
+    """ An algorithm without filter in the intermediate plane nor unreachable region gives no such data: nothing to plot"""
+    import types
+    from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
+    from pymodaq_plugins_beam_shaping.utilities import headless_algorithms as pg_algo
+
+    headless = pg_algo.HeadlessApp(pg_algo.make_shaper(width=64, height=64, pixel_size=8.))
+    algo = pg_algo.create_algorithm(pg_algo.reload_algorithm('Direct'), headless)
+    pg_algo.set_fields(algo, pg_algo.load_field('GaussianIntensity', None, headless),
+                       pg_algo.load_field('LaguerreGaussian', None, headless))
+    pg_algo.run_algorithm(algo, verbose=False)
+    dte = algo.get_fields_to_plot()
+    dte.append(DataRaw('other', data=[np.zeros(4)]))  # what remains once the fields are taken, as for iterative algos
+    names = [dwa.origin + '/' + dwa.name for dwa in dte]
+    assert 'intermediate/intensity' not in names and 'unreachable/amplitude' not in names
+
+    window = QtWidgets.QMainWindow()
+    area = DockArea()
+    window.setCentralWidget(area)
+    qtbot.addWidget(window)
+    window.show()
+    shown = []
+    extension = types.SimpleNamespace(
+        target_viewers=ViewerDispatcher(area, title='Target'), output_viewers=ViewerDispatcher(area, title='Output'),
+        modulator_viewers=ViewerDispatcher(area, title='Modulator'), other_viewers=ViewerDispatcher(area, title='Other'),
+        metrics_viewer=ViewerDispatcher(area, title='Metrics'),
+        intermediate_viewer=types.SimpleNamespace(show_data=shown.append),
+        is_action_checked=lambda name: True, region_outline=RegionOutline(), _unreachable=None)
+    BeamShaping.plot_fields(extension, dte)
+    assert shown == [] and extension._unreachable is None

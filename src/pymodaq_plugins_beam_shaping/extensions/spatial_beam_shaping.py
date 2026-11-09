@@ -68,6 +68,17 @@ def is_phase_capable(modulator_type: ModulatorType) -> bool:
     return ModulatorType(modulator_type) in (ModulatorType.PHASE, ModulatorType.BOTH)
 
 
+def pop_data(dte: DataToExport, full_name: str):
+    """ Remove from dte and return the data of this full name (origin/name), None if there is none
+
+    ``DataToExport.remove`` compares data and raises a TypeError given None, which the getters return for a missing name
+    """
+    dwa = dte.get_data_from_full_name(full_name)
+    if dwa is None:
+        return None
+    return dte.remove(dwa)
+
+
 class BeamShaping(CustomExt):
     command_runner = QtCore.Signal(utils.ThreadCommand)
 
@@ -663,11 +674,9 @@ class BeamShaping(CustomExt):
             dte.remove(dte.get_data_from_full_name(full_name)) for full_name in ['output/amplitude', 'output/phase']])
         dte_modulator = DataToExport('modulator', data=[
             dte.remove(dte.get_data_from_full_name(full_name)) for full_name in ['modulator/amplitude', 'modulator/phase']])
-        try:
-            dwa_intermediate = dte.remove(dte.get_data_from_full_name('intermediate/intensity'))
+        dwa_intermediate = pop_data(dte, 'intermediate/intensity')
+        if dwa_intermediate is not None:  # None means no intermediate data to plot
             self.intermediate_viewer.show_data(dwa_intermediate)
-        except ValueError:  # means no intermediate data to plot
-            pass
 
         if not self.is_action_checked('wrap_phase'):  # phase is wrapped by default!
             dte_modulator.get_data_from_full_name('modulator/phase')[0] = \
@@ -676,10 +685,9 @@ class BeamShaping(CustomExt):
             dte_output.get_data_from_full_name('output/phase')[0] = \
             np.unwrap(dte_output.get_data_from_full_name('output/phase')[0])
 
-        try:  # the region the target cannot be obtained in: an outline on the target, the modulator and the output, not an image
-            unreachable = dte.remove(dte.get_data_from_full_name('unreachable/amplitude'))[0] > 0.5
-        except ValueError:
-            unreachable = None
+        # the region the target cannot be obtained in: an outline on the target, the modulator and the output, not an image
+        dwa_unreachable = pop_data(dte, 'unreachable/amplitude')
+        unreachable = dwa_unreachable[0] > 0.5 if dwa_unreachable is not None else None
         self._unreachable = unreachable
         self.region_outline.show(self.target_viewers, unreachable)
         self.modulator_viewers.show_data(dte_modulator)
