@@ -21,6 +21,9 @@ from pymodaq_gui.h5modules.saving import H5Saver
 
 from pymodaq_plugins_beam_shaping.utilities.shaper import ModulatorType
 
+if TYPE_CHECKING:
+    from pymodaq_plugins_beam_shaping.field.field import Field
+
 extend_enum(GroupModuleType, 'SHAPING')
 # the sub groups of the group of a run saved at each step, each one by its own ModuleSaver (Fields000, Metrics000)
 extend_enum(GroupModuleType, 'FIELDS')
