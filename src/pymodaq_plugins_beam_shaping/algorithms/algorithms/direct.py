@@ -60,7 +60,9 @@ class Direct(AlgoBase):
         return self._input_field.pixels_sizes
 
     def compute_phase_and_or_amplitude(self, do_step=True, **kwargs):
-        self.set_field_in_modulator_plane(self.normalize_wrt(self._target_field, self._input_field))
+        field = self.normalize_wrt(self._target_field, self._input_field).deepcopy()
+        field.phase = self.target_phase()  # minus the input phase if it is compensated
+        self.set_field_in_modulator_plane(field)
 
 
 

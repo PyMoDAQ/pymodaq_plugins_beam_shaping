@@ -32,6 +32,7 @@ from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
 from pymodaq_plugins_beam_shaping.algorithms.compensation import Compensations
 from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
+from pymodaq_plugins_beam_shaping.algorithms.algo_base import wrap_phase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.field import Field
 from pymodaq_plugins_beam_shaping.field.operations.compute import centered_grid, remove_linear_phase, spectrum_centroid
@@ -191,9 +192,10 @@ class BinaryHologram(AlgoBase):
         amplitude_pattern = self.compute_amplitude_pattern()
 
         self.set_amplitude_in_modulator_plane(amplitude_pattern)
-        # an amplitude modulator does not modulate the phase: whatever phase was set on the modulator field (an
-        # initial phase for instance) would be multiplied to the pattern and wash the diffraction orders out
-        self._modulator_field.phase = np.zeros(self.shape)
+        # an amplitude modulator does not modulate the phase: its SLM phase is null (an initial phase would be
+        # multiplied to the pattern and wash the diffraction orders out), the modulator field has the input phase
+        self._slm_field.phase = np.zeros(self.shape)
+        self._modulator_field.phase = wrap_phase(self.input_phase)
 
         self.compute_intermediate_field()
         self.compute_output_from_intermediate()
@@ -235,7 +237,7 @@ class BinaryThreshold(BinaryHologram):
         BinaryHologram._params_carrier)
 
     def compute_amplitude_pattern(self) -> np.ndarray:
-        amplitude_dmd = 1 / 2 * (1 + np.cos(self.carrier_phase() - self._target_field.phase))
+        amplitude_dmd = 1 / 2 * (1 + np.cos(self.carrier_phase() - self.target_phase()))
         if self.settings['binarize']:
             amplitude_dmd = (amplitude_dmd > self.settings['threshold']).astype(float)
         return amplitude_dmd
@@ -272,7 +274,7 @@ class ParallelLee(BinaryHologram):
 
     def compute_amplitude_pattern(self) -> np.ndarray:
         modulation_depth = self.encoded_amplitude()  # 1 where the amplitude to encode is the largest
-        phase = self.carrier_phase() - self._target_field.phase
+        phase = self.carrier_phase() - self.target_phase()
         if self.settings['binarize']:
             # the pixel is on where cos(phase) > cos(pi q): stripes of relative width q = arcsin(A) / pi. Where A = 0
             # the pixels are off
@@ -363,7 +365,7 @@ class Superpixel(BinaryHologram):
         tree, codes, values, reach = superpixel_table(n)
         ny, nx = self.shape
         xx, yy = self.compute_grid()
-        target = self.encoded_amplitude() * reach * np.exp(1j * self._target_field.phase)
+        target = self.encoded_amplitude() * reach * np.exp(1j * self.target_phase())
 
         # value of each superpixel: the mean of the target over its pixels (the superpixels on the edges are cut)
         blocks_y, blocks_x = -(-ny // n), -(-nx // n)

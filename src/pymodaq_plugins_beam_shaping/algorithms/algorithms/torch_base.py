@@ -118,8 +118,9 @@ class TorchBase(AlgoBase):
 
     def do_things_after_init(self):
         # Initialize phase distribution as trainable parameter
-        self.phase_distribution = self.modulator_field.phase
+        self.phase_distribution = self.slm_field.phase  # the SLM phase, the input phase is added in the model
         self._amplitude_tensor = torch.from_numpy(self.modulator_field.amplitude)
+        self._input_phase_tensor = torch.from_numpy(self.input_phase)
 
         if not self._algo_init:
             self._algo_init = True
@@ -147,7 +148,8 @@ class TorchBase(AlgoBase):
 
     def compute_image_field(self, phase_input: torch.Tensor) -> torch.Tensor:
         output_tensor = torch.fft.fftshift(
-            torch.fft.fft2(self._amplitude_tensor * torch.exp(1j * phase_input), norm='forward'
+            torch.fft.fft2(self._amplitude_tensor * torch.exp(1j * (phase_input + self._input_phase_tensor)),
+                           norm='forward'
             )
         )
         return output_tensor

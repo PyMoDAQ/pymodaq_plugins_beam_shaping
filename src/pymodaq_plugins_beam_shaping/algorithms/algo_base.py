@@ -29,6 +29,11 @@ if TYPE_CHECKING:
 plugin_config = Config()
 
 
+
+def wrap_phase(phase: np.ndarray) -> np.ndarray:
+    """ The phase brought back to [-pi, pi)"""
+    return (np.asarray(phase) + np.pi) % (2 * np.pi) - np.pi
+
 class AlgoParameterManager(ParameterManager):
     settings_name = 'algo_settings'
 
@@ -248,6 +253,41 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
                                 phase=self._slm_phase_or_zeros(pattern.shape),
                                 pixel_sizes=self._input_field.pixels_sizes)
         self._modulator_field.amplitude = self._input_field.amplitude * pattern
+        self._modulator_field.phase = wrap_phase(self.input_phase + self._slm_field.phase)
+
+    @property
+    def input_phase(self) -> np.ndarray:
+        """ The phase of the input beam on the modulator (zeros if the input does not have the shape of the
+        modulator field)"""
+        phase = getattr(self._input_field, 'phase', None)
+        if phase is None or phase.shape != tuple(self._modulator_field.shape):
+            return np.zeros(self._modulator_field.shape)
+        return phase
+
+    def slm_phase_from_modulator_phase(self, phase: np.ndarray) -> np.ndarray:
+        """ The SLM phase giving this phase in the modulator plane: the input phase removed (the phase of a field
+        back-propagated to the modulator plane is the phase of the modulator field, input phase included)"""
+        return wrap_phase(phase - self.input_phase)
+
+    @property
+    def can_compensate_input_phase(self) -> bool:
+        """ The algorithm controls the output phase (ALGOTYPE not AMPLITUDE): it can compensate the input phase in
+        the target phase"""
+        return self.ALGOTYPE != AlgoType.AMPLITUDE
+
+    @property
+    def compensate_input_phase(self) -> bool:
+        """ The target phase is corrected for the input phase (Compensate input phase in the app, on by default),
+        only for the algorithms that can do it"""
+        return self.can_compensate_input_phase and bool(getattr(self.parent_app, 'compensate_input_phase', True))
+
+    def target_phase(self) -> np.ndarray:
+        """ The phase to encode for the target: the target phase minus the input phase if the input phase is
+        compensated (the modulator field then has the target phase), the target phase otherwise"""
+        phase = self._target_field.phase
+        if self.compensate_input_phase and phase.shape == tuple(self._modulator_field.shape):
+            return phase - self.input_phase
+        return phase
 
     def _slm_phase_or_zeros(self, shape) -> np.ndarray:
         return self._slm_field.phase.copy() if self._slm_field.phase.shape == tuple(shape) else np.zeros(shape)
@@ -333,7 +373,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             if self.crosstalk.apply:
                 phase = gaussian_filter(phase, self.crosstalk.value)
 
-            self._modulator_field.phase = phase
+            self._modulator_field.phase = wrap_phase(self.input_phase + phase)  # input field times SLM field
             self._slm_field = Field('slm', amplitude=self._slm_field.amplitude if
                                     self._slm_field.amplitude.shape == phase.shape else np.ones(phase.shape),
                                     phase=phase, pixel_sizes=self._input_field.pixels_sizes)
@@ -579,7 +619,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         given amplitude, propagate back to the modulator plane and set the phase obtained as the modulator one"""
         corrected = Field(amplitude=amplitude, phase=self._output_field.phase,
                           pixel_sizes=self._output_field.pixels_sizes)
-        self.set_phase_in_modulator_plane(self.compute_backward_fft(corrected).phase)
+        self.set_phase_in_modulator_plane(self.slm_phase_from_modulator_phase(self.compute_backward_fft(corrected).phase))
 
     def value_changed(self, param: Parameter):
         if self.RECOMPUTE_ON_CHANGE:
