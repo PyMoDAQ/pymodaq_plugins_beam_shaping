@@ -258,7 +258,7 @@ class TmpReload(Direct):
 
 
 
-STEP_GROUPS = ('Fields000', 'Metrics000')  # the sub groups of a run holding the data saved at each step
+STEP_GROUPS = ('Fields', 'Metrics')  # the sub groups of a run holding the data saved at each step
 
 
 def saved_step_groups(loader, group='/RawData/Shaping000'):
@@ -408,8 +408,8 @@ def test_all_fields_saved_once_at_the_end_in_the_group_of_the_run(qapp, tmp_path
     pg.run_algorithm(algo, 3, save_metrics=True, save_final=True, h5file=path)
     with h5py.File(path, 'r') as f:
         run = f['RawData/Shaping000']
-        assert set(run) >= {'Final', 'Metrics000'}  # no per step fields were asked for
-        assert 'Fields000' not in run
+        assert set(run) >= {'Final', 'Metrics'}  # no per step fields were asked for
+        assert 'Fields' not in run
         assert 'settings' in run.attrs  # the settings of the run are those of the group holding the final data
         arrays = [d for d in f['RawData/Shaping000/Final/Data2D'].values()]
         assert len(arrays) == 4  # output and modulator amplitude and phase
@@ -417,8 +417,8 @@ def test_all_fields_saved_once_at_the_end_in_the_group_of_the_run(qapp, tmp_path
         assert any(np.allclose(ds[...], algo.output_field.amplitude) for ds in amp.values() if hasattr(ds, 'shape')
                    and ds.ndim == 2)
         # the metrics are still saved at each iteration, next to it
-        assert f['RawData/Shaping000/Metrics000/Data0D/CH00/EnlData00'].shape[0] == 3
-        assert f['RawData/Shaping000/Metrics000/NavAxes/Axis00'].shape[0] == 3  # each sub group has its step axis
+        assert f['RawData/Shaping000/Metrics/Data0D/CH00/EnlData00'].shape[0] == 3
+        assert f['RawData/Shaping000/Metrics/NavAxes/Axis00'].shape[0] == 3  # each sub group has its step axis
 
 
 def test_final_saving_alone(qapp, tmp_path):
@@ -428,7 +428,7 @@ def test_final_saving_alone(qapp, tmp_path):
     pg.run_algorithm(algo, 2, save_final=True, h5file=path)
     with h5py.File(path, 'r') as f:
         assert 'Final' in f['RawData/Shaping000']
-        assert 'Fields000' not in f['RawData/Shaping000'] and 'Metrics000' not in f['RawData/Shaping000']
+        assert 'Fields' not in f['RawData/Shaping000'] and 'Metrics' not in f['RawData/Shaping000']
 
 
 def test_masks_are_in_the_extension_frame_and_selected_the_same_region_in_the_arrays(qapp):
@@ -450,12 +450,12 @@ def test_fields_and_metrics_each_in_their_sub_group_with_their_step_axis(qapp, t
                      h5file=path)
     with h5py.File(path, 'r') as f:
         run = f['RawData/Shaping000']
-        assert set(run) >= {'Fields000', 'Metrics000', 'Final'}
-        for name in ('Fields000', 'Metrics000'):
+        assert set(run) >= {'Fields', 'Metrics', 'Final'}
+        for name in ('Fields', 'Metrics'):
             assert run[name]['NavAxes']['Axis00'].shape == (3,)
         assert 'NavAxes' not in run['Final']
-        assert run['Fields000']['Data2D']['CH00']['EnlData00'].shape[0] == 3
-        assert 'Data0D' not in run['Fields000'] and 'Data2D' not in run['Metrics000']
+        assert run['Fields']['Data2D']['CH00']['EnlData00'].shape[0] == 3
+        assert 'Data0D' not in run['Fields'] and 'Data2D' not in run['Metrics']
 
 
 def test_input_and_target_saved_with_the_settings_of_their_loaders(qapp, tmp_path):

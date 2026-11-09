@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from pymodaq_plugins_beam_shaping.field.field import Field
 
 extend_enum(GroupModuleType, 'SHAPING')
-# the sub groups of the group of a run saved at each step, each one by its own ModuleSaver (Fields000, Metrics000)
+# the sub groups of the group of a run saved at each step, each one by its own ModuleSaver (Fields, Metrics)
 extend_enum(GroupModuleType, 'FIELDS')
 extend_enum(GroupModuleType, 'METRICS')
 
@@ -63,8 +63,9 @@ class ShapingChildSaver(ModuleSaver):
             self._datatoexport_saver = DataToExportSaver(self.h5saver)
 
     def _add_module(self, where: Union[Node, str] = None, metadata=None) -> Node:
-        return self._h5saver.add_generic_group(where, title=self.title, metadata=metadata or {},
-                                               group_type=self.group_type.name)
+        # not indexed: there is one per run, in the group of the run
+        return self._h5saver.add_group(self.title, self.group_type.name, where, title=self.title,
+                                       metadata=metadata or {})
 
     def add_data(self, where: Union[Node, str], dte: DataToExport,
                  axis_values: List[Union[float, np.ndarray]] = None, **kwargs):
