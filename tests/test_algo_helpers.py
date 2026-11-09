@@ -179,7 +179,7 @@ def flat_target_through_a_gaussian_beam(algo):
 def test_the_checkerboard_uses_the_compensation_too(qapp):
     """ The phases of the checkerboard give an amplitude cos(beta) multiplied by the beam: the output is the target
     only for a target divided by the beam"""
-    app, algo = prepare('OL2014 - Amplitude/Phase Checkerboard', 'phase')
+    app, algo = prepare('OL2014 - Amplitude-Phase Checkerboard', 'phase')
     flat_target_through_a_gaussian_beam(algo)
     inside = algo._input_field.amplitude > 0.5 * algo._input_field.amplitude.max()
     sizes = pg.regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)

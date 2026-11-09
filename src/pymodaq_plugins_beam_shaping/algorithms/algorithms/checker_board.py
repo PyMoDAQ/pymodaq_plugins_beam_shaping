@@ -39,7 +39,7 @@ class OL2014(AlgoBase):
     of the used lens
     """
 
-    ALGO_NAME = 'OL2014 - Amplitude/Phase Checkerboard'
+    ALGO_NAME = 'OL2014 - Amplitude-Phase Checkerboard'
     STATUS = AlgoStatus.TESTED
     STATUS_NOTE = 'Checked by the developer: code and real setup'
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE

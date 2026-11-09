@@ -8,6 +8,10 @@ Sizes of pixels in these settings follow the shaper (see :doc:`shapers`).
 Settings shared by the algorithms
 ---------------------------------
 
+The settings of the algorithm app (initial phase, masks, crosstalk, compensation of the input beam...) and the own
+settings of each algorithm are saved in the configuration file, **per algorithm**, and loaded back when the algorithm
+is selected (an algorithm never run keeps the values of the previous one).
+
 Most algorithms start from an *initial phase* of the modulator, which is also a choice in the settings:
 
 * **Random**: a random phase.
@@ -40,7 +44,7 @@ that removes the undiffracted light. Not iterative. Implements the five methods 
 * ``Diffractive Models``: *Relative Amplitude* (method A), *Scattering* (B), *Davis* (C), *Bolduc* (D) or *Arrizon* (E).
 * ``Order N`` (default 10).
 
-OL2014 - Amplitude/Phase Checkerboard
+OL2014 - Amplitude-Phase Checkerboard
 -------------------------------------
 
 Creates **amplitude and phase** images with a phase-only modulator in a **4f** line with a filter in the Fourier plane,

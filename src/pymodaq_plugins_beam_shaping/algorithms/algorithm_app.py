@@ -1,5 +1,7 @@
 from abc import ABCMeta, abstractproperty
 from typing import Union
+from contextlib import contextmanager
+
 import numpy as np
 
 from qtpy import QtWidgets, QtCore, QtGui
@@ -51,6 +53,8 @@ from pymodaq_plugins_beam_shaping.utilities import sizing, regions
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper
 
 logger = set_logger(get_module_name(__file__))
+
+ALGORITHM_SETTINGS = 'algorithm_settings'  # section of the config of an algorithm for its own settings
 
 algo_factory = AlgorithmFactory()
 phase_factory = PhaseFactory()
@@ -110,6 +114,7 @@ def status_text(algo_class: type[AlgoBase]) -> str:
 
 class AlgoApp(CustomApp):
     save_settings = True
+    _loading_settings = 0  # number of loads of settings in progress
     ALGORITHM_COMBO_TIP = 'select the algorithm to compute the phase'
     h5_base_group_name = ContinuousSaver.base_name  # the name of the files of the H5Manager
     show_h5file_statusbar_widgets = True  # the LED of the state of the h5 file (and SWMR) of the H5Manager
@@ -273,12 +278,43 @@ class AlgoApp(CustomApp):
         super().quit_fun()
         self.close_file()
 
+    @property
+    def loading_settings(self) -> bool:
+        """ True while settings are loaded from the config: nothing is saved, nor computed, as a result of it"""
+        return self._loading_settings > 0
+
+    @contextmanager
+    def _loading(self):
+        self._loading_settings += 1
+        try:
+            yield
+        finally:
+            self._loading_settings -= 1
+
     def set_settings_values(self, param: Parameter = None):
-        self.config_saver_loader.load_config(param)
+        # loading a setting calls value_changed, which saves all the settings: the ones not loaded yet would be
+        # replaced by their current values before they are loaded
+        with self._loading():
+            self.config_saver_loader.load_config(param)
 
     def save_algo_parameters(self):
-        if self.save_settings:
+        if self.save_settings and not self.loading_settings:
             self.config_saver_loader.save_config()
+
+    def set_algorithm_settings(self):
+        """ Load the own settings of the algorithm saved for it, and save them from now on when they change"""
+        algorithm = self._algorithm
+        loader = ConfigSaverLoader(algorithm.settings, algo_config, [algorithm.ALGO_NAME, ALGORITHM_SETTINGS])
+        with self._loading():  # the algorithm is not run, nothing is saved before all are loaded
+            try:
+                loader.load_config()
+            except Exception as e:  # a setting that cannot be set must not prevent the use of the algorithm
+                logger.warning(f'The saved settings of {algorithm.ALGO_NAME} could not all be loaded: {e}')
+        algorithm.settings.sigTreeStateChanged.connect(lambda *args: self._save_algorithm_settings(loader))
+
+    def _save_algorithm_settings(self, loader: ConfigSaverLoader):
+        if self.save_settings and not self.loading_settings:
+            loader.save_config()
 
     def save(self, fname: H5Saver | Path = None, where: str = '/RawData',
              group_name: str = 'Algorithm', title: str = ''):
@@ -367,9 +403,6 @@ class AlgoApp(CustomApp):
 
             self.settings.child('ini_phase_group').show(self._algorithm.INI_PHASE)
             self.settings.child('compensation_group').show(self._algorithm.INPUT_COMPENSATION is not None)
-            if self._algorithm.INPUT_COMPENSATION is not None:  # what the user saved for this algorithm is loaded after
-                self.settings.child('compensation_group', 'compensation_factory').setValue(
-                    self._algorithm.INPUT_COMPENSATION)
             self.settings.child(str(ApplyMaskTo.INTERMEDIATE)).show(self._algorithm.SETUP_TYPE == LensSetup.FourF)
             self.settings.child('stopping').show(self._algorithm.ITERATIVE == True)
 
@@ -392,7 +425,12 @@ class AlgoApp(CustomApp):
             self._iter_count_widget.setVisible(self._algorithm.ITERATIVE)
 
             self.config_saver_loader.base_path = [self._algorithm.ALGO_NAME]
-            self.set_settings_values()
+            with self._loading():
+                if self._algorithm.INPUT_COMPENSATION is not None:  # the default one, then what was saved for this algorithm
+                    self.settings.child('compensation_group', 'compensation_factory').setValue(
+                        self._algorithm.INPUT_COMPENSATION)
+                self.set_settings_values()
+                self.set_algorithm_settings()
             self.check_slices()
 
             self.algo_changed.emit(self._algorithm)
@@ -637,6 +675,8 @@ class AlgoApp(CustomApp):
                 child.setOpts(enabled=True)
 
     def compute_phase_and_or_amplitude(self):
+        if self.loading_settings:  # a setting of the algorithm is being loaded, not changed by the user
+            return
         self.command_runner.emit(ThreadCommand(Actions.STEP, attribute=self._current_phase))
         self.set_action_enabled(Actions.CONTINUOUS, True)
 
@@ -719,7 +759,8 @@ class AlgoApp(CustomApp):
         self.save_algo_parameters()
 
     def algo_settings_changed(self):
-        self.algo_changed.emit(self.algorithm)
+        if not self.loading_settings:
+            self.algo_changed.emit(self.algorithm)
 
     def process_output(self, dte: DataToExport):
         self._current_data = dte
