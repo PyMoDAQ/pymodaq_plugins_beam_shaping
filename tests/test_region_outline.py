@@ -109,12 +109,34 @@ def test_the_extension_outlines_the_unreachable_region_on_the_target_and_the_out
         modulator_viewers=ViewerDispatcher(area, title='Modulator'), other_viewers=ViewerDispatcher(area, title='Other'),
         metrics_viewer=ViewerDispatcher(area, title='Metrics'), intermediate_viewer=types.SimpleNamespace(
             show_data=lambda dwa: None),
-        is_action_checked=lambda name: True, region_outline=RegionOutline())
+        is_action_checked=lambda name: True, region_outline=RegionOutline(), _unreachable=None)
     BeamShaping.plot_target(extension, algo._target_field)
     BeamShaping.plot_fields(extension, algo.get_fields_to_plot())
 
-    for dispatcher in (extension.target_viewers, extension.output_viewers):
+    for dispatcher in (extension.target_viewers, extension.modulator_viewers, extension.output_viewers):
         for viewer_items in outlines(dispatcher):
             assert len(viewer_items) == 1 and viewer_items[0].isVisible()
             assert np.array_equal(viewer_items[0].data, algo.unreachable_mask.astype(float))
     assert len(extension.other_viewers.viewers) == 1  # the pattern sent (slm), the mask is only the outline
+
+
+def test_the_target_keeps_its_outline_when_it_is_plotted_after_the_fields(qtbot):
+    """ The target is plotted when it changes, which can be after the fields of a run: the outline must stay"""
+    import types
+    from pymodaq_plugins_beam_shaping.extensions.spatial_beam_shaping import BeamShaping
+
+    window = QtWidgets.QMainWindow()
+    area = DockArea()
+    window.setCentralWidget(area)
+    qtbot.addWidget(window)
+    window.show()
+    mask = disk()
+    extension = types.SimpleNamespace(target_viewers=ViewerDispatcher(area, title='Target'),
+                                      region_outline=RegionOutline(), _unreachable=None)
+    field = Field('target', amplitude=np.ones((32, 48)), phase=np.zeros((32, 48)))
+    BeamShaping.plot_target(extension, field)
+    extension._unreachable = mask  # what plot_fields keeps
+    extension.region_outline.show(extension.target_viewers, mask)
+    BeamShaping.plot_target(extension, field)  # the target is plotted again, with new image items
+    for viewer_items in outlines(extension.target_viewers):
+        assert len(viewer_items) == 1 and viewer_items[0].isVisible()

@@ -87,6 +87,7 @@ class BeamShaping(CustomExt):
         self.output_viewers: ViewerDispatcher = None
         self.intermediate_viewer: Viewer2D = None
         self.other_viewers: ViewerDispatcher = None
+        self._unreachable = None  # last mask of the unreachable region
         self.region_outline = RegionOutline()  # of the region the target cannot be obtained in
 
         self._shaper: Shaper = None
@@ -569,7 +570,7 @@ class BeamShaping(CustomExt):
             field.amplitude_as_dwa(),
             field.phase_as_dwa(),
         ]))
-
+        self.region_outline.show(self.target_viewers, self._unreachable)  # the target may be plotted after the fields
 
     def value_changed(self, param):
         """ to be subclassed for actions to perform when one of the param's value in self.settings is changed
@@ -675,12 +676,14 @@ class BeamShaping(CustomExt):
             dte_output.get_data_from_full_name('output/phase')[0] = \
             np.unwrap(dte_output.get_data_from_full_name('output/phase')[0])
 
-        try:  # the region the target cannot be obtained in: an outline on the target and the output, not an image
+        try:  # the region the target cannot be obtained in: an outline on the target, the modulator and the output, not an image
             unreachable = dte.remove(dte.get_data_from_full_name('unreachable/amplitude'))[0] > 0.5
         except ValueError:
             unreachable = None
+        self._unreachable = unreachable
         self.region_outline.show(self.target_viewers, unreachable)
         self.modulator_viewers.show_data(dte_modulator)
+        self.region_outline.show(self.modulator_viewers, unreachable)
         self.output_viewers.show_data(dte_output)
         self.region_outline.show(self.output_viewers, unreachable)
         self.metrics_viewer.show_data(metrics.split_as_dte('Metrics'))
