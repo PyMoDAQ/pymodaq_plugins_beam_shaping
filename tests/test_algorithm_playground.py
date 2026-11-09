@@ -413,7 +413,7 @@ def test_all_fields_saved_once_at_the_end_in_the_group_of_the_run(qapp, tmp_path
         assert 'Fields' not in run
         assert 'settings' in run.attrs  # the settings of the run are those of the group holding the final data
         arrays = [d for d in f['RawData/Shaping000/Final/Data2D'].values()]
-        assert len(arrays) == 4  # output and modulator amplitude and phase
+        assert len(arrays) == 5  # output and modulator amplitude and phase, and the phase sent to the SLM
         amp = [a for a in arrays if a.attrs['origin'] == 'output'][0]
         assert any(np.allclose(ds[...], algo.output_field.amplitude) for ds in amp.values() if hasattr(ds, 'shape')
                    and ds.ndim == 2)
