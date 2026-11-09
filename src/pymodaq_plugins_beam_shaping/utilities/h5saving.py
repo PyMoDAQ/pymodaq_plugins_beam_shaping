@@ -24,10 +24,11 @@ from pymodaq_plugins_beam_shaping.utilities.shaper import ModulatorType
 if TYPE_CHECKING:
     from pymodaq_plugins_beam_shaping.field.field import Field
 
-extend_enum(GroupModuleType, 'SHAPING')
-# the sub groups of the group of a run saved at each step, each one by its own ModuleSaver (Fields, Metrics)
-extend_enum(GroupModuleType, 'FIELDS')
-extend_enum(GroupModuleType, 'METRICS')
+# SHAPING: the group of a run or of a saved session; FIELDS, METRICS: the sub groups of the group of a run saved at each
+# step, each one by its own ModuleSaver
+for _name in ('SHAPING', 'FIELDS', 'METRICS'):
+    if _name not in GroupModuleType.__members__:  # a module reload (ipython autoreload) must not extend it again
+        extend_enum(GroupModuleType, _name)
 
 
 class ShapingChildSaver(ModuleSaver):
