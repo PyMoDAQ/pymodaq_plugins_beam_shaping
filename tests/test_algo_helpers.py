@@ -38,9 +38,17 @@ def test_4f_helpers_conserve_energy_and_calibrate_the_output(qapp):
         assert np.isclose(size.m_as('um'), ref.m_as('um'))
 
 
+def from_center(algo, slices):
+    """ A region given in um around the center of the intermediate plane, in the frame of the extension (the origin is
+    the corner of the field)"""
+    pixel_sizes = pg.regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)
+    return tuple(slice(_slice.start + n * size / 2, _slice.stop + n * size / 2)
+                 for _slice, n, size in zip(slices, algo.shape, pixel_sizes))
+
+
 def test_intermediate_mask_filters_the_intermediate_field(qapp):
     app, algo = prepare('Binary Threshold', 'amplitude')
-    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-60., 60.), (-60., 60.)))
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, from_center(algo, (slice(-60., 60.), slice(-60., 60.))))
     algo.set_amplitude_in_modulator_plane(np.random.default_rng(0).uniform(size=algo.shape))
     filtered = algo.compute_intermediate_field()
     unfiltered = algo.compute_intermediate_field(use_mask=False)
@@ -87,8 +95,8 @@ def test_the_input_beam_is_compensated_for_the_amplitude_modulators(qapp):
     sizes = pg.regions.pixel_sizes_in_um(algo.intermediate_pixel_sizes)
     half = np.hypot(*algo.order_frequency()) / 3
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE,  # around the filtered order, in um from the center
-                tuple(slice((freq - half) * size, (freq + half) * size)
-                      for freq, size in zip(algo.order_frequency(), sizes)))
+                from_center(algo, tuple(slice((freq - half) * size, (freq + half) * size)
+                                        for freq, size in zip(algo.order_frequency(), sizes))))
     pg.set_parameters(algo, {'binarize': False})
     pg.set_compensation(app, 'NoCompensation')
     pg.run_algorithm(algo, verbose=False)

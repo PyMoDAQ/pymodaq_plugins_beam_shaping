@@ -80,7 +80,7 @@ def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
         app.save_continuous(algo.get_fields_to_plot())
         assert len(flushed) > n_flushes
     del app.h5saver.flush
-    assert app.continuous_saver.file_path == tmp_path / 'continuous.h5'
+    assert app.run_saver.file_path == tmp_path / 'continuous.h5'
     app._finalize_saving()  # as when the algorithm is paused: the attributes of the arrays are up to date
     from test_algorithm_playground import check_enlarged_nodes
     check_enlarged_nodes(tmp_path / 'continuous.h5', 2)
@@ -88,7 +88,8 @@ def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
 
     with DataLoader(tmp_path / 'continuous.h5') as loader:
         assert loader.get_node('/RawData/Shaping000').attrs['title'] == 'BeamShaping'
-        saved = {dwa.get_full_name(): dwa for dwa in loader.load_all('/RawData/Shaping000')}
+    from test_algorithm_playground import load_saved
+    saved = load_saved(tmp_path / 'continuous.h5')
     assert set(saved) == {'modulator/phase', 'AlgoData/metrics'}
     assert all(dwa.shape[0] == 2 for dwa in saved.values())
 
@@ -219,8 +220,8 @@ def test_algo_app_saves_what_is_sent_to_the_shaper(qtbot, dockarea, tmp_path, mo
     app.do_save_continuous(True)
     app.save_continuous(algo.get_fields_to_plot())
     app.close_file()
-    with DataLoader(tmp_path / 'sent.h5') as loader:
-        saved = {dwa.get_full_name() for dwa in loader.load_all('/RawData/Shaping000')}
+    from test_algorithm_playground import load_saved
+    saved = set(load_saved(tmp_path / 'sent.h5'))
     assert saved == expected | {'AlgoData/metrics'}
 
 
@@ -281,9 +282,13 @@ def test_algo_app_saves_the_pattern_of_an_amplitude_modulator_in_the_slm_node(qt
     app.save(tmp_path / 'file.h5')
     with DataLoader(tmp_path / 'file.h5') as loader:
         origins = {}
-        for node in loader.walk_nodes('/RawData/Algorithm/Data2D/'):
+        for node in loader.walk_nodes('/RawData/Shaping/Final/Data2D/'):
             if 'ARRAY' in node.attrs['CLASS']:
                 origins[(node.attrs.get('origin', ''), node.title)] = loader.load_data(node.path)[0]
+    with DataLoader(tmp_path / 'file.h5') as loader:  # the layout of the Save: Shaping, not indexed, with its sub groups
+        assert 'Shaping' in loader.h5saver.get_children(loader.h5saver.get_node('/RawData'))
+        assert 'Final' in loader.h5saver.get_children(loader.h5saver.get_node('/RawData/Shaping'))
+        assert loader.get_node('/RawData/Shaping').attrs['settings']
     assert set(np.unique(origins[('slm', 'amplitude')])) <= {0., 1.}
     assert not np.allclose(origins[('modulator', 'amplitude')], origins[('slm', 'amplitude')])
     assert np.allclose(origins[('modulator', 'amplitude')], algo._input_field.amplitude * origins[('slm', 'amplitude')])

@@ -29,6 +29,13 @@ def test_run_and_plot_an_algorithm(qapp):
     assert pg.plot(algo, show=False) is not None
 
 
+def around_center(algo, apply_to: ApplyMaskTo, half: float = 100.):
+    """ A mask of 2 x half um around the center of the field, in the frame of the extension (origin at the corner)"""
+    default = pg.default_mask(algo, apply_to)
+    return tuple(((_slice.start + _slice.stop) / 2 - half, (_slice.start + _slice.stop) / 2 + half)
+                 for _slice in default)
+
+
 def test_plot_input_and_target_fields(qapp):
     app, algo = prepare('Gerchberg-Saxton')
     target = pg.get_target_field(algo)
@@ -38,7 +45,7 @@ def test_plot_input_and_target_fields(qapp):
 
 def test_plot_intermediate_field_in_log_scale_and_customized(qapp):
     app, algo = prepare('Parallel Lee', modulator_type='amplitude')
-    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, around_center(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
     log = pg.log_intensity(algo.intermediate_field, decades=4)
     assert log.data[0].max() - log.data[0].min() <= 4 + 1e-9
@@ -70,7 +77,7 @@ def test_masks_are_given_as_the_slices_shown_by_the_app_or_as_pairs(qapp):
 
 def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp):
     app, algo = prepare('Parallel Lee', modulator_type='amplitude')
-    mask = ((-100., 100.), (-100., 100.))
+    mask = around_center(algo, ApplyMaskTo.INTERMEDIATE)
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, mask)
     snapped = pg.snap(algo)
     assert app.apply_mask(ApplyMaskTo.INTERMEDIATE)  # restored for the next runs
@@ -80,8 +87,8 @@ def test_snap_shows_the_intermediate_plane_without_mask_and_keeps_the_masks(qapp
     figure = pg.plot_field(snapped, 'snap', log=True, mask=(mask, 'elliptical'), show=False)
     axes = pg._image_axes(figure)
     assert all(len(ax.patches) == 1 for ax in axes)
-    # the axes are centered, as the masks: the outline is around the origin
-    assert axes[0].patches[0].center == pytest.approx((0., 0.))
+    # the plots are centered on the field, the mask is given from its corner: the outline is shifted to the origin
+    assert axes[0].patches[0].center == pytest.approx((0., 0.), abs=1.)  # um, the default mask is rounded
     x = axes[0].collections[0].get_coordinates()[0, :, 0]
     assert x[0] < 0 < x[-1]
 
@@ -118,10 +125,10 @@ def test_default_masks_cover_two_thirds_of_the_effective_area_around_the_center(
     for apply_to, pixel_sizes in ((ApplyMaskTo.INTERMEDIATE, algo.intermediate_pixel_sizes),
                                   (ApplyMaskTo.TARGET, algo._target_field.pixels_sizes)):
         region = pg.default_mask(algo, apply_to)
-        _, size = regions.get_effective_area(algo.shaper, pixel_sizes)
-        for _slice, full in zip(region, size):
+        pos, size = regions.get_effective_area(algo.shaper, pixel_sizes)
+        for _slice, full, origin in zip(region, size, pos):
             start, stop = _slice.start, _slice.stop
-            assert start == pytest.approx(-stop, abs=1)
+            assert (start + stop) / 2 == pytest.approx(origin + full / 2, abs=1)  # extension frame, centered
             assert stop - start == pytest.approx(full * 2 / 3, abs=2)
     pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, pg.default_mask(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
@@ -207,7 +214,7 @@ def test_unknown_initial_phase_parameter_lists_the_possible_ones(qapp):
 
 def test_parameters_are_set_without_widgets_and_masks_applied(qapp):
     app, algo = prepare('Parallel Lee', dict(carrier_factor=0.5), modulator_type='amplitude')
-    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, ((-100., 100.), (-100., 100.)))
+    pg.set_mask(app, ApplyMaskTo.INTERMEDIATE, around_center(algo, ApplyMaskTo.INTERMEDIATE))
     pg.run_algorithm(algo)
     assert algo.settings['carrier_factor'] == 0.5
     assert algo.apply_mask(ApplyMaskTo.INTERMEDIATE)
@@ -251,25 +258,39 @@ class TmpReload(Direct):
 
 
 
+STEP_GROUPS = ('Fields', 'Metrics')  # the sub groups of a run holding the data saved at each step
+
+
+def saved_step_groups(loader, group='/RawData/Shaping000'):
+    """ The sub groups of the run with the data saved at each step"""
+    return [f'{group}/{name}' for name in STEP_GROUPS if name in loader.get_node(group).node]
+
+
 def load_saved(path, group='/RawData/Shaping000'):
+    """ The data saved at each step (fields and metrics) of a run, by full name"""
     from pymodaq_data.h5modules.data_saving import DataLoader
     with DataLoader(path) as loader:
-        return {dwa.get_full_name(): dwa for dwa in loader.load_all(group)}
+        return {dwa.get_full_name(): dwa for sub in saved_step_groups(loader, group) for dwa in loader.load_all(sub)}
 
 
 def check_enlarged_nodes(path, n_steps, group='/RawData/Shaping000'):
-    """ The attributes of the enlargeable arrays and of the step axis are the actual ones (not those of one step)"""
+    """ The attributes of the enlargeable arrays and of the step axis are the actual ones (not those of one step), in
+    each sub group (each has its own navigation axis)"""
     from pymodaq_data.h5modules.data_saving import DataLoader
     with DataLoader(path) as loader:
-        nodes = [node for node in loader.walk_nodes(group) if 'CLASS' in node.attrs and node.attrs['CLASS'] == 'EARRAY']
-        assert len(nodes) > 1
-        for node in nodes:
-            assert tuple(node.attrs['shape']) == tuple(node.node.shape), node.path
-            if node.name.startswith('EnlData') or node.path.endswith('NavAxes/Axis00'):
-                assert node.attrs['shape'][0] == n_steps, node.path
-        axis = loader.get_node(f'{group}/NavAxes/Axis00')
-        assert axis.attrs['size'] == n_steps
-        assert list(axis.read()) == list(range(n_steps))
+        sub_groups = saved_step_groups(loader, group)
+        assert sub_groups
+        for sub in sub_groups:
+            nodes = [node for node in loader.walk_nodes(sub)
+                     if 'CLASS' in node.attrs and node.attrs['CLASS'] == 'EARRAY']
+            assert len(nodes) > 1
+            for node in nodes:
+                assert tuple(node.attrs['shape']) == tuple(node.node.shape), node.path
+                if node.name.startswith('EnlData') or node.path.endswith('NavAxes/Axis00'):
+                    assert node.attrs['shape'][0] == n_steps, node.path
+            axis = loader.get_node(f'{sub}/NavAxes/Axis00')
+            assert axis.attrs['size'] == n_steps
+            assert list(axis.read()) == list(range(n_steps))
 
 
 def test_iterations_and_metrics_are_printed_for_iterative_algorithms(qapp, capsys):
@@ -365,10 +386,10 @@ def test_runs_added_to_the_same_file(qapp, tmp_path):
 
 def test_saving_resumed_after_a_pause_in_the_same_group(qapp, tmp_path):
     """ finalize (pause) makes the attributes of the file right, the next steps are appended to the same group"""
-    from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver
+    from pymodaq_plugins_beam_shaping.utilities.h5saving import RunSaver
     app, algo = prepare('Gerchberg-Saxton')
     pg.run_algorithm(algo)
-    saver = ContinuousSaver(fields=('modulator/phase',), metrics=True)
+    saver = RunSaver(fields=('modulator/phase',), metrics=True)
     saver.open_file(tmp_path / 'pause.h5')
     saver.start()
     for _ in range(2):
@@ -379,3 +400,87 @@ def test_saving_resumed_after_a_pause_in_the_same_group(qapp, tmp_path):
         saver.add(algo.get_fields_to_plot())
     saver.close_file()
     check_enlarged_nodes(tmp_path / 'pause.h5', 5)
+
+
+def test_all_fields_saved_once_at_the_end_in_the_group_of_the_run(qapp, tmp_path):
+    import h5py
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'final.h5'
+    pg.run_algorithm(algo, 3, save_metrics=True, save_final=True, h5file=path)
+    with h5py.File(path, 'r') as f:
+        run = f['RawData/Shaping000']
+        assert set(run) >= {'Final', 'Metrics'}  # no per step fields were asked for
+        assert 'Fields' not in run
+        assert 'settings' in run.attrs  # the settings of the run are those of the group holding the final data
+        arrays = [d for d in f['RawData/Shaping000/Final/Data2D'].values()]
+        assert len(arrays) == 4  # output and modulator amplitude and phase
+        amp = [a for a in arrays if a.attrs['origin'] == 'output'][0]
+        assert any(np.allclose(ds[...], algo.output_field.amplitude) for ds in amp.values() if hasattr(ds, 'shape')
+                   and ds.ndim == 2)
+        # the metrics are still saved at each iteration, next to it
+        assert f['RawData/Shaping000/Metrics/Data0D/CH00/EnlData00'].shape[0] == 3
+        assert f['RawData/Shaping000/Metrics/NavAxes/Axis00'].shape[0] == 3  # each sub group has its step axis
+
+
+def test_final_saving_alone(qapp, tmp_path):
+    import h5py
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'final_only.h5'
+    pg.run_algorithm(algo, 2, save_final=True, h5file=path)
+    with h5py.File(path, 'r') as f:
+        assert 'Final' in f['RawData/Shaping000']
+        assert 'Fields' not in f['RawData/Shaping000'] and 'Metrics' not in f['RawData/Shaping000']
+
+
+def test_masks_are_in_the_extension_frame_and_selected_the_same_region_in_the_arrays(qapp):
+    """ The slices of the extension (origin at the corner of the field) select the region where they point"""
+    app, algo = prepare('Gerchberg-Saxton')
+    mask = around_center(algo, ApplyMaskTo.TARGET, half=150.)
+    pg.set_mask(app, ApplyMaskTo.TARGET, mask, 'square')
+    slices = app.get_mask_as_slices(ApplyMaskTo.TARGET)
+    shape = algo.shape
+    for _slice, size in zip(slices, shape):
+        assert _slice.start < size / 2 < _slice.stop  # around the center of the array, not shifted to a corner
+
+
+def test_fields_and_metrics_each_in_their_sub_group_with_their_step_axis(qapp, tmp_path):
+    import h5py
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'groups.h5'
+    pg.run_algorithm(algo, 3, save_fields=('modulator/phase', 'output/amplitude'), save_metrics=True, save_final=True,
+                     h5file=path)
+    with h5py.File(path, 'r') as f:
+        run = f['RawData/Shaping000']
+        assert set(run) >= {'Fields', 'Metrics', 'Final'}
+        for name in ('Fields', 'Metrics'):
+            assert run[name]['NavAxes']['Axis00'].shape == (3,)
+        assert 'NavAxes' not in run['Final']
+        assert run['Fields']['Data2D']['CH00']['EnlData00'].shape[0] == 3
+        assert 'Data0D' not in run['Fields'] and 'Data2D' not in run['Metrics']
+
+
+def test_input_and_target_saved_with_the_settings_of_their_loaders(qapp, tmp_path):
+    from pymodaq_data.h5modules.data_saving import DataLoader
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'loaders.h5'
+    pg.run_algorithm(algo, 2, save_metrics=True, h5file=path)
+    with DataLoader(path) as loader:
+        run = '/RawData/Shaping000'
+        for name, loader_name in (('Input', 'ImageFiles'), ('Target', 'LaguerreGaussian')):
+            node = loader.get_node(f'{run}/{name}')
+            settings = node.attrs['settings']
+            settings = settings.decode() if isinstance(settings, bytes) else settings
+            assert loader_name in settings  # the settings of the loader that produced the field
+            assert 'needed_size' in settings
+            assert 'LoaderSettings' in settings  # the settings of the loader itself are there too
+            # all the settings of the loader app, as the extension saves them
+            for entry in ('ini_size', 'utils', 'smoothing', 'normalisation', 'masking', 'roi_select'):
+                assert entry in settings, entry
+    # in the format of the field files: readable by load_field_from_h5, as the Input and Target groups of the extension
+    from pymodaq_plugins_beam_shaping.field.h5 import load_field_from_h5
+    saved_input = load_field_from_h5(path, f'{run}/Input/Data00')
+    saved_target = load_field_from_h5(path, f'{run}/Target/Data00')
+    assert np.allclose(saved_input.amplitude, algo._input_field.amplitude)
+    assert np.allclose(saved_target.amplitude, algo._target_field.amplitude)  # as used by the algorithm
+    # they are saved once (no step axis) and not part of the data saved at each iteration
+    assert 'input/amplitude' not in load_saved(path)

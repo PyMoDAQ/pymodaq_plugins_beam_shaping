@@ -21,7 +21,7 @@ from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationFac
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
-from pymodaq_plugins_beam_shaping.utilities.h5saving import ContinuousSaver, algorithm_name_settings
+from pymodaq_plugins_beam_shaping.utilities.h5saving import RunSaver, algorithm_name_settings
 from pymodaq_plugins_beam_shaping.field.h5 import settings_to_xml
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, get_default_shaper
 from pymodaq_data import Q_
@@ -110,6 +110,8 @@ class HeadlessApp:
         self.shaper = shaper
         self.algorithm = None
         self.compensation = None  # the compensation of the input beam, see set_compensation (None: the default one)
+        self.loaded_fields = []  # (field, loader, shape before fitting) of the fields loaded with load_field
+        self.field_loaders = {'input': None, 'target': None}  # the loaders of the fields given to the algorithm
         self.masks = {str(ApplyMaskTo.TARGET): None, str(ApplyMaskTo.INTERMEDIATE): None}
         shape = sizing.get_effective_needed_field_size(shaper)
         pixel_size = sizing.get_effective_slm_pixel_size(shaper)
@@ -139,11 +141,8 @@ class HeadlessApp:
         else:
             pixel_sizes = self.algorithm._target_field.pixels_sizes
         shape = sizing.get_effective_needed_field_size(self.shaper)
-        # like in the app the user gives the region around the center of the field: shift it to array coordinates
-        pxl = regions.pixel_sizes_in_um(pixel_sizes)
-        shifted = tuple(slice(_slice.start + shape[dim] * pxl[dim] / 2, _slice.stop + shape[dim] * pxl[dim] / 2)
-                        for dim, _slice in enumerate(slices_um))
-        return regions.slices_to_indexes(shifted, pixel_sizes, shape)
+        # as in the app, the region is given in the frame of the extension: its origin is the corner of the field
+        return regions.slices_to_indexes(slices_um, pixel_sizes, shape)
 
     def algo_settings_changed(self):
         pass
@@ -218,13 +217,43 @@ def load_field(loader_name: str, params: Optional[dict], app: HeadlessApp):
     loader = LoaderFactory.get_loader(loader_name)(parent=app)
     set_parameters(loader, params or {})
     field = loader.load_field(notify=False)
+    ini_shape = tuple(field.shape)
     shape = sizing.get_effective_needed_field_size(app.shaper)
     pixel_size = Q_(sizing.get_effective_slm_pixel_size(app.shaper), 'um')
-    return fit_to_shape(field, shape, (pixel_size, pixel_size))
+    field = fit_to_shape(field, shape, (pixel_size, pixel_size))
+    app.loaded_fields.append((field, loader, ini_shape))
+    return field
+
+
+def loader_settings(app: HeadlessApp, field, loader, ini_shape: tuple) -> list:
+    """ The settings of a loader to save with the field it produced, laid out as the loader app of the extension does
+    when it saves a field: all its settings (those of ``FieldLoaderApp.params``) and the ones of the loader
+
+    The loader app does not exist here: its settings are created from the same definition, and set to what the script
+    did (the loader, the size of the file and the needed size, the scaling to fit the field), the other ones (flips,
+    smoothing, normalisation, masking, ROI) are not used by the script and keep their default value"""
+    import copy
+    from pyqtgraph.parametertree import Parameter
+    from pymodaq_plugins_beam_shaping.field.field_loader_app import FieldLoaderApp
+    loader_app = Parameter.create(name=FieldLoaderApp.settings_name, type='group',
+                                  children=copy.deepcopy(FieldLoaderApp.params))
+    needed = app.settings.child('needed_size')
+    values = {('loader',): type(loader).LOADER_NAME,
+              ('ini_size', 'height'): int(ini_shape[0]), ('ini_size', 'width'): int(ini_shape[1]),
+              ('utils', 'sizing', 'height'): int(field.shape[0]), ('utils', 'sizing', 'width'): int(field.shape[1]),
+              ('utils', 'sizing', 'scaling'): float(min(np.array(field.shape) / np.array(ini_shape)))}
+    values.update({('needed_size', child.name()): child.value() for child in needed.children()})
+    for path, value in values.items():
+        loader_app.child(*path).setValue(value)
+    return [loader_app, loader.settings]
 
 
 def set_fields(algo, input_field, target_field):
     """ Give the input and target fields to the algorithm, as the app does (the target is scaled by the algo)"""
+    app = algo.parent_app
+    for role, field in (('input', input_field), ('target', target_field)):  # keep the loader of each, to save it
+        app.field_loaders[role] = next(((field, loader, ini_shape) for loaded, loader, ini_shape in app.loaded_fields
+                                        if loaded is field), None)
     algo.set_modulator_field(input_field.deepcopy())
     algo.set_input_field(input_field)
     algo.set_target_field(algo.scale_target_with_geometry(target_field))
@@ -237,7 +266,11 @@ def get_target_field(algo):
 
 
 def set_mask(app: HeadlessApp, apply_to: ApplyMaskTo, slices_um, mask_type: str = 'elliptical'):
-    """ Apply a mask given by its region in um around the center of the field, None to remove it.
+    """ Apply a mask given by its region in um, None to remove it.
+
+    The region is in the frame of the extension, where the origin is the corner of the field (the slices shown by the
+    extension and by its mask settings can be pasted as is). The plots of this module are centered on the field, their
+    outline of the mask is shifted accordingly.
 
     The region is given as the slices shown by the field loader and the extension, as text or not
     (``'(slice(-100, 100, None), slice(-50, 50, None))'``, along y then along x), so that they can be copied and pasted,
@@ -254,16 +287,14 @@ def mask_to_str(slices_um) -> str:
 
 def default_mask(algo, apply_to: ApplyMaskTo, fraction: float = 2 / 3) -> tuple:
     """ The default region of a mask, as in the extension: centered and covering 2/3 of the effective area of the SLM
-    in the plane (target or intermediate), given as slices along y then along x in um around the center of the field,
-    rounded to the um, as shown by the field loader and the extension"""
+    in the plane (target or intermediate), given as slices along y then along x in um in the frame of the extension
+    (origin at the corner of the field), rounded to the um, as shown by the extension"""
     if str(apply_to) == str(ApplyMaskTo.INTERMEDIATE):
         pixel_sizes = algo.intermediate_pixel_sizes
     else:
         pixel_sizes = algo._target_field.pixels_sizes
-    shape = sizing.get_effective_needed_field_size(algo.shaper)
-    half_field = np.array(shape) * regions.pixel_sizes_in_um(pixel_sizes) / 2
     slices = regions.default_slices(algo.shaper, pixel_sizes, fraction)
-    return tuple(slice(round(_slice.start - half), round(_slice.stop - half)) for _slice, half in zip(slices, half_field))
+    return tuple(slice(round(_slice.start), round(_slice.stop)) for _slice in slices)
 
 
 def _phase_settings(phase_class):
@@ -320,7 +351,8 @@ _data_folder_saver = None  # saves the runs without a given file
 
 def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
                   ini_phase_params: Optional[dict] = None, save_fields: Union[bool, Iterable[str]] = False,
-                  save_metrics: bool = False, h5file: Union[None, str, Path] = None, verbose: bool = True):
+                  save_metrics: bool = False, h5file: Union[None, str, Path] = None, verbose: bool = True,
+                  save_final: bool = False):
     """ Run the algorithm (iterations only for the iterative ones), the results are in its fields
 
     With ``verbose`` (default), the index of the iteration and the metrics (fitness, efficiency) are printed after each
@@ -333,22 +365,32 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
     ``save_fields`` True for all the fields (output and modulator amplitude and phase, intermediate intensity) or the
     full names of some of them ('modulator/phase'...), ``save_metrics`` for the metrics. ``h5file``: the file to add
     the run to (created if needed), None for a file in the PyMoDAQ data folder as the extension, created at the first
-    saved run and holding the next ones. The path of the file is stored in ``algo.saved_h5file``."""
+    saved run and holding the next ones. The path of the file is stored in ``algo.saved_h5file``.
+
+    ``save_final`` saves all the fields and the metrics of the last iteration once, at the end of the run (as the Save
+    action of the extension), in a sub group ``Final`` of the group of the run, next to the data saved at each
+    iteration, so with the same settings. It can be used alone or with the two other options."""
     phase = initial_phase(algo, ini_phase, ini_phase_params) if algo.INI_PHASE else np.zeros(algo.shape)
     saver = None
-    if save_fields or save_metrics:
+    if save_fields or save_metrics or save_final:
         global _data_folder_saver
         if h5file is not None:
-            saver = ContinuousSaver()
+            saver = RunSaver()
             saver.open_file(h5file)
         else:  # one file in the data folder for the session (the file name has a one second resolution)
             if _data_folder_saver is None:
-                _data_folder_saver = ContinuousSaver()
+                _data_folder_saver = RunSaver()
             saver = _data_folder_saver
         saver.fields, saver.metrics = save_fields, save_metrics
         saver.start(settings_as_xml=settings_to_xml((
             algorithm_name_settings(type(algo).ALGO_NAME),
             run_settings(algo, algo.parent_app, ini_phase, ini_phase_params, n_iterations), algo.settings)))
+        # the input and target fields as used by the algorithm, with the settings of their loaders
+        app = algo.parent_app
+        saver.add_loaded_fields(
+            algo._input_field, algo._target_field,
+            *[loader_settings(app, *app.field_loaders[role]) if app.field_loaders[role] is not None else ()
+              for role in ('input', 'target')])
     try:
         algo.do_things_after_init()
         if algo.INI_PHASE:
@@ -364,6 +406,8 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
                       f'efficiency = {algo.efficiency:.4g}')
             if saver is not None:
                 saver.add(algo.get_fields_to_plot())
+        if saver is not None and save_final:
+            saver.add_final(algo.get_fields_to_plot())
     finally:
         if saver is not None:
             algo.saved_h5file = saver.file_path
@@ -444,8 +488,24 @@ def center_axes(dte):
     return dte
 
 
+def mask_in_plot_frame(dte, mask):
+    """ The mask ((slices in the frame of the extension, type) as given to :func:`set_mask`) in the frame of the plots,
+    centered on the field (see :func:`center_axes`, to be called first)"""
+    if mask is None:
+        return None
+    slices, mask_type = mask
+    dwa = next(dwa for dwa in dte if dwa.dim.name == 'Data2D')
+    centered = []
+    for dim, _slice in enumerate(regions.as_slices(slices)):
+        axis = dwa.get_axis_from_index(dim)[0]
+        half_um = Q_(-axis.offset, axis.units or 'um').m_as('um')  # center_axes puts the origin at the center
+        centered.append(slice(_slice.start - half_um, _slice.stop - half_um))
+    return tuple(centered), mask_type
+
+
 def draw_mask(figure, slices_um, mask_type: str = 'elliptical', units: str = 'um', color: str = 'red'):
-    """ Draw the outline of a mask (slices in um around the center of the field, see :func:`set_mask`) on the 2D data of a matplotlib figure (axes in ``units``, um for the plots of this module)"""
+    """ Draw the outline of a mask (slices in um around the center of the field, as the plots of this module, see
+    :func:`mask_in_plot_frame`) on the 2D data of a matplotlib figure (axes in ``units``)"""
     from matplotlib.patches import Ellipse, Rectangle
     (y0, y1), (x0, x1) = [[Q_(value, 'um').m_as(units) for value in (_slice.start, _slice.stop)]
                           for _slice in regions.as_slices(slices_um)]
@@ -521,6 +581,7 @@ def _show(dte, backend: str, size, clims=None, xlim=None, ylim=None, show: bool 
     """
     center_axes(dte)
     units = (str(dte[0].get_axis_from_index(1)[0].units) if len(dte[0].axes) else '') or 'um'
+    mask = mask_in_plot_frame(dte, mask)
     if backend == 'qt':
         ensure_qapp()
         viewer = dte.plot('qt', viewer=figure)

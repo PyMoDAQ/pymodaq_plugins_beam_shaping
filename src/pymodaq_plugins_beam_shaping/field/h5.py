@@ -26,6 +26,25 @@ def settings_to_xml(settings: Iterable[Parameter]) -> bytes:
     return settings_str
 
 
+def field_as_dwa(field: Field) -> DataCalculated:
+    """ The field (amplitude and phase) as one data object, the format of the field files and of the Input and Target
+    groups of the saved runs, read by :func:`load_field_from_h5`"""
+    return DataCalculated('Field', data=[field.amplitude, field.phase], labels=['Amplitude', 'Phase'],
+                          axes=field.get_axes())
+
+
+def add_field_group(saver: DataSaverLoader, field: Field, settings: Iterable[Parameter] = (),
+                    where: str = '/RawData', group_name: str = 'Field', title: str = ''):
+    """ Add to an opened file a group holding the field and the settings used to produce it (those of its loader)
+
+    Shared by the field files, the save of the extension (Input and Target groups) and the saved runs of the
+    algorithm script"""
+    group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_to_xml(settings),
+                                 group_name=group_name)
+    saver.add_data(group, field_as_dwa(field))
+    return group
+
+
 def save_field_to_h5(field: Field, fname: Union[str, Path], settings: Iterable[Parameter] = (),
                      where: str = '/RawData', group_name: str = 'Field', title: str = ''):
     """ Save the field (amplitude and phase) and the settings used to produce it into a hdf5 file
@@ -33,12 +52,8 @@ def save_field_to_h5(field: Field, fname: Union[str, Path], settings: Iterable[P
     The field is added to the file if it exists."""
     fname = Path(fname)
     new_file = not fname.exists()
-    dwa = DataCalculated('Field', data=[field.amplitude, field.phase], labels=['Amplitude', 'Phase'],
-                         axes=field.get_axes())
     with DataSaverLoader(fname, new_file=new_file) as saver:
-        group = saver.add_data_group(where, DataDim.Data2D, title=title, settings_as_xml=settings_to_xml(settings),
-                                     group_name=group_name)
-        saver.add_data(group, dwa)
+        add_field_group(saver, field, settings, where, group_name, title)
         add_plugin_version(saver)
 
 

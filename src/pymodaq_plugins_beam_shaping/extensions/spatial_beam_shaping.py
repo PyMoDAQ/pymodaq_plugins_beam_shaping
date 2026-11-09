@@ -6,7 +6,7 @@ from pymodaq_utils import utils as utils
 from pymodaq_utils.logger import set_logger, get_module_name
 from pymodaq_utils.config import GlobalConfig
 
-from pymodaq_data.h5modules.data_saving import DataToExportSaver, DataLoader
+from pymodaq_data.h5modules.data_saving import DataLoader
 
 from pymodaq_gui.messenger import messagebox
 from pymodaq_gui.utils.shared_ui import MenuToolbarNames, SharedUI
@@ -21,7 +21,7 @@ from pymodaq_gui.parameter.ioxml import  xml_string_to_parameter
 
 from pymodaq.utils.custom_ext import CustomExt
 from pymodaq.utils.gui_utils.loader_utils import create_extension
-from pymodaq.utils.data import DataToExport, DataCalculated, DataDim
+from pymodaq.utils.data import DataToExport, DataCalculated
 
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
 from pymodaq_plugins_beam_shaping.algorithms.algorithm_app import AlgoApp
@@ -33,7 +33,7 @@ from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
 from pymodaq_plugins_beam_shaping.utilities.region_outline import RegionOutline
-from pymodaq_plugins_beam_shaping.utilities.h5saving import add_plugin_version
+from pymodaq_plugins_beam_shaping.utilities.h5saving import ShapingSaver
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
 from pymodaq_plugins_beam_shaping.utilities.shaper import Shaper, ModulatorType, get_default_shaper
@@ -308,15 +308,17 @@ class BeamShaping(CustomExt):
             dte.append(DataCalculated('Linear Phase', data=[linear_phase_array[tuple(self.get_slm_slices())]]),)
             dte.append(DataCalculated('Zernike Phase', data=[zernike_phase[tuple(self.get_slm_slices())]]))
 
-            with DataToExportSaver(fname, metadata={'settings': plugin_config.to_xml_string()}) as h5saver:
-                group = h5saver.add_data_group('/RawData', DataDim.Data2D, title='SLM Phases', group_name='SLM')
-                h5saver.add_data(group, dte)
-                add_plugin_version(h5saver)
+            def add_to_group(shaping_saver: ShapingSaver):
+                """ The phases sent to the SLM, the input and target fields with the settings of their loaders"""
+                shaping_saver.add_group_data(dte, 'SLM', 'SLM Phases')
+                for name, loader_app in (('Input', self._input_field_loader), ('Target', self._target_field_loader)):
+                    shaping_saver.add_loaded_field(loader_app.field, (loader_app.settings, loader_app.loader.settings),
+                                                   name)
 
-            self._input_field_loader.save_field(fname, where='/RawData', group_name='Input', title='Input Field')
-            self._target_field_loader.save_field(fname, where='/RawData', group_name='Target', title='Target Field')
-
-            self.algorithm.save(fname, where='/RawData', group_name='Algorithm', title='Algorithm')
+            # one group Shaping holding the settings of the algorithm and the sub groups Final (the fields of the
+            # algorithm), SLM, Input and Target
+            self.algorithm.save(fname, add_to_group=add_to_group,
+                                metadata={'settings': plugin_config.to_xml_string()})
 
     def load(self, fname: Path = None):
         if fname is None:
@@ -332,14 +334,22 @@ class BeamShaping(CustomExt):
             dwa_input_phase = None
 
             with DataLoader(fname) as loader:
+                if 'Shaping' in loader.h5saver.get_children(loader.h5saver.get_node('/RawData')):
+                    # the layout of the Save: a group Shaping with the sub groups Final, Input and Target
+                    algo_path, target_path, input_path = ('/RawData/Shaping/Final', '/RawData/Shaping/Target',
+                                                          '/RawData/Shaping/Input')
+                    algo_settings_node = '/RawData/Shaping'
+                else:  # files saved before: three groups at the root of the data
+                    algo_path, target_path, input_path = '/RawData/Algorithm', '/RawData/Target', '/RawData/Input'
+                    algo_settings_node = algo_path
                 algo_settings = xml_string_to_parameter(
-                    loader.h5saver.get_node('/RawData/Algorithm/').attrs['settings'])
+                    loader.h5saver.get_node(algo_settings_node).attrs['settings'])
                 target_settings = xml_string_to_parameter(
-                    loader.h5saver.get_node('/RawData/Target/').attrs['settings'])
+                    loader.h5saver.get_node(target_path).attrs['settings'])
                 input_settings = xml_string_to_parameter(
-                    loader.h5saver.get_node('/RawData/Input/').attrs['settings'])
+                    loader.h5saver.get_node(input_path).attrs['settings'])
 
-                for node in loader.walk_nodes('/RawData/Algorithm/Data2D/'):
+                for node in loader.walk_nodes(f'{algo_path}/Data2D/'):
                     if 'ARRAY' in node.attrs['CLASS']:
                         if node.attrs.get('origin', '') == 'slm' and node.title == 'amplitude':
                             dwa_slm_amplitude = loader.load_data(node.path)
@@ -347,13 +357,13 @@ class BeamShaping(CustomExt):
                             dwa_modulator_amplitude = loader.load_data(node.path)
                         elif node.attrs.get('origin', '') == 'modulator' and node.title == 'phase':
                             dwa_modulator_phase = loader.load_data(node.path)
-                for node in loader.walk_nodes('/RawData/Target/'):
+                for node in loader.walk_nodes(f'{target_path}/'):
                     if 'ARRAY' in node.attrs['CLASS']:
                         if node.attrs.get('label', '') == 'Amplitude':
                             dwa_target_amplitude = loader.load_data(node.path)
                         elif node.attrs.get('label', '') == 'Phase':
                             dwa_target_phase = loader.load_data(node.path)
-                for node in loader.walk_nodes('/RawData/Input/'):
+                for node in loader.walk_nodes(f'{input_path}/'):
                     if 'ARRAY' in node.attrs['CLASS']:
                         if node.attrs.get('label', '') == 'Amplitude':
                             dwa_input_amplitude = loader.load_data(node.path)
