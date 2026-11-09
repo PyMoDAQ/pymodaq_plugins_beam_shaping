@@ -4,6 +4,7 @@ from typing import Callable, Union, List, Tuple, TYPE_CHECKING, Iterable
 import xml.etree.ElementTree as ET
 
 from pymodaq_data.h5modules.backends import GROUP, Node
+from pymodaq_data.data import DataDim
 import numpy as np
 
 from pymodaq_data.h5modules.data_saving import (DataToExportEnlargeableSaver, DataToExport, DataToExportSaver,
@@ -100,6 +101,15 @@ class ShapingSaver(ModuleSaver):
 
     def add_data_bundle(self, data: DataBundle):
         self.add_data(data.dte, axis_values=data.axis_values)
+
+    def add_final_data(self, dte: DataToExport, group_name: str = 'Final'):
+        """ Save data once (not enlarged along the steps) in a sub group of the last group, so that they share its
+        settings and attributes with the data saved at each step, e.g. all the fields at the end of a run"""
+        saver = DataToExportSaver(self._h5saver)  # not as a context manager: it would close the file
+        group = saver.add_data_group(self.get_last_node(self._h5saver.raw_group), DataDim.Data2D, title=group_name,
+                                     group_name=group_name)
+        saver.add_data(group, dte)
+        return group
 
 
 VERSION_ATTRIBUTE = 'pymodaq_plugins_beam_shaping_version'
@@ -274,6 +284,12 @@ class ContinuousSaver:
         self._step += 1
         self.h5saver.settings.child('N_saved').setValue(self._step)
         self.h5saver.flush()  # the content of the file is up to date at each step, e.g. to browse it while paused
+
+    def add_final(self, dte: DataToExport, group_name: str = 'Final'):
+        """ Save all the data of the output of an algorithm (every field, the metrics, the unreachable region...) once,
+        in the sub group ``group_name`` of the group of the current run, whatever the data saved at each step"""
+        self.module_saver.add_final_data(dte.deepcopy(), group_name)
+        self.h5saver.flush()
 
     def finalize(self):
         """ Make the file consistent: end the SWMR mode if it was activated

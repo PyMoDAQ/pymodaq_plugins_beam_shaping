@@ -102,11 +102,12 @@ if snap_plot is not None and intermediate_mask is not None:  # the plot of the s
 # /RawData/ShapingXXX per run, the data enlarged along a 'step' axis
 SAVE_FIELDS = False  # True: all the fields (output, modulator, intermediate), or some, e.g. ('modulator/phase',)
 SAVE_METRICS = False  # the metrics (fitness, efficiency...)
+SAVE_FINAL = False  # all the fields and the metrics of the last iteration, once at the end (sub group 'Final' of the run)
 SAVE_FILE = None  # None: a file in the PyMoDAQ data folder for the session, or a path. The runs are added to the file
 
 pg.run_algorithm(algo, N_ITERATIONS, INITIAL_PHASE, INITIAL_PHASE_PARAMS, save_fields=SAVE_FIELDS,
-                 save_metrics=SAVE_METRICS, h5file=SAVE_FILE)
-if SAVE_FIELDS or SAVE_METRICS:
+                 save_metrics=SAVE_METRICS, save_final=SAVE_FINAL, h5file=SAVE_FILE)
+if SAVE_FIELDS or SAVE_METRICS or SAVE_FINAL:
     print(f'saved in {algo.saved_h5file}')
 print(f'fitness = {algo.fitness:.4g}, efficiency = {algo.efficiency:.4g}')
 

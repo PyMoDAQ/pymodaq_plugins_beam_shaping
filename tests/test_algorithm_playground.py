@@ -378,3 +378,31 @@ def test_saving_resumed_after_a_pause_in_the_same_group(qapp, tmp_path):
         saver.add(algo.get_fields_to_plot())
     saver.close_file()
     check_enlarged_nodes(tmp_path / 'pause.h5', 5)
+
+
+def test_all_fields_saved_once_at_the_end_in_the_group_of_the_run(qapp, tmp_path):
+    import h5py
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'final.h5'
+    pg.run_algorithm(algo, 3, save_metrics=True, save_final=True, h5file=path)
+    with h5py.File(path, 'r') as f:
+        run = f['RawData/Shaping000']
+        assert 'Final' in run
+        assert 'settings' in run.attrs  # the settings of the run are those of the group holding the final data
+        arrays = [d for d in f['RawData/Shaping000/Final/Data2D'].values()]
+        assert len(arrays) == 4  # output and modulator amplitude and phase
+        amp = [a for a in arrays if a.attrs['origin'] == 'output'][0]
+        assert any(np.allclose(ds[...], algo.output_field.amplitude) for ds in amp.values() if hasattr(ds, 'shape')
+                   and ds.ndim == 2)
+        # the metrics are still saved at each iteration, next to it
+        assert f['RawData/Shaping000/Data0D/CH00/EnlData00'].shape[0] == 3
+
+
+def test_final_saving_alone(qapp, tmp_path):
+    import h5py
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'final_only.h5'
+    pg.run_algorithm(algo, 2, save_final=True, h5file=path)
+    with h5py.File(path, 'r') as f:
+        assert 'Final' in f['RawData/Shaping000']
+        assert 'Data2D' not in f['RawData/Shaping000']  # nothing saved at each iteration

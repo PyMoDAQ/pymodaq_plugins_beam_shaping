@@ -301,7 +301,8 @@ _data_folder_saver = None  # saves the runs without a given file
 
 def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray] = 'FlatPhase',
                   ini_phase_params: Optional[dict] = None, save_fields: Union[bool, Iterable[str]] = False,
-                  save_metrics: bool = False, h5file: Union[None, str, Path] = None, verbose: bool = True):
+                  save_metrics: bool = False, h5file: Union[None, str, Path] = None, verbose: bool = True,
+                  save_final: bool = False):
     """ Run the algorithm (iterations only for the iterative ones), the results are in its fields
 
     With ``verbose`` (default), the index of the iteration and the metrics (fitness, efficiency) are printed after each
@@ -314,10 +315,14 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
     ``save_fields`` True for all the fields (output and modulator amplitude and phase, intermediate intensity) or the
     full names of some of them ('modulator/phase'...), ``save_metrics`` for the metrics. ``h5file``: the file to add
     the run to (created if needed), None for a file in the PyMoDAQ data folder as the extension, created at the first
-    saved run and holding the next ones. The path of the file is stored in ``algo.saved_h5file``."""
+    saved run and holding the next ones. The path of the file is stored in ``algo.saved_h5file``.
+
+    ``save_final`` saves all the fields and the metrics of the last iteration once, at the end of the run (as the Save
+    action of the extension), in a sub group ``Final`` of the group of the run, next to the data saved at each
+    iteration, so with the same settings. It can be used alone or with the two other options."""
     phase = initial_phase(algo, ini_phase, ini_phase_params) if algo.INI_PHASE else np.zeros(algo.shape)
     saver = None
-    if save_fields or save_metrics:
+    if save_fields or save_metrics or save_final:
         global _data_folder_saver
         if h5file is not None:
             saver = ContinuousSaver()
@@ -345,6 +350,8 @@ def run_algorithm(algo, n_iterations: int = 1, ini_phase: Union[str, np.ndarray]
                       f'efficiency = {algo.efficiency:.4g}')
             if saver is not None:
                 saver.add(algo.get_fields_to_plot())
+        if saver is not None and save_final:
+            saver.add_final(algo.get_fields_to_plot())
     finally:
         if saver is not None:
             algo.saved_h5file = saver.file_path
