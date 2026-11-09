@@ -8,6 +8,10 @@ Sizes of pixels in these settings follow the shaper (see :doc:`shapers`).
 Settings shared by the algorithms
 ---------------------------------
 
+The settings of the algorithm app (initial phase, masks, crosstalk, compensation of the input beam...) and the own
+settings of each algorithm are saved in the configuration file, **per algorithm**, and loaded back when the algorithm
+is selected (an algorithm never run keeps the values of the previous one).
+
 Most algorithms start from an *initial phase* of the modulator, which is also a choice in the settings:
 
 * **Random**: a random phase.
@@ -40,7 +44,7 @@ that removes the undiffracted light. Not iterative. Implements the five methods 
 * ``Diffractive Models``: *Relative Amplitude* (method A), *Scattering* (B), *Davis* (C), *Bolduc* (D) or *Arrizon* (E).
 * ``Order N`` (default 10).
 
-OL2014 - Amplitude/Phase Checkerboard
+OL2014 - Amplitude-Phase Checkerboard
 -------------------------------------
 
 Creates **amplitude and phase** images with a phase-only modulator in a **4f** line with a filter in the Fourier plane,
@@ -49,6 +53,8 @@ by encoding the complex field on a checkerboard (:cite:t:`mendoza-yero_encoding_
 *Settings*:
 
 * ``Mask block size (pxls)`` (default 5): size of the blocks of the checkerboard.
+* The input beam is compensated (see *Input compensation* below): the amplitude of the target is divided by the one of
+  the beam before the angles of the checkerboard are computed.
 * ``amplitude divider`` (default 1).
 
 .. _sec-algo-amplitude-modulation:
@@ -91,14 +97,7 @@ in the review but not available.
 * ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
   the grey levels of the pattern are kept (the grey off-axis hologram, an ideal modulation not feasible on a DMD, to
   see what the binarization costs).
-* ``Compensate input`` (default checked, *Parallel Lee* and *Superpixel*) and ``Min input level`` (default 0.2: the transmission needed is at most 5 times the one at the peak of the beam, a lower level leaves little to the centre): the
-  mirrors multiply the amplitude of the input beam, so the amplitude to encode is the target divided by the input
-  amplitude, scaled so that no mirror has to give more than the input (4f setups: the magnification only changes the
-  axes, the arrays keep their shape). Where the input is below the minimum level (a fraction of its maximum) the
-  mirrors are off and the target cannot be obtained: this region is outlined in red on the target, modulator and output views of
-  the extension (the same pixels in 4f, only the axes are scaled), is in the ``unreachable`` data of the algorithm and
-  its fraction of the target is ``unreachable_fraction``. Unchecked, the output is the target times the beam profile. For *Superpixel*
-  the input is averaged over each superpixel.
+* The compensation of the input beam is not a setting of the algorithm: see *Input compensation* below.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 * ``Order position``: a read-only text, updated with the periods, giving the position of the order to filter, and the
   slices of a mask around it that can be copied to the slices of the *Intermediate Masking*.
@@ -106,7 +105,8 @@ in the review but not available.
 What is sent to the modulator is the *SLM field* (``slm_field`` of the algorithm, ``slm`` data): the amplitude pattern
 (0 and 1 for a DMD, 1 for a phase-only modulator) and the phase (0 for an amplitude-only modulator), without the
 corrections that the extension adds when sending. It is not the *modulator field*, the field just after the modulator:
-this one is the input beam times the SLM field, and is the one used to compute the output.
+this one is the input beam times the SLM field, and is the one used to compute the output. The fields of the
+algorithm hold ``slm/phase`` for every type of modulator and ``slm/amplitude`` when an amplitude is sent.
 
 The two first orders of the grating carry opposite phases, and this is physical: the order at ``+ν`` carries the phase
 ``-φ`` of the target, the one at ``-ν`` (the order (-1, 0) of the review) carries ``+φ``. Select the order that carries
@@ -245,3 +245,32 @@ Minimize and TorchOptim
 
 *Minimize* only: ``Method`` of the minimizer (default l-bfgs): bfgs, l-bfgs, cg, newton-cg, newton-exact, dogleg,
 trust-ncg, trust-exact or trust-krylov.
+
+
+Input compensation
+------------------
+
+The algorithms that compute the pattern of the modulator from the target (*Parallel Lee*, *Superpixel* and the
+checkerboard *OL2014*) give, without compensation, a target multiplied by the amplitude profile of the input beam. The
+group ``Input Compensation`` of the settings of the algorithm app (shown for these algorithms only, like the initial
+phase for the algorithms that have one) chooses what is done:
+
+* ``NoCompensation``: the output is the target times the profile of the beam.
+* ``DivideByInput`` (default): the amplitude to encode is the target divided by the input amplitude, scaled so that no
+  pixel has to give more than the input. ``Min input level`` (default 0.2: the transmission needed is at most 5 times
+  the one at the peak of the beam, a lower level leaves little to the centre) is the fraction of the maximum of the
+  input amplitude below which the target cannot be obtained: this *unreachable* region is off (null transmission). For
+  *Superpixel* the input is averaged over each superpixel. 4f setups: the magnification only changes the axes, the
+  arrays keep their shape.
+
+The unreachable region is outlined in red, **as soon as the compensation is chosen** and without running the algorithm,
+on the input and target loaders and on the target views; after a run also on the modulator and output views of the
+extension. It is in the ``unreachable`` data of the algorithm and its fraction of the target is
+``unreachable_fraction``. In a script, ``set_compensation(app, 'DivideByInput', {'min_input_level': 0.3})`` of
+``headless_algorithms`` chooses the compensation and ``algo.preview_unreachable()`` gives the region.
+
+A compensation is a class of the package ``algorithms/compensations``, registered with
+``CompensationFactory.register_compensation()``, with its own ``params``, like an initial phase: another type (for
+instance for a 2f setup) is added by writing one more module. An algorithm that uses it sets ``INPUT_COMPENSATION`` to the name of its
+default compensation (``'DivideByInput'`` for the algorithms above, ``None`` for an algorithm that does not use one: the
+group is then hidden) and calls ``self.compensate_target(amplitude)``.

@@ -36,7 +36,7 @@ BeamShaping itself, then the ones provided by other installed packages (see :doc
      - Amplitude images with a phase-only modulator and a filter in the Fourier plane, several diffractive models
        (:cite:t:`Clark2016`).
    * - Direct diffractive modulation
-     - OL2014 - Amplitude/Phase Checkerboard
+     - OL2014 - Amplitude-Phase Checkerboard
      - 4f
      - ❌
      - ✅

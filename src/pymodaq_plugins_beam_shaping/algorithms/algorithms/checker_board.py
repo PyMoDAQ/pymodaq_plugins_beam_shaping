@@ -16,6 +16,7 @@ from pymodaq_utils import math_utils as mutils
 from pymodaq_data import Q_
 
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory
+from pymodaq_plugins_beam_shaping.algorithms.compensation import Compensations
 from pymodaq_plugins_beam_shaping.algorithms.utils import AlgoStatus, LensSetup, ApplyMaskTo, AlgoType
 from pymodaq_plugins_beam_shaping.algorithms import AlgoBase
 from pymodaq_plugins_beam_shaping.utils import Config as PluginConfig
@@ -39,12 +40,13 @@ class OL2014(AlgoBase):
     of the used lens
     """
 
-    ALGO_NAME = 'OL2014 - Amplitude/Phase Checkerboard'
+    ALGO_NAME = 'OL2014 - Amplitude-Phase Checkerboard'
     STATUS = AlgoStatus.TESTED
     STATUS_NOTE = 'Checked by the developer: code and real setup'
     ALGOTYPE = AlgoType.AMPLITUDE_PHASE
     SETUP_TYPE = LensSetup.FourF
     ITERATIVE = False
+    INPUT_COMPENSATION = Compensations.DivideByInput  # cos(beta) is the amplitude of the target to divide by the input beam
     RECOMPUTE_ON_CHANGE = True
 
     params = [
@@ -66,7 +68,9 @@ class OL2014(AlgoBase):
 
         calculated_field: Field = deepcopy(self._target_field)
 
-        beta = np.arccos(calculated_field.amplitude / np.max(calculated_field.amplitude) / self.settings['divider'])
+        # the modulator multiplies the input beam: the amplitude to ask to it is the target divided by the beam (max 1)
+        amplitude = self.compensate_target(calculated_field.amplitude / np.max(calculated_field.amplitude))
+        beta = np.arccos(np.clip(amplitude / np.max(amplitude) / self.settings['divider'], -1., 1.))
         theta_field = Field('theta', phase=calculated_field.phase + beta)
         alpha_field = Field('alpha', phase=calculated_field.phase - beta)
 

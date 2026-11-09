@@ -16,6 +16,7 @@ from pymodaq_gui.managers.parameter_manager import ParameterManager
 from pymodaq_plugins_beam_shaping.algorithms.utils import (AlgoType, AlgoStatus, ApplyMaskTo,
                                                            LensSetup, CrossTalk, PhaseManipulation)
 from pymodaq_plugins_beam_shaping.field import Field
+from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationBase, Compensations
 from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
 
@@ -52,6 +53,8 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
     # the modulators the algorithm can compute a mask for (a shaper modulating both accepts any algorithm)
     MODULATOR_TYPES: tuple[ModulatorType] = (ModulatorType.PHASE, )
     INI_PHASE = True  # if True, the algorithm will init an initial phase
+    INPUT_COMPENSATION: Optional[Compensations] = None  # name of the compensation of the input beam the algorithm starts
+    # with (the app lets the user change it), None if the algorithm does not use one
     ITERATIVE = False
     MANUAL_LOOP = True
     RECOMPUTE_ON_CHANGE = False  # if True, the algorithm is run again when one of its settings changes
@@ -284,6 +287,41 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
         asked = self._target_field.amplitude > 0
         return float(np.sum(self._unreachable_mask & asked) / max(np.sum(asked), 1))
 
+    @property
+    def compensation(self) -> Optional[CompensationBase]:
+        """ The compensation of the input beam chosen in the app, None if this algorithm does not use one"""
+        if self.INPUT_COMPENSATION is None:
+            return None
+        compensation = getattr(self.parent_app, 'compensation', None)
+        if compensation is None:  # not chosen in an app: the default one of the algorithm
+            from pymodaq_plugins_beam_shaping.utilities.headless_algorithms import make_compensation
+            compensation = make_compensation(self.INPUT_COMPENSATION)
+        return compensation
+
+    @property
+    def input_block(self) -> int:
+        """ Size of the blocks of modulator pixels that see the same input amplitude (a superpixel), 1 if none"""
+        return 1
+
+    def compensate_target(self, target: np.ndarray) -> np.ndarray:
+        """ The amplitude to ask to the modulator to get the target, after the compensation of the input beam, and
+        the unreachable region it gives (:attr:`unreachable_mask`). The target itself if there is no compensation"""
+        compensation = self.compensation
+        if compensation is None:
+            self._unreachable_mask = None
+            return target
+        compensated, self._unreachable_mask = compensation.compensate(target, self._input_field.amplitude,
+                                                                      self.input_block)
+        return compensated
+
+    def preview_unreachable(self) -> Optional[np.ndarray]:
+        """ The unreachable region the next run will have, knowing the input beam and the compensation only (None:
+        no region)"""
+        compensation = self.compensation
+        if compensation is None or self._input_field is None or self._input_field.amplitude is None:
+            return None
+        return compensation.unreachable(self._input_field.amplitude, self.input_block)
+
     def set_phase_in_modulator_plane(self, phase: np.ndarray, induced_amplitude: np.ndarray = None):
         if phase.shape == self._modulator_field.shape:
             phase = phase.copy()
@@ -420,6 +458,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             self.modulator_field.amplitude_as_dwa('modulator'),
             self.modulator_field.phase_as_dwa('modulator'),
         ])
+        dte.append(self.slm_field.phase_as_dwa('slm'))  # what is sent to the modulator, whatever its type
         if self.shaper.modulator_type != ModulatorType.PHASE:  # an amplitude is sent to the modulator
             dte.append(self.slm_field.amplitude_as_dwa('slm'))
         if self._unreachable_mask is not None:

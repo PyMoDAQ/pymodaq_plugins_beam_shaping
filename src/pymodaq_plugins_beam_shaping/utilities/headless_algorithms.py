@@ -17,6 +17,7 @@ import numpy as np
 from pymodaq_plugins_beam_shaping.field.factory import LoaderFactory, register_loaders
 from pymodaq_plugins_beam_shaping.algorithms.factory import AlgorithmFactory, register_algorithms
 from pymodaq_plugins_beam_shaping.algorithms.ini_phase import PhaseFactory, register_phases
+from pymodaq_plugins_beam_shaping.algorithms.compensation import CompensationFactory, Compensations, register_compensations
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo
 from pymodaq_plugins_beam_shaping.utilities import regions, sizing
 from pymodaq_plugins_beam_shaping.utilities.masking import MaskType
@@ -33,6 +34,23 @@ def ensure_qapp():
         return app
     from pymodaq_gui.qt_utils import mkQApp
     return mkQApp('AlgorithmPlayground')
+
+
+def make_compensation(name: str = Compensations.DivideByInput, params: Optional[dict] = None):
+    """ A compensation of the input beam (see :mod:`algorithms.compensations`) with its parameters set"""
+    from pyqtgraph.parametertree import Parameter
+    register_compensations()
+    compensation_class = CompensationFactory.get_compensation(name)
+    settings = Parameter.create(name=name, type='group', children=compensation_class.params)
+    compensation = compensation_class(settings)
+    set_parameters(compensation, params or {})  # names separated by '/' for the parameters in a group
+    return compensation
+
+
+def set_compensation(app, name: str = Compensations.DivideByInput, params: Optional[dict] = None):
+    """ Choose the compensation of the input beam of the app (as the settings of the AlgoApp do): ``'NoCompensation'``
+    or ``'DivideByInput'`` with the parameter ``min_input_level``"""
+    app.compensation = make_compensation(name, params)
 
 
 def set_parameters(manager, values: dict):
@@ -91,6 +109,7 @@ class HeadlessApp:
     def __init__(self, shaper: Shaper):
         self.shaper = shaper
         self.algorithm = None
+        self.compensation = None  # the compensation of the input beam, see set_compensation (None: the default one)
         self.loaded_fields = []  # (field, loader, shape before fitting) of the fields loaded with load_field
         self.field_loaders = {'input': None, 'target': None}  # the loaders of the fields given to the algorithm
         self.masks = {str(ApplyMaskTo.TARGET): None, str(ApplyMaskTo.INTERMEDIATE): None}
