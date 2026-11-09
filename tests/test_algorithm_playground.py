@@ -258,25 +258,39 @@ class TmpReload(Direct):
 
 
 
+STEP_GROUPS = ('Fields000', 'Metrics000')  # the sub groups of a run holding the data saved at each step
+
+
+def saved_step_groups(loader, group='/RawData/Shaping000'):
+    """ The sub groups of the run with the data saved at each step"""
+    return [f'{group}/{name}' for name in STEP_GROUPS if name in loader.get_node(group).node]
+
+
 def load_saved(path, group='/RawData/Shaping000'):
+    """ The data saved at each step (fields and metrics) of a run, by full name"""
     from pymodaq_data.h5modules.data_saving import DataLoader
     with DataLoader(path) as loader:
-        return {dwa.get_full_name(): dwa for dwa in loader.load_all(group)}
+        return {dwa.get_full_name(): dwa for sub in saved_step_groups(loader, group) for dwa in loader.load_all(sub)}
 
 
 def check_enlarged_nodes(path, n_steps, group='/RawData/Shaping000'):
-    """ The attributes of the enlargeable arrays and of the step axis are the actual ones (not those of one step)"""
+    """ The attributes of the enlargeable arrays and of the step axis are the actual ones (not those of one step), in
+    each sub group (each has its own navigation axis)"""
     from pymodaq_data.h5modules.data_saving import DataLoader
     with DataLoader(path) as loader:
-        nodes = [node for node in loader.walk_nodes(group) if 'CLASS' in node.attrs and node.attrs['CLASS'] == 'EARRAY']
-        assert len(nodes) > 1
-        for node in nodes:
-            assert tuple(node.attrs['shape']) == tuple(node.node.shape), node.path
-            if node.name.startswith('EnlData') or node.path.endswith('NavAxes/Axis00'):
-                assert node.attrs['shape'][0] == n_steps, node.path
-        axis = loader.get_node(f'{group}/NavAxes/Axis00')
-        assert axis.attrs['size'] == n_steps
-        assert list(axis.read()) == list(range(n_steps))
+        sub_groups = saved_step_groups(loader, group)
+        assert sub_groups
+        for sub in sub_groups:
+            nodes = [node for node in loader.walk_nodes(sub)
+                     if 'CLASS' in node.attrs and node.attrs['CLASS'] == 'EARRAY']
+            assert len(nodes) > 1
+            for node in nodes:
+                assert tuple(node.attrs['shape']) == tuple(node.node.shape), node.path
+                if node.name.startswith('EnlData') or node.path.endswith('NavAxes/Axis00'):
+                    assert node.attrs['shape'][0] == n_steps, node.path
+            axis = loader.get_node(f'{sub}/NavAxes/Axis00')
+            assert axis.attrs['size'] == n_steps
+            assert list(axis.read()) == list(range(n_steps))
 
 
 def test_iterations_and_metrics_are_printed_for_iterative_algorithms(qapp, capsys):
@@ -394,15 +408,17 @@ def test_all_fields_saved_once_at_the_end_in_the_group_of_the_run(qapp, tmp_path
     pg.run_algorithm(algo, 3, save_metrics=True, save_final=True, h5file=path)
     with h5py.File(path, 'r') as f:
         run = f['RawData/Shaping000']
-        assert 'Final' in run
+        assert set(run) >= {'Final000', 'Metrics000'}  # no per step fields were asked for
+        assert 'Fields000' not in run
         assert 'settings' in run.attrs  # the settings of the run are those of the group holding the final data
-        arrays = [d for d in f['RawData/Shaping000/Final/Data2D'].values()]
+        arrays = [d for d in f['RawData/Shaping000/Final000/Data2D'].values()]
         assert len(arrays) == 4  # output and modulator amplitude and phase
         amp = [a for a in arrays if a.attrs['origin'] == 'output'][0]
         assert any(np.allclose(ds[...], algo.output_field.amplitude) for ds in amp.values() if hasattr(ds, 'shape')
                    and ds.ndim == 2)
         # the metrics are still saved at each iteration, next to it
-        assert f['RawData/Shaping000/Data0D/CH00/EnlData00'].shape[0] == 3
+        assert f['RawData/Shaping000/Metrics000/Data0D/CH00/EnlData00'].shape[0] == 3
+        assert f['RawData/Shaping000/Metrics000/NavAxes/Axis00'].shape[0] == 3  # each sub group has its step axis
 
 
 def test_final_saving_alone(qapp, tmp_path):
@@ -411,8 +427,8 @@ def test_final_saving_alone(qapp, tmp_path):
     path = tmp_path / 'final_only.h5'
     pg.run_algorithm(algo, 2, save_final=True, h5file=path)
     with h5py.File(path, 'r') as f:
-        assert 'Final' in f['RawData/Shaping000']
-        assert 'Data2D' not in f['RawData/Shaping000']  # nothing saved at each iteration
+        assert 'Final000' in f['RawData/Shaping000']
+        assert 'Fields000' not in f['RawData/Shaping000'] and 'Metrics000' not in f['RawData/Shaping000']
 
 
 def test_masks_are_in_the_extension_frame_and_selected_the_same_region_in_the_arrays(qapp):
@@ -424,3 +440,19 @@ def test_masks_are_in_the_extension_frame_and_selected_the_same_region_in_the_ar
     shape = algo.shape
     for _slice, size in zip(slices, shape):
         assert _slice.start < size / 2 < _slice.stop  # around the center of the array, not shifted to a corner
+
+
+def test_fields_and_metrics_each_in_their_sub_group_with_their_step_axis(qapp, tmp_path):
+    import h5py
+    app, algo = prepare('Gerchberg-Saxton')
+    path = tmp_path / 'groups.h5'
+    pg.run_algorithm(algo, 3, save_fields=('modulator/phase', 'output/amplitude'), save_metrics=True, save_final=True,
+                     h5file=path)
+    with h5py.File(path, 'r') as f:
+        run = f['RawData/Shaping000']
+        assert set(run) >= {'Fields000', 'Metrics000', 'Final000'}
+        for name in ('Fields000', 'Metrics000'):
+            assert run[name]['NavAxes']['Axis00'].shape == (3,)
+        assert 'NavAxes' not in run['Final000']
+        assert run['Fields000']['Data2D']['CH00']['EnlData00'].shape[0] == 3
+        assert 'Data0D' not in run['Fields000'] and 'Data2D' not in run['Metrics000']

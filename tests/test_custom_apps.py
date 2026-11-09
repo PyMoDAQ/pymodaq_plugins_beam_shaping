@@ -87,7 +87,8 @@ def test_algo_app_continuous_saving(qtbot, dockarea, tmp_path):
 
     with DataLoader(tmp_path / 'continuous.h5') as loader:
         assert loader.get_node('/RawData/Shaping000').attrs['title'] == 'BeamShaping'
-        saved = {dwa.get_full_name(): dwa for dwa in loader.load_all('/RawData/Shaping000')}
+    from test_algorithm_playground import load_saved
+    saved = load_saved(tmp_path / 'continuous.h5')
     assert set(saved) == {'modulator/phase', 'AlgoData/metrics'}
     assert all(dwa.shape[0] == 2 for dwa in saved.values())
 
@@ -218,8 +219,8 @@ def test_algo_app_saves_what_is_sent_to_the_shaper(qtbot, dockarea, tmp_path, mo
     app.do_save_continuous(True)
     app.save_continuous(algo.get_fields_to_plot())
     app.close_file()
-    with DataLoader(tmp_path / 'sent.h5') as loader:
-        saved = {dwa.get_full_name() for dwa in loader.load_all('/RawData/Shaping000')}
+    from test_algorithm_playground import load_saved
+    saved = set(load_saved(tmp_path / 'sent.h5'))
     assert saved == expected | {'AlgoData/metrics'}
 
 
