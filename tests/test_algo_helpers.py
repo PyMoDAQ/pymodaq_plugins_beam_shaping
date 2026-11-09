@@ -156,3 +156,13 @@ def test_the_default_compensation_keeps_the_dynamic_range_of_the_pattern_modest(
     encoded = algo.encoded_amplitude()
     assert encoded.max() == pytest.approx(1.)
     assert encoded[ny // 2, nx // 2] >= 1 / 5.5
+
+
+def test_a_target_not_on_the_shape_of_the_input_is_not_compensated_and_says_so(qapp, caplog):
+    """ The target and the input share their shape by construction (the field loaders): if not, say it"""
+    app, algo = prepare('Parallel Lee', 'amplitude')
+    algo._target_field.amplitude = np.ones((algo.shape[0] // 2, algo.shape[1] // 2))
+    with caplog.at_level('WARNING'):
+        encoded = algo.encoded_amplitude()
+    assert encoded.shape == algo._target_field.amplitude.shape and algo.unreachable_mask is None
+    assert 'compensat' in caplog.text

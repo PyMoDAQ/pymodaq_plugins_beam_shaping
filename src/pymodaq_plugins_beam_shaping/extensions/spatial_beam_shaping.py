@@ -32,6 +32,7 @@ from pymodaq_plugins_beam_shaping.algorithms import AlgorithmFactory, AlgoBase
 from pymodaq_plugins_beam_shaping.utilities import sizing
 from pymodaq_plugins_beam_shaping.algorithms.utils import ApplyMaskTo, LensSetup
 from pymodaq_plugins_beam_shaping.utilities import regions
+from pymodaq_plugins_beam_shaping.utilities.region_outline import RegionOutline
 from pymodaq_plugins_beam_shaping.utilities.h5saving import add_plugin_version
 from pymodaq_plugins_beam_shaping.utilities.calibrating import BeamShapingCalibration, Calibration
 from pymodaq_plugins_beam_shaping.utilities.data import DataShaper
@@ -67,6 +68,17 @@ def is_phase_capable(modulator_type: ModulatorType) -> bool:
     return ModulatorType(modulator_type) in (ModulatorType.PHASE, ModulatorType.BOTH)
 
 
+def pop_data(dte: DataToExport, full_name: str):
+    """ Remove from dte and return the data of this full name (origin/name), None if there is none
+
+    ``DataToExport.remove`` compares data and raises a TypeError given None, which the getters return for a missing name
+    """
+    dwa = dte.get_data_from_full_name(full_name)
+    if dwa is None:
+        return None
+    return dte.remove(dwa)
+
+
 class BeamShaping(CustomExt):
     command_runner = QtCore.Signal(utils.ThreadCommand)
 
@@ -86,6 +98,8 @@ class BeamShaping(CustomExt):
         self.output_viewers: ViewerDispatcher = None
         self.intermediate_viewer: Viewer2D = None
         self.other_viewers: ViewerDispatcher = None
+        self._unreachable = None  # last mask of the unreachable region
+        self.region_outline = RegionOutline()  # of the region the target cannot be obtained in
 
         self._shaper: Shaper = None
 
@@ -567,7 +581,7 @@ class BeamShaping(CustomExt):
             field.amplitude_as_dwa(),
             field.phase_as_dwa(),
         ]))
-
+        self.region_outline.show(self.target_viewers, self._unreachable)  # the target may be plotted after the fields
 
     def value_changed(self, param):
         """ to be subclassed for actions to perform when one of the param's value in self.settings is changed
@@ -660,11 +674,9 @@ class BeamShaping(CustomExt):
             dte.remove(dte.get_data_from_full_name(full_name)) for full_name in ['output/amplitude', 'output/phase']])
         dte_modulator = DataToExport('modulator', data=[
             dte.remove(dte.get_data_from_full_name(full_name)) for full_name in ['modulator/amplitude', 'modulator/phase']])
-        try:
-            dwa_intermediate = dte.remove(dte.get_data_from_full_name('intermediate/intensity'))
+        dwa_intermediate = pop_data(dte, 'intermediate/intensity')
+        if dwa_intermediate is not None:  # None means no intermediate data to plot
             self.intermediate_viewer.show_data(dwa_intermediate)
-        except ValueError:  # means no intermediate data to plot
-            pass
 
         if not self.is_action_checked('wrap_phase'):  # phase is wrapped by default!
             dte_modulator.get_data_from_full_name('modulator/phase')[0] = \
@@ -673,10 +685,24 @@ class BeamShaping(CustomExt):
             dte_output.get_data_from_full_name('output/phase')[0] = \
             np.unwrap(dte_output.get_data_from_full_name('output/phase')[0])
 
+        # the region the target cannot be obtained in: an outline on the target, the modulator and the output, not an image
+        dwa_unreachable = pop_data(dte, 'unreachable/amplitude')
+        unreachable = dwa_unreachable[0] > 0.5 if dwa_unreachable is not None else None
         self.modulator_viewers.show_data(dte_modulator)
         self.output_viewers.show_data(dte_output)
+        BeamShaping.show_region(self, unreachable)
         self.metrics_viewer.show_data(metrics.split_as_dte('Metrics'))
         self.other_viewers.show_data(dte)
+
+    def show_region(self, unreachable):
+        """ Outline the region the target cannot be obtained in (None: no region) on the views of the planes it has a
+        meaning in: the input and the target loaders, the target, the modulator and the output views (not the
+        intermediate plane)"""
+        self._unreachable = unreachable
+        for viewers in (self.target_viewers, self.modulator_viewers, self.output_viewers):
+            self.region_outline.show(viewers, unreachable)
+        for loader in (self._target_field_loader, self._input_field_loader):
+            loader.set_region(unreachable)
 
     def show_corrections(self, show=True):
         self._corrections_dockarea.setVisible(show)
