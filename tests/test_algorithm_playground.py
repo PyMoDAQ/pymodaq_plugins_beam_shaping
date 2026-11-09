@@ -292,9 +292,10 @@ def test_no_saving_by_default(qapp):
 
 
 @pytest.mark.parametrize('fields, metrics, expected', [
-    (True, False, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase'}),
+    (True, False, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase', 'slm/phase'}),
     (False, True, {'AlgoData/metrics'}),
-    (True, True, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase', 'AlgoData/metrics'}),
+    (True, True, {'output/amplitude', 'output/phase', 'modulator/amplitude', 'modulator/phase', 'slm/phase',
+                  'AlgoData/metrics'}),
     (('modulator/phase',), True, {'modulator/phase', 'AlgoData/metrics'}),
 ])
 def test_fields_and_metrics_saved_at_each_iteration(qapp, tmp_path, fields, metrics, expected):

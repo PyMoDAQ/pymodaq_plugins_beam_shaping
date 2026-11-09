@@ -680,6 +680,7 @@ class BeamShaping(CustomExt):
             dte.remove(dte.get_data_from_full_name(full_name)) for full_name in ['output/amplitude', 'output/phase']])
         dte_modulator = DataToExport('modulator', data=[
             dte.remove(dte.get_data_from_full_name(full_name)) for full_name in ['modulator/amplitude', 'modulator/phase']])
+        pop_data(dte, 'slm/phase')  # in the data for the savings: the phase views are the modulator and output ones
         dwa_intermediate = pop_data(dte, 'intermediate/intensity')
         if dwa_intermediate is not None:  # None means no intermediate data to plot
             self.intermediate_viewer.show_data(dwa_intermediate)

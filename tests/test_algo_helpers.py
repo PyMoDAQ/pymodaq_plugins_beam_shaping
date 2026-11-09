@@ -224,3 +224,20 @@ def test_the_superpixel_preview_follows_its_blocks(qapp):
     n = algo.settings['px']
     preview = algo.preview_unreachable()
     assert np.all(preview[:n, :n] == preview[0, 0])  # one value per superpixel
+
+
+@pytest.mark.parametrize('name, modulator_type', [('Gerchberg-Saxton', 'phase'), ('Gerchberg-Saxton', 'both'),
+                                                  ('Parallel Lee', 'amplitude')])
+def test_the_phase_sent_to_the_slm_is_in_the_fields_for_every_modulator_type(qapp, name, modulator_type):
+    """ slm/phase is the phase of the SLM field (what is sent, without the corrections), next to slm/amplitude: the
+    modulator phase will not be it anymore once the input phase is kept in the modulator field"""
+    app, algo = prepare(name, modulator_type)
+    pg.run_algorithm(algo, 1, verbose=False)
+    dte = algo.get_fields_to_plot()
+    phase = dte.get_data_from_full_name('slm/phase')
+    assert phase is not None
+    assert np.array_equal(phase[0], algo.slm_field.phase)
+    if modulator_type == 'amplitude':
+        assert np.all(phase[0] == 0)  # an amplitude modulator has no phase
+    else:
+        assert np.allclose(phase[0], algo.modulator_field.phase)

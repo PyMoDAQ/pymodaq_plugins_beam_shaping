@@ -724,14 +724,14 @@ class AlgoApp(CustomApp):
 
         # the SLM field, what is sent to the modulator (not the modulator field, which contains the input beam): a
         # full field, with an amplitude of 1 for a phase-only modulator and a phase of 0 for an amplitude-only one
-        phase = dte.get_data_from_full_name('modulator/phase')[0]
+        phase = dte.get_data_from_full_name('slm/phase')[0]
         modulator_type = ModulatorType(self.shaper.modulator_type)
         amplitude = (np.ones_like(phase) if modulator_type == ModulatorType.PHASE
                      else dte.get_data_from_full_name('slm/amplitude')[0])
         self.slm_field_signal.emit(
             Field('slm',
                   amplitude=amplitude,
-                  phase=np.zeros_like(phase) if modulator_type == ModulatorType.AMPLITUDE else phase,
+                  phase=phase,
                   pixel_sizes=self._input_field.pixels_sizes))
         if self.is_action_checked(Actions.SAVE_CONTINUOUS):
             self.save_continuous(dte)

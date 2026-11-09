@@ -457,6 +457,7 @@ class AlgoBase(AlgoParameterManager, metaclass=ABCMeta):
             self.modulator_field.amplitude_as_dwa('modulator'),
             self.modulator_field.phase_as_dwa('modulator'),
         ])
+        dte.append(self.slm_field.phase_as_dwa('slm'))  # what is sent to the modulator, whatever its type
         if self.shaper.modulator_type != ModulatorType.PHASE:  # an amplitude is sent to the modulator
             dte.append(self.slm_field.amplitude_as_dwa('slm'))
         if self._unreachable_mask is not None:
