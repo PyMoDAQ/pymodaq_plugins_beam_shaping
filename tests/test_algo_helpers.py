@@ -146,7 +146,8 @@ def test_the_slm_field_holds_the_phase_without_correction_and_the_pattern(qapp):
     app, algo = prepare('Gerchberg-Saxton', 'both')
     pg.run_algorithm(algo, 1, verbose=False)
     slm = algo.slm_field
-    assert np.allclose(slm.phase, algo.modulator_field.phase)  # the phase sent, nothing added to it
+    assert np.allclose(np.exp(1j * slm.phase),  # the phase sent, nothing added to it (the modulator adds the input phase)
+                       np.exp(1j * (algo.modulator_field.phase - algo.input_phase)))
     assert np.all(slm.amplitude == 1)  # a phase algorithm does not shape the amplitude
     assert 'slm/amplitude' in [dwa.get_full_name() for dwa in algo.get_fields_to_plot()]
     app, algo = prepare('Gerchberg-Saxton', 'phase')
@@ -249,7 +250,7 @@ def test_the_phase_sent_to_the_slm_is_in_the_fields_for_every_modulator_type(qap
     if modulator_type == 'amplitude':
         assert np.all(phase[0] == 0)  # an amplitude modulator has no phase
     else:
-        assert np.allclose(phase[0], algo.modulator_field.phase)
+        assert np.allclose(np.exp(1j * phase[0]), np.exp(1j * (algo.modulator_field.phase - algo.input_phase)))
 
 
 def test_the_default_compensation_of_the_algorithm_is_used_without_the_app(qapp, monkeypatch):

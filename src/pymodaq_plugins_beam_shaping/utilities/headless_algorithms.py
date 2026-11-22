@@ -53,6 +53,12 @@ def set_compensation(app, name: str = Compensations.DivideByInput, params: Optio
     app.compensation = make_compensation(name, params)
 
 
+def set_compensate_input_phase(app, compensate: bool = True):
+    """ Compensate the input phase in the target phase (as the checkbox of the AlgoApp): only used by the
+    algorithms that control the output phase (ALGOTYPE not AMPLITUDE)"""
+    app.compensate_input_phase = bool(compensate)
+
+
 def set_parameters(manager, values: dict):
     """ Set the values of the parameters of an algorithm or a loader, without using the Parameter objects.
 
@@ -110,6 +116,7 @@ class HeadlessApp:
         self.shaper = shaper
         self.algorithm = None
         self.compensation = None  # the compensation of the input beam, see set_compensation (None: the default one)
+        self.compensate_input_phase = True  # the target phase is corrected for the input phase, see set_compensate_input_phase
         self.loaded_fields = []  # (field, loader, shape before fitting) of the fields loaded with load_field
         self.field_loaders = {'input': None, 'target': None}  # the loaders of the fields given to the algorithm
         self.masks = {str(ApplyMaskTo.TARGET): None, str(ApplyMaskTo.INTERMEDIATE): None}

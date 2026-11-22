@@ -53,7 +53,7 @@ by encoding the complex field on a checkerboard (:cite:t:`mendoza-yero_encoding_
 *Settings*:
 
 * ``Mask block size (pxls)`` (default 5): size of the blocks of the checkerboard.
-* The input beam is compensated (see *Input compensation* below): the amplitude of the target is divided by the one of
+* The input beam is compensated (see *Compensations of the input beam* below): the amplitude of the target is divided by the one of
   the beam before the angles of the checkerboard are computed.
 * ``amplitude divider`` (default 1).
 
@@ -97,7 +97,7 @@ in the review but not available.
 * ``Binarize`` (default checked): the pattern is binarized, as a DMD can only switch its pixels on or off. Unchecked,
   the grey levels of the pattern are kept (the grey off-axis hologram, an ideal modulation not feasible on a DMD, to
   see what the binarization costs).
-* The compensation of the input beam is not a setting of the algorithm: see *Input compensation* below.
+* The compensation of the input beam is not a setting of the algorithm: see *Compensations of the input beam* below.
 * ``Remove carrier`` (default checked), ``Carrier from`` and ``Carrier factor``: see below.
 * ``Order position``: a read-only text, updated with the periods, giving the position of the order to filter, and the
   slices of a mask around it that can be copied to the slices of the *Intermediate Masking*.
@@ -105,8 +105,8 @@ in the review but not available.
 What is sent to the modulator is the *SLM field* (``slm_field`` of the algorithm, ``slm`` data): the amplitude pattern
 (0 and 1 for a DMD, 1 for a phase-only modulator) and the phase (0 for an amplitude-only modulator), without the
 corrections that the extension adds when sending. It is not the *modulator field*, the field just after the modulator:
-this one is the input beam times the SLM field, and is the one used to compute the output. The fields of the
-algorithm hold ``slm/phase`` for every type of modulator and ``slm/amplitude`` when an amplitude is sent.
+this one is the input beam times the SLM field (input phase included), and is the one used to compute the output. See
+:ref:`sec-algorithm-fields`.
 
 The two first orders of the grating carry opposite phases, and this is physical: the order at ``+ν`` carries the phase
 ``-φ`` of the target, the one at ``-ν`` (the order (-1, 0) of the review) carries ``+φ``. Select the order that carries
@@ -247,13 +247,77 @@ Minimize and TorchOptim
 trust-ncg, trust-exact or trust-krylov.
 
 
-Input compensation
-------------------
+.. _sec-algorithm-fields:
+
+Fields and planes
+-----------------
+
+An algorithm works on the fields of the planes of the setup. The modulator multiplies the field of the input beam by
+what it is sent: the **modulator field** is the input field times the **SLM field**, so its amplitude is the input
+amplitude times the amplitude pattern and **its phase is the input phase plus the SLM phase**. The SLM field never
+contains the input phase. The output is always computed from the modulator field, so it shows the effect of the
+input beam, phase included, whatever the algorithm does with it.
+
+.. list-table:: **Fields of an algorithm** (full names of the data plotted and saved)
+   :header-rows: 1
+   :widths: 25 20 55
+
+   * - **Field**
+     - **Data**
+     - **Description**
+   * - Input field
+     - *Input* group of a saved run
+     - The beam arriving on the modulator (amplitude and phase), from the input loader.
+   * - Target field
+     - *Target* group of a saved run
+     - What is asked in the output plane (amplitude and phase), from the target loader, normalised to the power of the
+       input.
+   * - SLM field
+     - ``slm/phase``, ``slm/amplitude``
+     - What is sent to the modulator (``slm_field``): the phase computed by the algorithm (wrapped, quantised, with
+       crosstalk, including the initial phase) and the amplitude pattern (0 and 1 for a DMD, 1 for a phase-only
+       modulator, only plotted when an amplitude is sent). Without the input phase and without the corrections that the
+       extension adds when sending.
+   * - Modulator field
+     - ``modulator/amplitude``, ``modulator/phase``
+     - The field just after the modulator (``modulator_field``): input field times SLM field. Its phase is the input
+       phase plus the SLM phase (the input phase alone for an amplitude modulator, whose SLM phase is 0).
+   * - Intermediate field
+     - ``intermediate`` (intensity)
+     - 4f setups: the Fourier plane of the first lens, filtered by the intermediate mask (``intermediate_field``).
+   * - Output field
+     - ``output/amplitude``, ``output/phase``
+     - The field in the target plane (``output_field``), propagated from the modulator field.
+   * - Unreachable region
+     - ``unreachable``
+     - Where the amplitude compensation cannot give the target (see below), only when there is one.
+   * - Metrics
+     - ``metrics``
+     - The fitness of the output against the target and the efficiency.
+
+The algorithms see the true input field, phase included. An iterative algorithm that propagates back to the modulator
+plane (Gerchberg-Saxton, Projections) gets the phase of the modulator field and removes the input phase to get the SLM
+phase (``slm_phase_from_modulator_phase``). The initial phase is an SLM phase: before the first iteration the
+modulator field is the input field times the initial phase.
+
+.. figure:: /_images/fields_and_compensations.svg
+   :alt: fields and compensations
+
+   The planes and fields of an algorithm, and the two compensations of the input beam.
+
+
+Compensations of the input beam
+-------------------------------
+
+The group ``Input Compensation`` of the settings of the algorithm app holds two independent corrections. It is shown
+for the algorithms that can use at least one of them, and each one is shown only where it applies.
+
+Amplitude
+~~~~~~~~~
 
 The algorithms that compute the pattern of the modulator from the target (*Parallel Lee*, *Superpixel* and the
 checkerboard *OL2014*) give, without compensation, a target multiplied by the amplitude profile of the input beam. The
-group ``Input Compensation`` of the settings of the algorithm app (shown for these algorithms only, like the initial
-phase for the algorithms that have one) chooses what is done:
+``Compensation`` list chooses what is done:
 
 * ``NoCompensation``: the output is the target times the profile of the beam.
 * ``DivideByInput`` (default): the amplitude to encode is the target divided by the input amplitude, scaled so that no
@@ -271,6 +335,26 @@ extension. It is in the ``unreachable`` data of the algorithm and its fraction o
 
 A compensation is a class of the package ``algorithms/compensations``, registered with
 ``CompensationFactory.register_compensation()``, with its own ``params``, like an initial phase: another type (for
-instance for a 2f setup) is added by writing one more module. An algorithm that uses it sets ``INPUT_COMPENSATION`` to the name of its
-default compensation (``'DivideByInput'`` for the algorithms above, ``None`` for an algorithm that does not use one: the
-group is then hidden) and calls ``self.compensate_target(amplitude)``.
+instance for a 2f setup) is added by writing one more module and adding its name to the ``Compensations`` enum. An
+algorithm that uses it sets ``INPUT_COMPENSATION`` to the member of ``Compensations`` of its default compensation
+(``Compensations.DivideByInput`` for the algorithms above, ``None`` for an algorithm that does not use one) and calls
+``self.compensate_target(amplitude)``.
+
+Phase
+~~~~~
+
+``Compensate input phase`` (default checked) removes the input phase from the target phase: the phase encoded is
+``target phase - input phase`` (``target_phase()`` of the algorithm), so that the modulator field, and so the output,
+has the target phase. Unchecked, the target phase is encoded as given and the output carries the input phase on top
+of it.
+
+It is shown for the algorithms that control the output phase, those whose ``ALGOTYPE`` is not ``AMPLITUDE``
+(``can_compensate_input_phase``): *Direct*, *Binary Threshold*, *Parallel Lee*, *Superpixel* and *OL2014*. The
+algorithms that shape the intensity only (``ALGOTYPE = AMPLITUDE``: Gerchberg-Saxton, Projections, the torch based
+ones) have no target phase to correct; they still see the input phase, so that the intensity they compute is the one of
+the setup. In a script: ``set_compensate_input_phase(app, False)`` of ``headless_algorithms``.
+
+.. note::
+
+   Before this version the input phase was dropped from the modulator field: the results change for any input beam
+   whose phase is not flat. Loading an input with a flat phase gives the previous results.
